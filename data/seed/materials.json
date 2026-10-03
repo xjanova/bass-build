@@ -1,0 +1,44 @@
+{
+  "note": "Typical literature values. Real boards vary sheet to sheet; treat as starting points.",
+  "panelMaterials": [
+    { "key": "mdf", "name": "MDF", "nameTh": "MDF", "category": "engineered", "densityKgM3": 750, "eGpa": 3.5, "eCrossGpa": 3.5, "poisson": 0.25, "lossFactor": 0.03, "thicknessesMm": [9, 12, 15, 16, 18, 19, 25], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "hdf", "name": "HDF", "nameTh": "HDF", "category": "engineered", "densityKgM3": 900, "eGpa": 4.5, "eCrossGpa": 4.5, "poisson": 0.25, "lossFactor": 0.025, "thicknessesMm": [3, 6, 9, 12, 18], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "particleboard", "name": "Particleboard", "nameTh": "ปาร์ติเคิลบอร์ด", "category": "engineered", "densityKgM3": 650, "eGpa": 2.5, "eCrossGpa": 2.5, "poisson": 0.3, "lossFactor": 0.03, "thicknessesMm": [9, 12, 16, 18, 25], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "plywood", "name": "Plywood (general)", "nameTh": "ไม้อัดทั่วไป", "category": "plywood", "densityKgM3": 600, "eGpa": 7.0, "eCrossGpa": 4.0, "poisson": 0.3, "lossFactor": 0.02, "thicknessesMm": [4, 6, 10, 15, 20], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "birch_ply", "name": "Baltic birch plywood", "nameTh": "ไม้อัดเบิร์ช", "category": "plywood", "densityKgM3": 680, "eGpa": 10.0, "eCrossGpa": 6.0, "poisson": 0.3, "lossFactor": 0.015, "thicknessesMm": [12, 15, 18, 24], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "marine_ply", "name": "Marine plywood", "nameTh": "ไม้อัดกันน้ำ (marine)", "category": "plywood", "densityKgM3": 650, "eGpa": 8.0, "eCrossGpa": 5.0, "poisson": 0.3, "lossFactor": 0.02, "thicknessesMm": [12, 15, 18], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "rubberwood", "name": "Rubberwood board", "nameTh": "ไม้ยางพารา", "category": "solid_wood", "densityKgM3": 600, "eGpa": 9.0, "eCrossGpa": 0.9, "poisson": 0.35, "lossFactor": 0.012, "thicknessesMm": [15, 18, 20, 25], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "teak", "name": "Teak", "nameTh": "ไม้สัก", "category": "solid_wood", "densityKgM3": 650, "eGpa": 11.0, "eCrossGpa": 1.1, "poisson": 0.35, "lossFactor": 0.012, "thicknessesMm": [15, 20, 25], "sheetWMm": null, "sheetHMm": null },
+    { "key": "pine", "name": "Pine", "nameTh": "ไม้สน", "category": "solid_wood", "densityKgM3": 500, "eGpa": 9.0, "eCrossGpa": 0.6, "poisson": 0.35, "lossFactor": 0.012, "thicknessesMm": [18, 25], "sheetWMm": null, "sheetHMm": null },
+    { "key": "acrylic", "name": "Acrylic (PMMA)", "nameTh": "อะคริลิก", "category": "plastic", "densityKgM3": 1190, "eGpa": 3.2, "eCrossGpa": 3.2, "poisson": 0.37, "lossFactor": 0.04, "thicknessesMm": [5, 8, 10, 15, 20], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "pla", "name": "PLA 3D print (100% infill)", "nameTh": "พลาสติกพิมพ์ 3 มิติ PLA", "category": "plastic", "densityKgM3": 1240, "eGpa": 3.0, "eCrossGpa": 2.5, "poisson": 0.36, "lossFactor": 0.03, "thicknessesMm": [3, 4, 6], "sheetWMm": null, "sheetHMm": null },
+    { "key": "fiberglass", "name": "Fiberglass laminate (GRP)", "nameTh": "ไฟเบอร์กลาส", "category": "composite", "densityKgM3": 1800, "eGpa": 15.0, "eCrossGpa": 15.0, "poisson": 0.3, "lossFactor": 0.01, "thicknessesMm": [3, 5, 8], "sheetWMm": null, "sheetHMm": null },
+    { "key": "carbon", "name": "Carbon fiber laminate", "nameTh": "คาร์บอนไฟเบอร์", "category": "composite", "densityKgM3": 1550, "eGpa": 60.0, "eCrossGpa": 60.0, "poisson": 0.3, "lossFactor": 0.005, "thicknessesMm": [2, 3], "sheetWMm": null, "sheetHMm": null },
+    { "key": "aluminum", "name": "Aluminium 6061", "nameTh": "อลูมิเนียม", "category": "metal", "densityKgM3": 2700, "eGpa": 69.0, "eCrossGpa": 69.0, "poisson": 0.33, "lossFactor": 0.001, "thicknessesMm": [2, 3, 5], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "steel", "name": "Mild steel", "nameTh": "เหล็กแผ่น", "category": "metal", "densityKgM3": 7850, "eGpa": 200.0, "eCrossGpa": 200.0, "poisson": 0.29, "lossFactor": 0.001, "thicknessesMm": [1, 1.5, 2], "sheetWMm": 1220, "sheetHMm": 2440 },
+    { "key": "concrete", "name": "Concrete / mortar", "nameTh": "คอนกรีต / ปูน", "category": "mineral", "densityKgM3": 2300, "eGpa": 25.0, "eCrossGpa": 25.0, "poisson": 0.2, "lossFactor": 0.01, "thicknessesMm": [30, 40, 50], "sheetWMm": null, "sheetHMm": null }
+  ],
+  "dampingMaterials": [
+    { "key": "polyfill", "name": "Polyester fiber fill", "nameTh": "ใยโพลีเอสเตอร์ (ใยสังเคราะห์)", "kind": "fiber", "densityKgM3": 12, "flowResistivityMin": 2000, "flowResistivityMax": 8000, "fillGPerLMin": 8, "fillGPerLMax": 16, "porosity": 0.99 },
+    { "key": "wool", "name": "Long-fiber wool", "nameTh": "ใยขนแกะ", "kind": "fiber", "densityKgM3": 15, "flowResistivityMin": 4000, "flowResistivityMax": 12000, "fillGPerLMin": 8, "fillGPerLMax": 16, "porosity": 0.98 },
+    { "key": "fiberglass_24k", "name": "Glass wool 24 kg/m³", "nameTh": "ฉนวนใยแก้ว 24K", "kind": "fiber", "densityKgM3": 24, "flowResistivityMin": 9000, "flowResistivityMax": 16000, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": 0.99 },
+    { "key": "rockwool_60k", "name": "Rock wool 60 kg/m³", "nameTh": "ร็อควูล 60K", "kind": "fiber", "densityKgM3": 60, "flowResistivityMin": 18000, "flowResistivityMax": 35000, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": 0.97 },
+    { "key": "melamine", "name": "Melamine foam", "nameTh": "ฟองน้ำเมลามีน", "kind": "foam", "densityKgM3": 9, "flowResistivityMin": 8000, "flowResistivityMax": 14000, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": 0.99 },
+    { "key": "pu_foam", "name": "Open-cell PU foam", "nameTh": "ฟองน้ำ PU เซลล์เปิด", "kind": "foam", "densityKgM3": 25, "flowResistivityMin": 5000, "flowResistivityMax": 30000, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": 0.97 },
+    { "key": "felt", "name": "Felt", "nameTh": "สักหลาด", "kind": "felt", "densityKgM3": 150, "flowResistivityMin": 30000, "flowResistivityMax": 80000, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": 0.9 },
+    { "key": "butyl_cld", "name": "Butyl constrained-layer damping sheet", "nameTh": "แผ่นซับแรงสั่นบิวทิล", "kind": "cld", "densityKgM3": 1600, "flowResistivityMin": null, "flowResistivityMax": null, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": null },
+    { "key": "bitumen_cld", "name": "Bitumen damping sheet", "nameTh": "แผ่นซับแรงสั่นบิทูเมน", "kind": "cld", "densityKgM3": 1800, "flowResistivityMin": null, "flowResistivityMax": null, "fillGPerLMin": null, "fillGPerLMax": null, "porosity": null }
+  ],
+  "hardware": [
+    { "key": "pvc_2", "kind": "pvc_pipe", "name": "ท่อ PVC 2 นิ้ว", "odMm": 60, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_2_5", "kind": "pvc_pipe", "name": "ท่อ PVC 2½ นิ้ว", "odMm": 76, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_3", "kind": "pvc_pipe", "name": "ท่อ PVC 3 นิ้ว", "odMm": 89, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_4", "kind": "pvc_pipe", "name": "ท่อ PVC 4 นิ้ว", "odMm": 114, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_5", "kind": "pvc_pipe", "name": "ท่อ PVC 5 นิ้ว", "odMm": 140, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_6", "kind": "pvc_pipe", "name": "ท่อ PVC 6 นิ้ว", "odMm": 165, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "pvc_8", "kind": "pvc_pipe", "name": "ท่อ PVC 8 นิ้ว", "odMm": 216, "idMm": null, "verified": false, "notes": "OD ตาม มอก. ไส้ในขึ้นกับชั้นคุณภาพ ตรวจกับของจริงก่อนใช้" },
+    { "key": "aero_3", "kind": "port_tube", "name": "ท่อพอร์ตขอบบาน 3 นิ้ว", "odMm": null, "idMm": 76, "verified": false, "notes": "ขนาดทั่วไป ตรวจกับสินค้าจริง" },
+    { "key": "aero_4", "kind": "port_tube", "name": "ท่อพอร์ตขอบบาน 4 นิ้ว", "odMm": null, "idMm": 102, "verified": false, "notes": "ขนาดทั่วไป ตรวจกับสินค้าจริง" },
+    { "key": "terminal_cup", "kind": "terminal", "name": "ขั้วต่อลำโพงแบบถ้วย 2 ทาง", "odMm": null, "idMm": null, "verified": false, "notes": "รูเจาะประมาณ 80 × 80 มม. ตรวจกับสินค้าจริง" }
+  ]
+}

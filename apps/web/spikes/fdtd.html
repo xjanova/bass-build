@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bass Build · ต้นแบบคลื่น FDTD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./spike.css">
+</head>
+<body>
+<header><h1>ต้นแบบคลื่นเสียง · FDTD 3 มิติ</h1><span id="adapter">กำลังเริ่ม WebGPU…</span></header>
+<div id="error" hidden></div>
+<main>
+  <section>
+    <canvas id="view" width="1152" height="768" aria-label="ภาพตัดด้านข้าง แสดงคลื่นความดันรอบตู้ลำโพง"></canvas>
+    <div class="legend"><span>ขยายตัว (−)</span><i style="background:linear-gradient(90deg,#3b82f6,#05080f 50%,#a5f3fc)"></i><span>อัดตัว (+)</span></div>
+    <p class="note">ภาพตัดด้านข้างผ่านกลางตู้: ตู้เปิดมีลำโพงที่แผงหน้าและท่อสลอตด้านล่าง · ขอบนอกเป็นชั้นดูดกลืนเหมือนห้องไร้เสียงสะท้อน · กดเลือกความถี่สูงจะเห็นวงคลื่นและการเลี้ยวเบนรอบขอบตู้</p>
+  </section>
+  <aside>
+    <div class="stat"><span>ความเร็วคำนวณ</span><b id="mlups">–</b></div>
+    <div class="stat"><span>ขั้นเวลาต่อวินาที</span><b id="sps">–</b></div>
+    <div class="stat"><span>ช้ากว่าจริง</span><b id="slow">–</b></div>
+    <div class="stat"><span>ความดันที่ไมค์ 1 ม.</span><b id="mic">–</b></div>
+    <div class="stat"><span>จำนวนเซลล์</span><b id="cells">–</b></div>
+    <label>ความละเอียด
+      <select id="res">
+        <option value="s">เล็ก 144×96×96 (2 ซม.)</option>
+        <option value="m" selected>กลาง 192×128×128 (1.5 ซม.)</option>
+        <option value="l">ใหญ่ 288×192×192 (1 ซม.)</option>
+      </select>
+    </label>
+    <label>ความถี่ <output id="freqOut">250 Hz</output><input id="freq" type="range" min="20" max="800" value="250"></label>
+    <label>ความแรงภาพ <output id="gainOut">1.0×</output><input id="gain" type="range" min="0.2" max="5" step="0.1" value="1"></label>
+    <label>ตู้
+      <select id="box">
+        <option value="vented" selected>ตู้เปิด (มีท่อ)</option>
+        <option value="sealed">ตู้ปิด</option>
+      </select>
+    </label>
+    <button id="reset">เริ่มใหม่</button>
+    <p class="note">ขั้นเวลาผูกกับขนาดเซลล์ (Courant 0.5) ความถี่ที่แม่นสูงสุดราว 10 เซลล์ต่อความยาวคลื่น</p>
+  </aside>
+</main>
+<script type="module" src="./fdtd.ts"></script>
+</body>
+</html>

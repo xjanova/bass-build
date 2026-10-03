@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bass Build · ต้นแบบควัน LBM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./spike.css">
+</head>
+<body>
+<header><h1>ต้นแบบควัน · Lattice Boltzmann D3Q19</h1><span id="adapter">กำลังเริ่ม WebGPU…</span></header>
+<div id="error" hidden></div>
+<main>
+  <section>
+    <canvas id="view" width="1024" height="384" aria-label="ภาพตัดกลางตู้ แสดงควันและการไหลของอากาศที่ปากท่อ"></canvas>
+    <p class="note">ภาพตัดตามแนวกลางตู้: ซ้ายคือห้องอากาศในตู้มีลูกสูบดันลม · ผนังมีท่อสลอต · ขวาคืออากาศนอกตู้ ควันปล่อยที่ปากท่อ เห็น jet และวงแหวนวอร์เท็กซ์จริงจากสมการของไหล (ความละเอียดจำกัด จึงถูกต้องเชิงปรากฏการณ์)</p>
+  </section>
+  <aside>
+    <div class="stat"><span>ความเร็วคำนวณ</span><b id="mlups">–</b></div>
+    <div class="stat"><span>ขั้นเวลาต่อวินาที</span><b id="sps">–</b></div>
+    <div class="stat"><span>ช้ากว่าจริง</span><b id="slow">–</b></div>
+    <div class="stat"><span>ลมที่ปากท่อ</span><b id="port">–</b></div>
+    <div class="stat"><span>จำนวนเซลล์</span><b id="cells">–</b></div>
+    <label>ความละเอียด
+      <select id="res">
+        <option value="s">เล็ก 128×48×32</option>
+        <option value="m" selected>กลาง 256×96×64</option>
+        <option value="l">ใหญ่ 320×120×96</option>
+      </select>
+    </label>
+    <label>ความถี่ลูกสูบ <output id="freqOut">70 Hz</output><input id="freq" type="range" min="20" max="200" value="70"></label>
+    <label>ความเร็วลูกสูบ <output id="ampOut">1.50 m/s</output><input id="amp" type="range" min="0.1" max="4" step="0.05" value="1.5"></label>
+    <label>ภาพ
+      <select id="mode">
+        <option value="0" selected>ควัน</option>
+        <option value="1">ความเร็วลม</option>
+        <option value="2">ความดัน</option>
+        <option value="3">วอร์ทิซิตี (การหมุนวน)</option>
+      </select>
+    </label>
+    <button id="reset">เริ่มใหม่</button>
+    <p class="note">1 เซลล์ = 5 มม. · ขั้นเวลา ≈ 8.4 µs เพราะผูกกับความเร็วเสียง ภาพจึงเป็นสโลว์โมชันเสมอ</p>
+  </aside>
+</main>
+<script type="module" src="./lbm.ts"></script>
+</body>
+</html>

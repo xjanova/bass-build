@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+
+# local data (the seed JSON is tracked, the database is not)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/assets/
+
+.env
+.env.*

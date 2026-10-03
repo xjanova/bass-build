@@ -1,0 +1,15 @@
+{
+  "name": "bass-build",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @bassbuild/web",
+    "build": "npm run build -w @bassbuild/web",
+    "test": "npm run test -w @bassbuild/physics",
+    "typecheck": "npm run typecheck -w @bassbuild/physics && npm run typecheck -w @bassbuild/web"
+  }
+}
