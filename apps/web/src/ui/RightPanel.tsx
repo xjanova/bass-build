@@ -21,6 +21,15 @@ function Slider({ id, label, value, range, step = 1, fmt, onChange }: {
   );
 }
 
+/** The driver list grouped by kind (datasheet drivers first, made-up samples last). */
+export function DriverOptions({ drivers }: { drivers: DriverDto[] }) {
+  return <>{GROUPS.map(([cat, label]) => {
+    const items = drivers.filter((x) => (cat === 'sample' ? x.sourceKind === 'sample' : x.sourceKind !== 'sample' && (cat === 'other' ? !GROUPS.some(([c]) => c === x.category) : x.category === cat)))
+      .sort((a, b) => a.brand.localeCompare(b.brand) || (a.sizeIn ?? 0) - (b.sizeIn ?? 0) || a.model.localeCompare(b.model));
+    return items.length ? <optgroup key={cat} label={label}>{items.map((x) => <option key={x.id} value={x.id}>{x.brand} {x.model} · {x.sizeIn ?? '?'}"</option>)}</optgroup> : null;
+  })}</>;
+}
+
 const WARN_COLOR = { bad: '#f0abfc', warn: '#fcd34d', info: '#67e8f9' } as const;
 
 const closest = (options: number[], v: number) => options.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), options[0] ?? v);
@@ -76,11 +85,7 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
             <button type="button" className="linkbtn" onClick={() => setMode('library')}>{dto?.sourceKind === 'sample' ? 'ลำโพงตัวอย่าง · ' : ''}เปิดคลัง ({drivers.length})</button>
           </div>
           <select id="drv" value={driverId ?? ''} onChange={(e) => selectDriver(Number(e.target.value))}>
-            {GROUPS.map(([cat, label]) => {
-              const items = drivers.filter((x) => (cat === 'sample' ? x.sourceKind === 'sample' : x.sourceKind !== 'sample' && (cat === 'other' ? !GROUPS.some(([c]) => c === x.category) : x.category === cat)))
-                .sort((a, b) => a.brand.localeCompare(b.brand) || (a.sizeIn ?? 0) - (b.sizeIn ?? 0) || a.model.localeCompare(b.model));
-              return items.length ? <optgroup key={cat} label={label}>{items.map((x) => <option key={x.id} value={x.id}>{x.brand} {x.model} · {x.sizeIn ?? '?'}"</option>)}</optgroup> : null;
-            })}
+            <DriverOptions drivers={drivers} />
           </select>
         </div>
         {dto && (
@@ -110,6 +115,7 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
             <Icon name="box" size={15} width={2} />จัดตู้แนะนำสำหรับลำโพงนี้
           </button>
         )}
+        <button type="button" className="linkbtn wizlink" onClick={() => setMode('wizard')}>ไม่แน่ใจว่าตู้แบบไหนดี? ให้ช่วยเทียบตามเป้าหมาย</button>
 
         <div className="fields">
           <Slider id="vb" label={d.boxType.startsWith('bp') ? 'ห้องหลัง Vr' : 'ปริมาตรสุทธิ Vb'} value={d.vbL} range={RANGES.vbL} fmt={L} onChange={(v) => p({ vbL: v })} />

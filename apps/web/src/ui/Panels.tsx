@@ -17,6 +17,7 @@ export function TopBar({ modelCode }: { modelCode: string }) {
       <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span></div>
       <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span></div>
       <nav className="tabs" aria-label="โหมดหลัก">
+        <button className="tab" aria-pressed={mode === 'wizard'} onClick={() => setMode('wizard')}>ออกแบบด่วน</button>
         <button className="tab" aria-pressed={mode === 'design'} onClick={() => setMode('design')}>ออกแบบ</button>
         <button className="tab" aria-pressed={mode === 'lab'} onClick={() => setMode('lab')}>แล็บทดสอบ</button>
         <button className="tab soon" title="มาในเฟส 5 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('ai')}>AI สุ่มตู้</button>

@@ -7,7 +7,7 @@ import type { Finish } from '../viewport/finishes';
 export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
 export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd';
-export type Mode = 'design' | 'lab' | 'library';
+export type Mode = 'design' | 'lab' | 'library' | 'wizard';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
 export interface Design {

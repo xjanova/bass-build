@@ -46,6 +46,18 @@ export interface AlignmentRequest {
   /** Net volume limits of the main (rear) chamber, m³ — e.g. the UI range, or what the driver needs to fit. */
   minVolume?: number;
   maxVolume?: number;
+  /** Target Qtc of a sealed/isobaric box, or Qbc of a 4th-order band-pass rear chamber (default 0.707). */
+  qtc?: number;
+  /**
+   * Net volume of the main (rear) chamber, m³, in place of the recipe's. A sealed box takes the
+   * Qtc that volume gives; a vented or PR box is retuned for the flattest deep response unless
+   * `tuning` is also set.
+   */
+  volume?: number;
+  /** Tuning, Hz, in place of the recipe's (vented, PR, band-pass rear chamber). */
+  tuning?: number;
+  /** Geddes S of a 4th-order band-pass (default 0.7): higher is louder over a narrower band. */
+  bandpassS?: number;
   air?: Air;
 }
 
@@ -58,6 +70,8 @@ export interface Alignment {
   name: string;
   /** Target Qtc for the sealed recipes. */
   qtc?: number;
+  /** Box tuning of the ported recipes, Hz (rear chamber of a band-pass). */
+  tuning?: number;
   flags: AlignmentFlag[];
 }
 
@@ -122,11 +136,17 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
    */
   const ventedBox = (): { vb: number; fb: number } => {
     const k = keele();
+    if (req.volume) {
+      // The tuning belongs to the requested box; a box raised from it keeps that tuning.
+      const c = clampVolume(req.volume);
+      const fb = c.moved === 'capped' ? req.tuning ?? bestTuning(c.net) : req.tuning ?? bestTuning(req.volume);
+      return { vb: c.net, fb };
+    }
     const runaway = d.qts > 0.5 && k.vb > 1.5 * vas;
     const c = clampVolume((runaway ? 1.5 * vas : k.vb) / gain);
     // A smaller box than the recipe needs a new tuning; a bigger one (grown to hold the hardware
     // or a wider port) keeps the recipe's Fb, so growing it does not move the port around.
-    return { vb: c.net, fb: c.moved === 'capped' || runaway ? bestTuning(c.net) : k.fb };
+    return { vb: c.net, fb: req.tuning ?? (c.moved === 'capped' || runaway ? bestTuning(c.net) : k.fb) };
   };
 
   /**
@@ -160,10 +180,12 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
   switch (req.type) {
     case 'sealed':
     case 'isobaric': {
-      let qtc = 0.707;
-      if (d.qts >= 0.62) { qtc = d.qts * 1.15; flags.push('qts-high-for-sealed'); }
+      let qtc = req.qtc ?? 0.707;
+      // A Qtc at or below Qts needs an infinite box.
+      if (!req.volume && d.qts >= (req.qtc ? req.qtc / 1.15 : 0.62)) { qtc = d.qts * 1.15; flags.push('qts-high-for-sealed'); }
       if (d.fs / d.qes > 100 || d.qts < 0.3) flags.push('qts-low-for-sealed');
-      const vb = clampVolume(sealedVolume(qtc) / gain).net;
+      const vb = clampVolume(req.volume ?? sealedVolume(qtc) / gain).net;
+      if (req.volume) qtc = d.qts * Math.sqrt(1 + vas / (vb * gain));
       const box: BoxDesign = req.type === 'sealed'
         ? { type: 'sealed', vb, ...fill }
         : { type: 'isobaric', vb };
@@ -172,7 +194,7 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
     case 'vented': {
       const { vb, fb } = ventedBox();
       const box = sizePorts((area) => ({ type: 'vented', vb, fb, port: { area }, ...fill }));
-      return { box, recipe: 'qb3', name: 'QB3 (Keele)', flags };
+      return { box, recipe: 'qb3', name: 'QB3 (Keele)', tuning: fb, flags };
     }
     case 'pr': {
       const { vb, fb } = ventedBox();
@@ -185,27 +207,28 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
       const cmp = req.prCompliance ?? 1 / (0.25 * kBox);
       const mmp = (kBox + 1 / cmp) / (TAU * fb) ** 2;
       const box: BoxDesign = { type: 'pr', vb, pr: { sd, mmp, cmp, count }, ...fill };
-      return { box, recipe: 'qb3-pr', name: 'QB3 (Keele) + 2 PR', flags };
+      return { box, recipe: 'qb3-pr', name: 'QB3 (Keele) + 2 PR', tuning: fb, flags };
     }
     case 'bp4': {
-      const qbc = Math.max(0.707, d.qts * 1.15);
+      const qbc = Math.max(req.qtc ?? 0.707, d.qts * 1.15);
+      const s = req.bandpassS ?? 0.7;
       const vr = clampVolume(sealedVolume(qbc)).net;
-      const vf = (2 * 0.7 * d.qts) ** 2 * vas;
-      const fb = (qbc / d.qts) * d.fs;
+      const vf = (2 * s * d.qts) ** 2 * vas;
+      const fb = req.tuning ?? (qbc / d.qts) * d.fs;
       const box = sizePorts((area) => ({ type: 'bp4', vr, vf, fb, port: { area } }));
-      return { box, recipe: 'geddes-bp4', name: 'Geddes S 0.7', flags };
+      return { box, recipe: 'geddes-bp4', name: `Geddes S ${s.toFixed(1)}`, qtc: qbc, tuning: fb, flags };
     }
     case 'bp6': {
       const k = keele();
-      const fb = k.fb;
-      const vr = clampVolume(k.vb).net;
+      const fb = req.tuning ?? k.fb;
+      const vr = clampVolume(req.volume ?? k.vb).net;
       const vb = vr;
       const vf = 0.5 * vb;
       const fbf = 2 * fb;
       const box = sizePorts((area) => ({
         type: 'bp6', vr, fbr: fb, portR: { area }, vf, fbf, portF: { area }
       }));
-      return { box, recipe: 'qb3-bp6', name: 'QB3 rear + front an octave up', flags };
+      return { box, recipe: 'qb3-bp6', name: 'QB3 rear + front an octave up', tuning: fb, flags };
     }
   }
 }

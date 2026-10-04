@@ -280,4 +280,27 @@ describe('suggested alignments', () => {
     expect(run('sealed', floppy).a.flags).toContain('qts-high-for-sealed');
     expect(run('vented', floppy).a.flags).toContain('qts-high-for-vented');
   });
+
+  it('builds variants: any Qtc, a given volume (retuned flat) and a given tuning', () => {
+    const at = (qtc: number) => suggestAlignment({ driver: ideal, type: 'sealed', watts: 100, qtc });
+    const q05 = at(0.5);
+    near(simulate({ driver: ideal, box: q05.box, drive }, { points: 60 }).info.qtc!, 0.5, 0.005);
+    // Asking for a Qtc the driver cannot reach falls back to the high-Qts recipe and says so.
+    expect(at(ideal.qts * 0.9).flags).toContain('qts-high-for-sealed');
+    const given = suggestAlignment({ driver: ideal, type: 'sealed', watts: 100, volume: 0.05 });
+    near(given.qtc!, simulate({ driver: ideal, box: given.box, drive }, { points: 60 }).info.qtc!, 0.005);
+
+    const qb3 = suggestAlignment({ driver: ideal, type: 'vented', watts: 100 });
+    const bigger = suggestAlignment({ driver: ideal, type: 'vented', watts: 100, volume: (qb3.box as { vb: number }).vb * 1.6 });
+    const r = simulate({ driver: ideal, box: bigger.box, drive }, { points: 200 });
+    expect(r.metrics.splMax - r.metrics.referenceSpl).toBeLessThanOrEqual(1.05);
+    expect(bigger.tuning!).toBeLessThan(qb3.tuning!); // a bigger box tunes lower
+    const tuned = suggestAlignment({ driver: ideal, type: 'vented', watts: 100, tuning: 45 });
+    expect(tuned.tuning).toBe(45);
+    expect((tuned.box as { fb: number }).fb).toBe(45);
+    const loud = suggestAlignment({ driver: ideal, type: 'bp4', watts: 100, bandpassS: 1 });
+    const flat = suggestAlignment({ driver: ideal, type: 'bp4', watts: 100 });
+    expect((loud.box as { vf: number }).vf).toBeGreaterThan((flat.box as { vf: number }).vf);
+    expect(loud.name).toBe('Geddes S 1.0');
+  });
 });

@@ -121,6 +121,58 @@ button.danger-ghost { color: #f0abfc !important; }
 .det-source a { color: var(--cyan-soft); }
 .det-source p { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.6; }
 
+/* Quick design by goal (shares the library's frame and buttons) */
+.wiz-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 340px) 1fr; }
+.wiz-side { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-right: 1px solid var(--line); overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+.wiz-side select, .wiz-check input[type='text'] { height: 34px; border-radius: 9px; border: 1px solid var(--line-2); background: #0f172a; padding: 0 9px; color: var(--text); min-width: 0; }
+.wiz-step { display: flex; align-items: center; gap: 8px; margin-top: 6px; font: 600 12px var(--display); letter-spacing: 0.08em; color: var(--muted); }
+.wiz-step b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(34, 211, 238, 0.16); color: var(--cyan-soft); font-size: 11px; }
+.wiz-params { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.wiz-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #cbd5e1; }
+.wiz-inline span { flex: 1; }
+.wiz-inline select { flex: 1; }
+.wiz-goals { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.library .wiz-goals button { height: auto; min-height: 64px; padding: 8px 10px; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 3px; text-align: left; background: rgba(15, 23, 42, 0.55); }
+.wiz-goals b { font-size: 13.5px; color: var(--text-strong); font-weight: 600; }
+.wiz-goals span { font-size: 11px; line-height: 1.4; color: var(--muted); }
+.library .wiz-goals button[aria-checked='true'] { border-color: rgba(163, 230, 53, 0.65); background: rgba(163, 230, 53, 0.12); }
+.wiz-goals button[aria-checked='true'] b { color: #d9f99d; }
+.wiz-check { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #cbd5e1; }
+.wiz-check input[type='text'] { width: 72px; height: 30px; font-family: var(--mono); }
+.wiz-check input[aria-invalid='true'] { border-color: #f0abfc; }
+.wiz-err { font-size: 12px; color: #f0abfc; }
+.wiz-how { margin: 6px 0 0; padding: 8px 10px; border-radius: 9px; background: rgba(15, 23, 42, 0.6); font-size: 11.5px; line-height: 1.55; color: #cbd5e1; }
+.wiz-how b { color: var(--cyan-soft); font-weight: 500; }
+.wiz-main { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.wiz-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; color: var(--muted); text-align: center; font-size: 13.5px; line-height: 1.7; }
+.wiz-empty p { max-width: 520px; margin: 0; }
+.wiz-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wiz-count { font-size: 12px; }
+.wiz-progress { position: relative; min-width: 200px; padding: 5px 10px 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.7); font-size: 12px; color: var(--cyan-soft); overflow: hidden; }
+.wiz-progress i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--cyan); transition: width 0.2s; }
+.wiz-results { display: flex; flex-direction: column; gap: 10px; transition: opacity 0.2s; }
+.wiz-results.stale { opacity: 0.45; pointer-events: none; }
+.wiz-results .chart.big { flex: none; height: 250px; }
+.wiz-split { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 12px; align-items: start; }
+.wiz-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.library .wiz-list button { width: 100%; height: auto; padding: 8px 10px; align-items: flex-start; gap: 10px; text-align: left; background: rgba(15, 23, 42, 0.55); border-color: transparent; }
+.library .wiz-list button[aria-pressed='true'] { border-color: rgba(34, 211, 238, 0.55); background: rgba(34, 211, 238, 0.1); }
+.library .wiz-list button.more { justify-content: center; color: var(--muted); }
+.wiz-list .rank { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #04121a; font: 700 12px var(--mono); }
+.wiz-list .body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wiz-list .name { font-size: 13.5px; color: var(--text-strong); }
+.wiz-list .name em { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 4px; }
+.wiz-list .meta { font: 11.5px var(--mono); color: var(--muted); }
+.wiz-list .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tag.good { border-color: rgba(163, 230, 53, 0.5); color: #d9f99d; }
+.wiz-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(8, 12, 18, 0.6); }
+.wiz-detail h3 { margin: 0; font: 700 21px var(--display); color: var(--text-strong); }
+.wiz-detail .muted { font-size: 12px; }
+.wiz-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; color: #fde68a; }
+.wiz-foot { margin: 0; font-size: 11.5px; line-height: 1.6; }
+.wizlink { align-self: flex-start; margin-top: -2px; }
+@media (max-width: 1200px) { .wiz-split { grid-template-columns: 1fr; } }
+
 .editor, .importer, .confirm { width: min(820px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; background: rgba(8, 12, 18, 0.97); }
 .confirm { width: min(440px, 100%); }
 .editor h3, .importer h3, .confirm h3 { margin: 0; font: 700 20px var(--display); color: var(--text-strong); }
@@ -344,6 +396,10 @@ select { height: 34px; border-radius: 8px; border: 1px solid var(--line-2); back
   .lib-head { flex-direction: column; align-items: flex-start; }
   .lib-body { grid-template-columns: 1fr; }
   .lib-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 60dvh; }
+  .wiz-body { grid-template-columns: 1fr; }
+  .wiz-side { border-right: 0; border-bottom: 1px solid var(--line); overflow: visible; }
+  .wiz-main { overflow: visible; padding: 12px; }
+  .wiz-results .chart.big { height: 220px; }
   .ed-field.wide { grid-column: 1 / -1; }
   .offline { position: fixed; top: 60px; }
 }

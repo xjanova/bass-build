@@ -1,6 +1,6 @@
 import {
   checkConsistency, completeDriver, driverInputFromDto, DriverError, simulate, solveAt, suggestAlignment,
-  type AlignmentFlag, type AlignmentRecipe, type BoxDesign, type Driver, type FillSpec, type SimResult, type Solution, type SystemSpec
+  type AlignmentFlag, type AlignmentRecipe, type AlignmentRequest, type BoxDesign, type Driver, type FillSpec, type SimResult, type Solution, type SystemSpec
 } from '@bassbuild/physics';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
@@ -365,8 +365,13 @@ export const RANGES = {
   prSdCm2: [30, 2000], prMassG: [5, 2000], watts: [1, 5000]
 } as const satisfies Partial<Record<keyof Design, readonly [number, number]>>;
 
+/** Off-recipe requests the goal wizard makes: another Qtc, box size, tuning or band-pass S, or less room. */
+export type SuggestVariant = Pick<AlignmentRequest, 'qtc' | 'volume' | 'tuning' | 'bandpassS' | 'maxVolume'>;
+
 /** A textbook starting box for the selected driver and box type, as a patch of UI values. */
-export function suggestDesign(d: Design, driver: Driver, dto: DriverDto | undefined, damping: DampingMaterialDto[]): { patch: Partial<Design>; name: string; flags: SuggestFlag[] } {
+export function suggestDesign(
+  d: Design, driver: Driver, dto: DriverDto | undefined, damping: DampingMaterialDto[], variant: SuggestVariant = {}
+): { patch: Partial<Design>; name: string; flags: SuggestFlag[] } {
   const n = d.boxType === 'isobaric' ? 2 : d.count;
   const flags: SuggestFlag[] = [];
   // Volumes round up: a box rounded down could no longer hold what it was grown to hold.
@@ -379,7 +384,8 @@ export function suggestDesign(d: Design, driver: Driver, dto: DriverDto | undefi
   };
   const watts = dto?.peW ? fit('watts', dto.peW * n, 1) : d.watts;
   const withFill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr';
-  const base: Omit<Parameters<typeof suggestAlignment>[0], 'type'> = { driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined, fill: withFill ? fillFor(d, damping) : undefined };
+  const { maxVolume, ...recipe } = variant;
+  const base: Omit<Parameters<typeof suggestAlignment>[0], 'type'> = { driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined, fill: withFill ? fillFor(d, damping) : undefined, ...recipe };
   /** UI values for a suggested box; `fit` rounds and clamps to the slider ranges. */
   const patchFor = (b: BoxDesign, fit: (key: keyof typeof RANGES, v: number, step: number) => number): Partial<Design> => {
     switch (b.type) {
@@ -409,9 +415,11 @@ export function suggestDesign(d: Design, driver: Driver, dto: DriverDto | undefi
 
   // 1) size the box within the slider range; 2) limit the ports to what that box can hold;
   // 3) when the box cannot hold the driver, magnet and ports, grow it until it can.
-  const limits = { maxVolume: RANGES.vbL[1] / 1000 };
+  const limits = { maxVolume: Math.min(RANGES.vbL[1] / 1000, maxVolume ?? Infinity) };
   const first = suggestAlignment({ ...base, ...limits, type: d.boxType });
   const fb = first.box;
+  // Later rounds grow the box from the requested one; pin its tuning so they do not rescan it.
+  if (recipe.volume && first.tuning) base.tuning = first.tuning;
   // Ported boxes get a subsonic filter at about 0.8 × Fb (below tuning the box stops loading the
   // cone); size the ports with that filter in place, or port speed and excursion are judged
   // against a filter the design will not have.
