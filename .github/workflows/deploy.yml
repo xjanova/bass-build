@@ -1,0 +1,83 @@
+# Tests every push to main, builds the static website and publishes it to
+# bassbuild.xman4289.com. The SSH key in DEPLOY_SSH_KEY is pinned on the server to
+# `rrsync -wo <site>/public_html`: it can only write files into that one folder.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Physics tests
+        run: npm test
+
+      - name: Server tests
+        run: dotnet test server/BassBuild.sln
+
+      - name: Build website
+        run: npm run build
+        env:
+          VITE_STATIC: '1'
+
+      - name: Upload to server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # --delay-updates swaps every changed file in at the end, so visitors never get a
+          # new index.html that points at assets which have not arrived yet.
+          # cgi-bin and .well-known belong to DirectAdmin and the certificate renewals.
+          rsync -rltz --chmod=D755,F644 --delete-after --delay-updates \
+            --exclude=/cgi-bin --exclude=/.well-known \
+            -e "ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            apps/web/dist/ "$DEPLOY_USER@$DEPLOY_HOST:"
+          rm -f ~/.ssh/deploy_key
+
+      - name: Check the live site
+        run: |
+          want=$(grep -o 'assets/main-[^"]*\.js' apps/web/dist/index.html | head -1)
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o page.html -w '%{http_code}' https://bassbuild.xman4289.com/ || true)
+            if [ "$code" = 200 ] && grep -qF "$want" page.html; then echo "live: $want"; exit 0; fi
+            sleep 5
+          done
+          if [ "$code" = 403 ] || [ "$code" = 503 ]; then
+            echo "::warning::Cloudflare answered $code to the runner, so the live page could not be checked"
+            exit 0
+          fi
+          echo "::error::the live site does not serve $want (HTTP $code)"
+          exit 1

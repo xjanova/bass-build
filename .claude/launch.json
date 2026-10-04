@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev", "-w", "@bassbuild/web"],
       "port": 5173,
       "url": "http://127.0.0.1:5173"
+    },
+    {
+      "name": "web-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "-w", "@bassbuild/web", "--", "--port", "4180", "--strictPort"],
+      "port": 4180,
+      "url": "http://127.0.0.1:4180"
     }
   ]
 }
