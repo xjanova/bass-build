@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import type { ResolvedShape } from '../sim/driverShape';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
 import type { Looks } from './finishes';
@@ -11,6 +12,8 @@ export interface DriverParts {
   surround: THREE.Mesh;
   frame: THREE.Mesh;
   magnet: THREE.Mesh;
+  /** Basket and magnet, behind the mounting plane. */
+  rear: THREE.Group;
 }
 
 export interface Enclosure {
@@ -32,51 +35,130 @@ export interface Enclosure {
 
 const portMat = () => new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.95 });
 
-/** One loudspeaker (or passive radiator) facing +z, outer radius R, centred at the origin. */
-function buildDriver(R: number, depth: number, passive: boolean): DriverParts {
+/** A driver's measured shape plus the user's photos, already cut to textures (see data/photos.ts). */
+export interface DriverLook {
+  shape: ResolvedShape;
+  front?: HTMLCanvasElement | null;
+  rear?: HTMLCanvasElement | null;
+  side?: HTMLCanvasElement | null;
+}
+
+/** Proportions for a part known only by its outer radius (passive radiators, unknown drivers). */
+function genericShape(R: number, depth: number): ResolvedShape {
+  const coneR = 0.8 * R, surroundW = 0.13 * R;
+  return {
+    outerR: R, cutoutR: 0.9 * R, coneR, surroundW, dustcapR: 0.36 * coneR, coneDepth: Math.min(0.32 * coneR, depth * 0.6),
+    flange: 0.006 + 0.02 * R, magnetR: 0.5 * R, magnetH: 0.3 * depth, depth, boltHoles: R < 0.1 ? 4 : 8, boltR: 0.95 * R, estimated: []
+  };
+}
+
+/** Texture coordinates by straight projection along z: the photo's circle lands on the frame's rim. */
+function planarUV(geo: THREE.BufferGeometry, r: number, mirror = false): THREE.BufferGeometry {
+  const p = geo.getAttribute('position');
+  const uv = new Float32Array(p.count * 2);
+  for (let i = 0; i < p.count; i++) {
+    uv[2 * i] = 0.5 + (mirror ? -p.getX(i) : p.getX(i)) / (2 * r);
+    uv[2 * i + 1] = 0.5 + p.getY(i) / (2 * r);
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return geo;
+}
+
+function canvasTexture(c: HTMLCanvasElement): THREE.Texture {
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/**
+ * One loudspeaker (or passive radiator) facing +z, built from its measured shape: the flange sits
+ * on the baffle at z = 0, the magnet's back is at z = −depth. With a front photo, every part seen
+ * from the front wears it (projected straight on, so the photo looks like the real driver); the
+ * rear photo goes on the back of the magnet and the side photo around it.
+ */
+function buildDriver(s: ResolvedShape, passive: boolean, look?: DriverLook): DriverParts {
+  const R = s.outerR;
   const root = new THREE.Group();
   const moving = new THREE.Group();
+  const rear = new THREE.Group();
+  const front = look?.front ? canvasTexture(look.front) : null;
   const metal = new THREE.MeshStandardMaterial({ color: 0x1b1f26, roughness: 0.35, metalness: 0.7 });
-  const frame = new THREE.Mesh(new THREE.RingGeometry(0.88 * R, R, 72), metal);
-  frame.position.z = 0.004;
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.995 * R, 0.004, 8, 96), new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: 0.3, metalness: 0.9 }));
-  rim.position.z = 0.006;
-  const surround = new THREE.Mesh(new THREE.TorusGeometry(0.81 * R, 0.075 * R, 18, 96), new THREE.MeshPhysicalMaterial({ color: 0x15171c, roughness: 0.35, clearcoat: 0.4 }));
-  surround.scale.z = 0.6;
-  surround.position.z = 0.002;
-  const profile = [new THREE.Vector2(0.74 * R, 0), new THREE.Vector2(0.6 * R, -0.13 * R), new THREE.Vector2(0.45 * R, -0.25 * R), new THREE.Vector2(0.3 * R, -0.34 * R)];
-  const coneGeo = new THREE.LatheGeometry(profile, 72);
-  coneGeo.rotateX(Math.PI / 2);
-  const cone = new THREE.Mesh(coneGeo, new THREE.MeshStandardMaterial({ color: passive ? 0x2a2f38 : 0x1c2028, roughness: 0.85, side: THREE.DoubleSide }));
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.31 * R, 40, 16, 0, Math.PI * 2, 0, Math.PI * 0.32), new THREE.MeshPhysicalMaterial({ color: 0x2a3039, roughness: 0.3, clearcoat: 0.8 }));
-  cap.rotation.x = Math.PI / 2;
-  cap.position.z = -0.34 * R - 0.13 * R;
-  cap.scale.set(1, 1, 1);
+  const bright = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: 0.3, metalness: 0.9 });
+  const photo = (roughness: number) => new THREE.MeshStandardMaterial({ map: front, roughness, metalness: 0.05, side: THREE.DoubleSide });
+
+  // Frame face from the surround's outer edge to the rim, on top of the flange, and the flange edge.
+  const inner = s.coneR + s.surroundW / 2;
+  const frame = new THREE.Mesh(planarUV(new THREE.RingGeometry(inner, R, 96, 1).translate(0, 0, s.flange), R), front ? photo(0.45) : metal);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(R, R, s.flange, 96, 1, true).rotateX(Math.PI / 2).translate(0, 0, s.flange / 2), bright);
+  // Surround: a half roll bulging forward, its top a little above the flange.
+  const top = s.flange * 0.6;
+  const surround = new THREE.Mesh(
+    planarUV(new THREE.TorusGeometry(s.coneR, s.surroundW / 2, 18, 96).scale(1, 1, 0.6).translate(0, 0, top), R),
+    front ? photo(0.4) : new THREE.MeshPhysicalMaterial({ color: 0x15171c, roughness: 0.35, clearcoat: 0.4 })
+  );
+  // Cone: from the surround's inner edge down to the dust cap, slightly curved.
+  const r0 = s.coneR - s.surroundW / 2, r1 = s.dustcapR;
+  const profile = [0, 0.25, 0.5, 0.75, 1].map((k) => new THREE.Vector2(r0 + (r1 - r0) * k, -s.coneDepth * Math.pow(k, 0.85)));
+  const cone = new THREE.Mesh(
+    planarUV(new THREE.LatheGeometry(profile, 96).rotateX(Math.PI / 2).translate(0, 0, top), R),
+    front ? photo(0.8) : new THREE.MeshStandardMaterial({ color: passive ? 0x2a2f38 : 0x1c2028, roughness: 0.85, side: THREE.DoubleSide })
+  );
+  // Dust cap: a shallow dome on the bottom of the cone.
+  const capH = 0.3 * s.dustcapR;
+  const rs = (s.dustcapR * s.dustcapR + capH * capH) / (2 * capH);
+  const capBase = top - s.coneDepth;
+  const cap = new THREE.Mesh(
+    planarUV(new THREE.SphereGeometry(rs, 48, 12, 0, Math.PI * 2, 0, Math.asin(Math.min(1, s.dustcapR / rs))).rotateX(Math.PI / 2).translate(0, 0, capBase - (rs - capH)), R),
+    front ? photo(0.35) : new THREE.MeshPhysicalMaterial({ color: 0x2a3039, roughness: 0.3, clearcoat: 0.8 })
+  );
   moving.add(cone, cap);
-  const magnet = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * R, 0.5 * R, 0.26 * R, 48), new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.4, metalness: 0.6 }));
-  magnet.rotation.x = Math.PI / 2;
-  magnet.position.z = -depth + 0.13 * R;
-  magnet.visible = !passive;
-  root.add(frame, rim, surround, moving, magnet);
+
+  // Behind the baffle (shown in x-ray): basket struts and the magnet with its photos.
+  const side = look?.side ? canvasTexture(look.side) : null;
+  if (side) { side.wrapS = THREE.MirroredRepeatWrapping; side.repeat.set(2, 1); }
+  const magnetMat = side ? new THREE.MeshStandardMaterial({ map: side, roughness: 0.45, metalness: 0.3 }) : new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.4, metalness: 0.6 });
+  const magnet = new THREE.Mesh(new THREE.CylinderGeometry(s.magnetR, s.magnetR, s.magnetH, 64).rotateX(Math.PI / 2).translate(0, 0, -s.depth + s.magnetH / 2), magnetMat);
+  rear.add(magnet);
+  if (look?.rear) {
+    const back = new THREE.Mesh(planarUV(new THREE.CircleGeometry(s.magnetR * 0.999, 64).rotateY(Math.PI).translate(0, 0, -s.depth - 0.0005), s.magnetR, true),
+      new THREE.MeshStandardMaterial({ map: canvasTexture(look.rear), roughness: 0.5, metalness: 0.2 }));
+    rear.add(back);
+  }
   if (!passive) {
-    const bolt = new THREE.SphereGeometry(0.008, 10, 8);
-    const boltMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: 0.3, metalness: 0.9 });
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + 0.39;
-      const b = new THREE.Mesh(bolt, boltMat);
-      b.position.set(Math.cos(a) * 0.94 * R, Math.sin(a) * 0.94 * R, 0.008);
+    const strut = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.5, metalness: 0.6 });
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.PI / n;
+      const from = new THREE.Vector3(Math.cos(a) * inner * 0.97, Math.sin(a) * inner * 0.97, -0.002);
+      const to = new THREE.Vector3(Math.cos(a) * s.magnetR * 0.92, Math.sin(a) * s.magnetR * 0.92, -s.depth + s.magnetH);
+      const len = from.distanceTo(to);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.012 + 0.03 * R, 0.004 + 0.01 * R, len), strut);
+      bar.position.copy(from).add(to).multiplyScalar(0.5);
+      bar.lookAt(to);
+      rear.add(bar);
+    }
+    const bolt = new THREE.SphereGeometry(0.006 + 0.01 * R, 10, 8);
+    for (let i = 0; i < s.boltHoles; i++) {
+      const a = (i / s.boltHoles) * Math.PI * 2 + 0.39;
+      const b = new THREE.Mesh(bolt, bright);
+      b.position.set(Math.cos(a) * s.boltR, Math.sin(a) * s.boltR, s.flange);
       root.add(b);
     }
   }
-  return { root, moving, cone, cap, surround, frame, magnet };
+  rear.visible = !passive;
+  root.add(frame, rim, surround, moving, rear);
+  return { root, moving, cone, cap, surround, frame, magnet, rear };
 }
 
-export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number, prCount: number, depth: number, looks: Looks, fill: number): Enclosure {
+export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number, prCount: number, depth: number, looks: Looks, fill: number, look?: DriverLook | null): Enclosure {
   const g = new THREE.Group();
   g.name = 'enclosure';
   const { wx, hx, dx, wi, t, slotH } = geo;
   const R = geo.driverRadius;
   const hasFrontPort = slotH > 0;
+  const driverShape = look?.shape ?? genericShape(R, depth);
+  const prShape = genericShape(geo.prRadius, depth);
   const internals = new THREE.Group();
   const shell: THREE.Mesh[] = [];
   const slab = (w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = g) => {
@@ -150,13 +232,13 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   const passiveRadiators: DriverParts[] = [];
   centers.forEach((x, i) => {
     const passive = i >= frontMounted;
-    const d = buildDriver(passive ? geo.prRadius : R, depth, passive);
+    const d = passive ? buildDriver(prShape, true) : buildDriver(driverShape, false, look ?? undefined);
     d.root.position.set(x, geo.driverY, dx / 2);
     g.add(d.root);
-    // magnets live inside the box: only visible in x-ray
-    d.magnet.removeFromParent();
-    d.magnet.position.set(x, geo.driverY, dx / 2 - depth + 0.13 * R);
-    if (!passive) internals.add(d.magnet);
+    // Basket and magnet live inside the box: only visible in x-ray.
+    d.rear.removeFromParent();
+    d.rear.position.set(x, geo.driverY, dx / 2);
+    if (!passive) internals.add(d.rear);
     (passive ? passiveRadiators : drivers).push(d);
   });
 
@@ -165,12 +247,12 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     const n = geo.prLayout.perSide;
     for (const side of [-1, 1] as const) {
       for (let i = 0; i < n; i++) {
-        const d = buildDriver(geo.prRadius, depth, true);
+        const d = buildDriver(prShape, true);
         const z = (i - (n - 1) / 2) * (2 * geo.prRadius + 0.03);
         d.root.rotation.y = side * Math.PI / 2;
         d.root.position.set(side * wx / 2, hx / 2, z);
         g.add(d.root);
-        d.magnet.removeFromParent();
+        d.rear.removeFromParent();
         passiveRadiators.push(d);
       }
     }
@@ -183,7 +265,7 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     // A band-pass divider splits the inside by the two chamber volumes.
     const zDiv = boxType === 'isobaric' ? dx / 2 - depth - 0.03 : -dx / 2 + t + geo.di * geo.rearFraction;
     for (let i = 0; i < n; i++) {
-      const d = buildDriver(R, depth, false);
+      const d = buildDriver(driverShape, false, look ?? undefined);
       d.root.position.set((i - (n - 1) / 2) * spacing, geo.driverY, zDiv);
       internals.add(d.root);
       hiddenDrivers.push(d);

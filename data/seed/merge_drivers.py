@@ -20,7 +20,7 @@ CATEGORIES = {'sub', 'woofer', 'mid', 'fullrange', 'pa', 'tweeter'}
 RHO_C2 = 1.2041 * 343.24 ** 2  # Pa, air at 20 °C (packages/physics/src/air.ts)
 KEYS = ['brand', 'model', 'category', 'kindTh', 'sizeIn', 'fs', 'qts', 'qes', 'qms', 'vasL', 're', 'leMh', 'bl', 'mmsG',
         'cmsMmPerN', 'rms', 'sdCm2', 'xmaxMm', 'xmechMm', 'peW', 'splDb', 'zNom', 'coil', 'coilWiring', 'cutoutMm', 'outerMm', 'depthMm',
-        'displacementL', 'rthVc', 'tauVc', 'rthMag', 'tauMag', 'sourceKind', 'sourceUrl', 'verified', 'notes']
+        'displacementL', 'rthVc', 'tauVc', 'rthMag', 'tauMag', 'shape', 'imageUrl', 'sourceKind', 'sourceUrl', 'verified', 'notes']
 RANGES = {'fs': (1, 20000), 'qts': (0.05, 10), 'qes': (0.05, 10), 'qms': (0.2, 100), 'vasL': (0.01, 20000), 're': (0.1, 100),
           'sdCm2': (1, 20000), 'xmaxMm': (0, 100), 'peW': (0, 100000), 'sizeIn': (0.5, 30), 'mmsG': (0.1, 5000),
           'cmsMmPerN': (0.001, 50), 'bl': (0.1, 100), 'leMh': (0.001, 50), 'splDb': (60, 120)}
@@ -58,6 +58,8 @@ def problems(d):
         p.append('missing fs')
     if not str(d.get('sourceUrl') or '').startswith('https://'):
         p.append('sourceUrl must be https')
+    if d.get('imageUrl') and not str(d['imageUrl']).startswith('https://'):
+        p.append('imageUrl must be https (a link to the photo, never a copy)')
     for k, (lo, hi) in RANGES.items():
         v = d.get(k)
         if v is not None and (not isinstance(v, (int, float)) or not lo <= v <= hi):

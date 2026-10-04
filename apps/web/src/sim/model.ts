@@ -1,7 +1,7 @@
 import {
-  checkConsistency, completeDriver, driverInputFromDto, DriverError, maxOutput, rewireCoils, simulate, solveAt, suggestAlignment,
+  buildNetwork, checkConsistency, completeDriver, driverInputFromDto, DriverError, maxOutput, rewireCoils, simulate, solveAt, suggestAlignment,
   type AlignmentFlag, type AlignmentRecipe, type AlignmentRequest, type BoxDesign, type CoilWiring, type Driver, type FillSpec,
-  type MaxOutput, type OutputLimits, type SimResult, type Solution, type SystemSpec
+  type BuildInfo, type MaxOutput, type OutputLimits, type SimResult, type Solution, type SystemSpec
 } from '@bassbuild/physics';
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
@@ -171,6 +171,38 @@ export const maxOutputFor = (d: Design, dto: DriverDto | undefined, res: SimResu
 
 // ---- enclosure sizing ---------------------------------------------------------------------
 
+/**
+ * Mounting size of the driver, m (displacement in L). Datasheets often leave some out; those are
+ * estimated from the nominal size with the medians of the datasheet set (outer ≈ 1.02 × the
+ * nominal inches, depth ≈ 0.46 × outer, cutout ≈ 0.9 × outer, displacement ≈ 2.5 L × (size/12")³)
+ * and listed in `estimated` so the UI can say so.
+ */
+export function mountOf(dto: DriverDto | undefined): { outer: number; depth: number; cutout: number; displacementL: number; estimated: string[] } {
+  const estimated: string[] = [];
+  const fromSd = dto?.sdCm2 ? (2 * Math.sqrt((dto.sdCm2 * 1e-4) / Math.PI)) / 0.82 : null;
+  let outer = dto?.outerMm ? dto.outerMm / 1000 : null;
+  if (!outer) { outer = dto?.sizeIn ? dto.sizeIn * 0.0254 * 1.02 : fromSd ?? 0.39; estimated.push('ขอบนอก'); }
+  let depth = dto?.depthMm ? dto.depthMm / 1000 : null;
+  if (!depth) { depth = outer * 0.46; estimated.push('ความลึก'); }
+  let cutout = dto?.cutoutMm ? dto.cutoutMm / 1000 : null;
+  if (!cutout) { cutout = outer * 0.9; estimated.push('รูเจาะ'); }
+  let displacementL = dto?.displacementL ?? null;
+  if (!displacementL) { displacementL = 2.5 * (outer / (12 * 0.0254 * 1.02)) ** 3; estimated.push('ปริมาตรแทนที่'); }
+  return { outer, depth, cutout, displacementL, estimated };
+}
+
+/** Free air a port's open inner end needs before a wall: about one slot height (one diameter for a tube), at least 3 cm. */
+export const portEndGap = (size: number) => Math.max(0.03, size);
+
+/**
+ * Longest slot port a chamber `depth` deep and `hi` tall can hold, measured on the centreline:
+ * straight along the floor, or folded once up the back wall (the riser is as thick as the slot).
+ */
+export function slotPortRoom(depth: number, hi: number, slotH: number): { straight: number; folded: number } {
+  const gap = portEndGap(slotH);
+  return { straight: depth - gap, folded: depth + hi - slotH - gap };
+}
+
 export interface BoxGeometry {
   /** External and internal dimensions, m. W = width (x), H = height (y), D = depth (z). */
   wx: number; hx: number; dx: number;
@@ -179,13 +211,16 @@ export interface BoxGeometry {
   /** Slot port along the bottom of the front baffle (0 when there is no front port). */
   slotH: number;
   portLength: number;
-  portFold: 'none' | 'straight' | 'L' | 'impossible';
+  /** 'short': the port would be shorter than the baffle is thick, so this tuning cannot be reached. */
+  portFold: 'none' | 'straight' | 'L' | 'impossible' | 'short';
+  /** Longest front port this box can hold (folded once), m. */
+  portMaxLength: number;
   /** Share of the inside depth taken by a band-pass rear chamber (by volume); 0 otherwise. */
   rearFraction: number;
   /** Inside depth the front port can run in: the whole box, or a band-pass front chamber. */
   frontDepth: number;
   /** Round port of a 6th-order band-pass rear chamber, out through the back panel. */
-  rearPort: { y: number; radius: number; length: number; room: number; fits: boolean } | null;
+  rearPort: { y: number; radius: number; length: number; room: number; maxLength: number; fits: boolean } | null;
   /** Driver centre height above the box bottom, m. */
   driverY: number;
   driverRadius: number;
@@ -206,13 +241,17 @@ export interface BoxGeometry {
   sheets: number;
 }
 
-export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | null, material: PanelMaterialDto | undefined, sheetKgM2 = 0): BoxGeometry {
+/** Lays the box out around its contents. Only the ports of `res` are used, so a bare network build will do. */
+export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick<BuildInfo, 'ports'> } | null, material: PanelMaterialDto | undefined, sheetKgM2 = 0): BoxGeometry {
   const t = d.thicknessMm / 1000;
   const drivers = d.boxType === 'isobaric' ? 2 : d.count;
-  const outer = (dto?.outerMm ?? 390) / 1000;
-  const depth = (dto?.depthMm ?? 190) / 1000;
+  const mount = mountOf(dto);
+  const outer = mount.outer;
+  const depth = mount.depth;
   const front = res?.info.ports.find((p) => p.label === 'port' || p.label === 'front port');
   const portLen = front ? Math.max(0, front.physicalLength) : 0;
+  // A band-pass driver fires into the front chamber: leave room for the cone's travel.
+  const coneTravel = ((dto?.xmechMm ?? (dto?.xmaxMm ? dto.xmaxMm * 1.5 : 15)) / 1000) + 0.015;
   const net = L(d.vbL) + (d.boxType === 'bp4' || d.boxType === 'bp6' ? L(d.vfL) : 0);
   const bandpassBox = d.boxType === 'bp4' || d.boxType === 'bp6';
   // Boards inside the box take volume too: band-pass divider, isobaric mounting baffle.
@@ -235,7 +274,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
   const rf = bandpassType ? d.vbL / (d.vbL + d.vfL) : 1;
   // A centimetre more than the magnet clearance check below asks for, so the two never disagree.
   const needD = Math.max(
-    bandpassType ? (depth + 0.03 + t) / rf : d.boxType === 'isobaric' ? 2 * depth + 0.06 : depth + 0.03,
+    bandpassType ? Math.max((depth + 0.03 + t) / rf, coneTravel / (1 - rf)) : d.boxType === 'isobaric' ? 2 * depth + 0.06 : depth + 0.03,
     prLayout.perSide ? prLayout.perSide * 2 * prRadius + 0.03 * (prLayout.perSide - 1) + 0.04 : 0
   );
   // An isobaric pair needs a tunnel the size of one driver around the inner unit, on top of Vb.
@@ -250,7 +289,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
       const wall = p === front && width > 0 ? width * t * len : p.area * len * 0.1;
       return s + p.area * p.count * len + wall;
     }, 0);
-    const gross = net + tunnel + drivers * L(dto?.displacementL ?? 3) + portVol + innerBoards * (width || 1.25 * Math.cbrt(net)) * Math.cbrt(net) * t + 0.001;
+    const gross = net + tunnel + drivers * L(mount.displacementL) + portVol + innerBoards * (width || 1.25 * Math.cbrt(net)) * Math.cbrt(net) * t + 0.001;
     // Start from W:H:D = 1.25 : 1 : 0.8, then raise any side below its minimum and share the
     // rest of the volume among the sides that are still free.
     const k = Math.cbrt(gross / (1.25 * 0.8));
@@ -259,7 +298,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
     for (let it = 0; it < 8; it++) {
       const slot = front ? front.area / dims[0] : 0;
       // A port too long to run straight folds up the back wall and takes that depth from the magnet.
-      const fold = front && portLen > dims[2] - slot - 0.03 && !bandpassType && d.boxType !== 'isobaric' ? slot + t : 0;
+      const fold = front && portLen > dims[2] - portEndGap(slot) && !bandpassType && d.boxType !== 'isobaric' ? slot + t : 0;
       const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), needD + fold];
       let changed = false;
       // A side already held at its minimum is raised again if that minimum grew (the slot gets
@@ -288,26 +327,31 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
   // The divider board itself sits on the rear-chamber side.
   const frontDepth = bandpass ? di * (1 - rearFraction) : di;
   // Where the magnet must fit: behind the baffle, in a band-pass rear chamber, or behind a clamped pair.
+  const room = slotPortRoom(frontDepth, hi, slotH);
   const magnetClear = bandpass
     ? di * rearFraction - t - depth >= 0.02
     : d.boxType === 'isobaric'
       ? di - 2 * depth - 0.03 >= 0.02
-      : di - depth - (front && portLen > di - slotH - 0.03 ? slotH + t : 0) >= 0.02;
-  const portFold: BoxGeometry['portFold'] = !front ? 'none' : portLen <= 0 ? 'impossible' : portLen <= frontDepth - 0.03 ? 'straight' : portLen <= frontDepth + hi - 0.06 ? 'L' : 'impossible';
+      : di - depth - (front && portLen > room.straight ? slotH + t : 0) >= 0.02;
+  // A port can never be shorter than the panel it goes through.
+  const portFold: BoxGeometry['portFold'] = !front ? 'none' : front.physicalLength < t ? 'short' : portLen <= room.straight ? 'straight' : portLen <= room.folded ? 'L' : 'impossible';
   const rp = d.boxType === 'bp6' ? res?.info.ports.find((p) => p.label === 'rear port') : undefined;
   const rearPort: BoxGeometry['rearPort'] = rp ? (() => {
+    // A round tube through the back panel into the rear chamber, bent up once if it must be.
     const radius = Math.sqrt(rp.area / Math.PI);
-    const room = di * rearFraction - t - 0.03;
+    const gap = portEndGap(2 * radius);
+    const straight = di * rearFraction - t - gap;
+    const maxLength = straight + hi - 2 * radius - gap;
     const length = rp.physicalLength;
-    return { y: t + radius + 0.02, radius, length, room, fits: length > 0 && length <= room + hi - 2 * radius - 0.06 };
+    return { y: t + radius + 0.02, radius, length, room: straight, maxLength, fits: length >= t && length <= maxLength };
   })() : null;
   const wx = wi + 2 * t, hx = hi + 2 * t, dx = di + 2 * t;
   // Outside panels, the slot board, bracing (about half a panel) and any divider / inner baffle.
   const panelAreaM2 = 2 * wx * dx + 2 * wx * hi + 2 * di * hi + (front ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi + innerBoards * wi * hi;
   const density = material?.densityKgM3 ?? 750;
   return {
-    wx, hx, dx, wi, hi, di, t, slotH, portLength: portLen, portFold, rearFraction, frontDepth, rearPort, driverY,
-    driverRadius: outer / 2, cutoutRadius: (dto?.cutoutMm ?? outer * 900) / 2000, prRadius, prLayout, oversizeL,
+    wx, hx, dx, wi, hi, di, t, slotH, portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY,
+    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, prRadius, prLayout, oversizeL,
     fits, magnetClear, panelAreaM2,
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
     weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2,
@@ -348,7 +392,7 @@ export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefi
 
 // ---- warnings ---------------------------------------------------------------------------------
 
-export interface Warning { level: 'info' | 'warn' | 'bad'; text: string }
+export interface Warning { level: 'info' | 'warn' | 'bad'; text: string; /** The box cannot be built as set. */ build?: boolean }
 
 export const fmtOhms = (z: number) => (z >= 10 ? z.toFixed(0) : String(Number(z.toFixed(z < 2 ? 2 : 1))));
 
@@ -393,19 +437,54 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
     const below = res.info.ports.length > 0 && m.excursionMax.f < (res.info.ports[0]?.tuning ?? 0);
     out.push({ level: 'bad', text: `ระยะชัก ${m.excursionMax.mm.toFixed(1)} มม. เกิน Xmax ${xmax} มม. ที่ ${m.excursionMax.f.toFixed(0)} Hz${below && !d.subsonic ? ' (ต่ำกว่าจูน) เปิด Subsonic ช่วยได้' : ' ลดกำลังหรือเพิ่มปริมาตร'}` });
   }
-  if (geo.portFold === 'impossible') out.push({ level: 'bad', text: geo.portLength <= 0 ? 'พื้นที่ท่อเล็กเกินไปสำหรับความถี่จูนนี้ ท่อสั้นจนติดลบ' : `ท่อยาว ${(geo.portLength * 100).toFixed(0)} ซม. ใส่ในตู้ไม่ได้ ลดพื้นที่ท่อหรือเพิ่ม Fb` });
-  if (geo.rearPort && !geo.rearPort.fits) out.push({ level: 'bad', text: geo.rearPort.length <= 0 ? 'ท่อหลังเล็กเกินไปสำหรับความถี่จูนนี้ ท่อสั้นจนติดลบ' : `ท่อหลังยาว ${(geo.rearPort.length * 100).toFixed(0)} ซม. ใส่ห้องหลังไม่ได้ ลดพื้นที่ท่อหลังหรือเพิ่มความถี่จูนท่อหลัง` });
-  if (geo.oversizeL > 0.5) out.push({ level: 'bad', text: `ตู้ ${d.vbL} L เล็กเกินกว่าจะใส่ลำโพง ท่อ และแม่เหล็กได้ ตัวตู้ต้องโตขึ้นอีก ${geo.oversizeL.toFixed(0)} L แล้วเสริมไม้กินที่ให้เหลือปริมาตรเท่าที่ตั้ง หรือเพิ่มปริมาตร` });
-  if (!geo.fits) out.push({ level: 'bad', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
-  if (!geo.magnetClear) out.push({ level: 'warn', text: 'แม่เหล็กชิดผนังหลังหรือท่อเกินไป' });
+  // What makes the box impossible to build comes first among the geometry messages.
+  for (const p of buildProblems(d, dto, geo)) out.push({ level: 'bad', text: p.text, build: true });
   // With the amplifier modelled, its own minimum-load check above replaces this general one.
   if (!amp && m.impedanceMin.ohms < 2) out.push({ level: 'warn', text: `อิมพีแดนซ์ต่ำสุด ${m.impedanceMin.ohms.toFixed(1)} Ω แอมป์ต้องรับโหลดต่ำได้` });
   return out;
 }
 
+// ---- can it be built? ---------------------------------------------------------------------------
+
+export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle';
+export interface BuildProblem { code: BuildCode; text: string }
+
+const cmTxt = (m: number) => (m * 100).toFixed(m < 0.1 ? 1 : 0);
+/** Two lengths in cm, with a decimal when whole centimetres would make them look equal. */
+const cmPair = (a: number, b: number): [string, string] => (cmTxt(a) === cmTxt(b) ? [(a * 100).toFixed(1), (b * 100).toFixed(1)] : [cmTxt(a), cmTxt(b)]);
+
+/**
+ * Collisions that make a box impossible to build as set (not merely a poor box): a port shorter
+ * than its panel or longer than the box can hold, a box too small for the driver, its magnet and
+ * ports, a magnet against the back wall. The lab keeps its sliders out of these.
+ */
+export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeometry): BuildProblem[] {
+  const out: BuildProblem[] = [];
+  const t = geo.t;
+  const guessed = mountOf(dto).estimated.filter((x) => x !== 'รูเจาะ');
+  const note = guessed.length ? ` (ไม่มี${guessed.join(' ')}ของลำโพงใน datasheet จึงประมาณจากขนาดนิ้ว)` : '';
+  if (geo.portFold === 'short') out.push({ code: 'port-short', text: `ท่อต้องยาวอย่างน้อยเท่าความหนาแผง ${d.thicknessMm} มม. แต่ความถี่จูนนี้ต้องการท่อสั้นกว่านั้น (พื้นที่ท่อเล็กไปหรือจูนสูงไป)` });
+  if (geo.portFold === 'impossible') {
+    const [len, max] = cmPair(geo.portLength, geo.portMaxLength);
+    out.push({ code: 'port-long', text: `ท่อยาว ${len} ซม. แต่ตู้นี้ใส่ได้ยาวสุด ${max} ซม. (พับหนึ่งครั้ง ปลายท่อต้องห่างผนัง ${cmTxt(portEndGap(geo.slotH))} ซม.)` });
+  }
+  if (geo.rearPort && !geo.rearPort.fits) {
+    out.push(geo.rearPort.length < t
+      ? { code: 'rear-port-short', text: `ท่อหลังต้องยาวอย่างน้อยเท่าความหนาแผง ${d.thicknessMm} มม. (พื้นที่ท่อหลังเล็กไปหรือจูนสูงไป)` }
+      : { code: 'rear-port-long', text: `ท่อหลังยาว ${cmPair(geo.rearPort.length, Math.max(0, geo.rearPort.maxLength)).join(' ซม. แต่ห้องหลังใส่ได้ยาวสุด ')} ซม.` });
+  }
+  if (geo.oversizeL > 0.5) {
+    const what = ['ลำโพง', 'แม่เหล็ก', ...(geo.portFold !== 'none' || geo.rearPort ? ['ท่อ'] : []), ...(d.boxType === 'pr' ? ['แผ่น PR'] : [])];
+    out.push({ code: 'too-small', text: `ตู้ ${d.vbL} L${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL} L` : ''} เล็กเกินกว่าจะใส่${what.join(' ')}ได้ ต้องใหญ่ขึ้นอีกราว ${Math.ceil(geo.oversizeL)} L${note}` });
+  }
+  if (!geo.magnetClear) out.push({ code: 'magnet', text: `ท้ายแม่เหล็กชนผนังหลังหรือท่อ${note}` });
+  if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
+  return out;
+}
+
 // ---- suggested box -------------------------------------------------------------------------------
 
-export type SuggestFlag = AlignmentFlag | 'clamped';
+export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable';
 
 export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-high-for-sealed': 'Qts สูง ตู้ปิดแบบ Qtc 0.707 จะใหญ่มาก จึงใช้ Qtc สูงขึ้น ลำโพงนี้เหมาะกับตู้ใหญ่หรือติดผนัง (free-air)',
@@ -416,7 +495,8 @@ export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-low-for-sealed': 'ลำโพงนี้ Qts ต่ำ (EBP สูง) ตู้ปิดแบบ Butterworth จะเล็กมากและเบสหายไปมาก ลำโพงแบบนี้ทำมาสำหรับตู้เปิด แบนด์พาส หรือฮอร์น',
   'volume-capped': 'ตู้ตามสูตรใหญ่เกินช่วงที่ตั้งได้ จึงใช้ตู้ใหญ่สุดที่ตั้งได้ แล้วหาความถี่จูนที่ได้เบสลึกสุดโดยไม่โป่ง',
   'volume-raised': 'ตู้ตามสูตรเล็กเกินกว่าจะใส่ลำโพง แม่เหล็ก และท่อได้ (หรือแคบจนลมในท่อแรง) จึงขยายตู้โดยคงความถี่จูนเดิม',
-  clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง'
+  clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง',
+  unbuildable: 'หาขนาดที่สร้างได้จริงสำหรับตู้แบบนี้ไม่เจอ (ท่อหรือลำโพงชนกัน) ลองตู้แบบอื่น'
 };
 
 const RECIPE_TH: Record<AlignmentRecipe, string> = {
@@ -471,7 +551,10 @@ export function suggestDesign(
   const watts = dto?.peW ? fit('watts', dto.peW * n, 1) : d.watts;
   const withFill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr';
   const { maxVolume, ...recipe } = variant;
-  const base: Omit<Parameters<typeof suggestAlignment>[0], 'type'> = { driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined, fill: withFill ? fillFor(d, damping) : undefined, ...recipe };
+  const base: Omit<Parameters<typeof suggestAlignment>[0], 'type'> = {
+    driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined,
+    fill: withFill ? fillFor(d, damping) : undefined, minPortLength: Math.max(0.02, d.thicknessMm / 1000 + 0.005), ...recipe
+  };
   /** UI values for a suggested box; `fit` rounds and clamps to the slider ranges. */
   const patchFor = (b: BoxDesign, fit: (key: keyof typeof RANGES, v: number, step: number) => number): Partial<Design> => {
     switch (b.type) {
@@ -545,8 +628,8 @@ export function suggestDesign(
     const rearBad = !!g.rearPort && !g.rearPort.fits && g.rearPort.length > 0;
     if (!frontBad && !rearBad) break;
     ports = {
-      maxPortLength: Math.min(ports.maxPortLength, 0.95 * (g.frontDepth + g.hi - 0.06)),
-      maxRearPortLength: g.rearPort ? Math.min(ports.maxRearPortLength, 0.95 * (g.rearPort.room + g.hi - 2 * g.rearPort.radius - 0.06)) : ports.maxRearPortLength
+      maxPortLength: Math.min(ports.maxPortLength, 0.95 * g.portMaxLength),
+      maxRearPortLength: g.rearPort ? Math.min(ports.maxRearPortLength, 0.95 * g.rearPort.maxLength) : ports.maxRearPortLength
     };
     a = suggestAlignment({ ...base, ...limits, ...ports, minVolume: mainVolume(a.box), type: d.boxType });
   }
@@ -571,14 +654,40 @@ export function suggestDesign(
   flags.unshift(...a.flags);
   const b = a.box;
   const patch: Partial<Design> = { watts, ...patchFor(b, fit) };
-  // Last word on fit: with the tuning and port area now fixed, a bigger box only shortens the port,
-  // so topping up the main chamber by what is missing always converges.
-  for (let round = 0; round < 4; round++) {
+  // Last word on building it. With the tuning fixed, a bigger chamber needs a shorter port and has
+  // more room for it, so: a box too small for its contents is topped up by what is missing; a port
+  // that will not fit gets a bigger chamber (the front one for a band-pass front port); a port
+  // shorter than its panel gets a wider port, which is longer. Each step only ever grows.
+  const frontArea: 'portAreaCm2' | 'port2AreaCm2' = d.boxType === 'bp6' ? 'port2AreaCm2' : 'portAreaCm2';
+  let built = false;
+  for (let round = 0; round < 12; round++) {
     const t = { ...d, ...patch };
-    const g = sizeBox(t, dto, simulate(toSpec(t, driver, damping), { fMin: 10, fMax: 300, points: 60 }), undefined);
-    if (g.oversizeL <= 0.5 || (patch.vbL ?? 0) >= RANGES.vbL[1]) break;
-    patch.vbL = fit('vbL', (patch.vbL ?? d.vbL) + g.oversizeL + 1, 1);
-    if (!flags.includes('volume-raised')) flags.push('volume-raised');
+    const g = sizeBox(t, dto, buildNetwork(toSpec(t, driver, damping)), undefined);
+    const codes = new Set(buildProblems(t, dto, g).map((x) => x.code));
+    if (!codes.size) { built = true; break; }
+    const grow = (key: 'vbL' | 'vfL' | 'portAreaCm2' | 'port2AreaCm2', by: number) => {
+      const before = patch[key] ?? d[key];
+      patch[key] = fit(key, before * by + (key === 'vbL' || key === 'vfL' ? 1 : 5), key === 'vbL' || key === 'vfL' ? 1 : 5);
+      return patch[key] !== before;
+    };
+    let moved = false;
+    if (codes.has('port-short')) moved = grow(frontArea, 1.25) || moved;
+    if (codes.has('rear-port-short')) moved = grow('portAreaCm2', 1.25) || moved;
+    if (codes.has('too-small') || codes.has('magnet')) {
+      const before = patch.vbL ?? d.vbL;
+      patch.vbL = fit('vbL', before + Math.max(1, g.oversizeL) + 1, 1);
+      moved = patch.vbL !== before || moved;
+    }
+    if (codes.has('port-long')) moved = grow(d.boxType === 'bp4' || d.boxType === 'bp6' ? 'vfL' : 'vbL', 1.15) || moved;
+    if (codes.has('rear-port-long')) moved = grow('vbL', 1.15) || moved;
+    if (codes.has('too-small') || codes.has('magnet') || codes.has('port-long') || codes.has('rear-port-long')) {
+      if (!flags.includes('volume-raised')) flags.push('volume-raised');
+    }
+    if (!moved) break; // every lever is at the end of its slider
+  }
+  if (!built) {
+    const t = { ...d, ...patch };
+    if (buildProblems(t, dto, sizeBox(t, dto, buildNetwork(toSpec(t, driver, damping)), undefined)).length) flags.push('unbuildable');
   }
   // A closed box keeps loading the cone below fc, so it keeps whatever subsonic the user had.
   const finalHp = subsonicFor(b);

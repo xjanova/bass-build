@@ -1,6 +1,7 @@
 import type { Driver } from '@bassbuild/physics';
-import { useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
+import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
 import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
@@ -10,15 +11,71 @@ const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์']
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
-function Slider({ id, label, value, range, step = 1, fmt, onChange }: {
+/** The parts of a slider's range outside its buildable stretches. */
+function gaps(ok: [number, number][], [lo, hi]: readonly [number, number]): [number, number][] {
+  const out: [number, number][] = [];
+  let from = lo;
+  for (const [a, b] of ok) { if (a > from) out.push([from, a]); from = b; }
+  if (from < hi) out.push([from, hi]);
+  return out;
+}
+
+/**
+ * A slider that will not go where the box can no longer be built: it stops at the edge of the
+ * buildable stretch it is in, says why, and marks the unbuildable parts of its track in red.
+ * When the design is already unbuildable (another setting changed) it moves freely.
+ */
+function Slider({ id, label, value, range, step = 1, fmt, onChange, limit }: {
   id: string; label: string; value: number; range: readonly [number, number]; step?: number; fmt: (v: number) => string; onChange: (v: number) => void;
+  limit?: FieldLimit | null;
 }) {
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const t = window.setTimeout(() => setNote(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [note]);
+  const span = range[1] - range[0];
+  const bad = limit ? gaps(limit.ok, range) : [];
+  const change = (raw: number) => {
+    let v = raw;
+    const a = limit?.around;
+    if (a && v < a[0]) { v = a[0]; setNote(limit!.belowWhy); }
+    else if (a && v > a[1]) { v = a[1]; setNote(limit!.aboveWhy); }
+    if (v !== value) onChange(v);
+  };
   return (
     <div className="field">
       <div className="field-head"><label htmlFor={id}>{label}</label><output htmlFor={id}>{fmt(value)}</output></div>
-      <input id={id} type="range" min={range[0]} max={range[1]} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input id={id} type="range" min={range[0]} max={range[1]} step={step} value={value} onChange={(e) => change(Number(e.target.value))}
+        aria-describedby={note ? `${id}-note` : undefined} />
+      {bad.length > 0 && (
+        <div className="zones" title="ช่วงสีแดง = สร้างตู้จริงไม่ได้ (ท่อหรือลำโพงชนกัน)">
+          {bad.map(([x0, x1]) => <i key={x0} style={{ left: `${((x0 - range[0]) / span) * 100}%`, width: `${Math.max(0.6, ((x1 - x0) / span) * 100)}%` }} />)}
+        </div>
+      )}
+      {note && <div id={`${id}-note`} className="limit-note" role="status">ปรับเกินนี้ไม่ได้: {note}</div>}
     </div>
   );
+}
+
+const FIELD_TH: Record<LimitedField, string> = {
+  vbL: 'ปริมาตร', vfL: 'ห้องหน้า', fbHz: 'ความถี่จูน', portAreaCm2: 'พื้นที่ท่อ', fb2Hz: 'จูนท่อหน้า', port2AreaCm2: 'พื้นที่ท่อหน้า', prSdCm2: 'ขนาด PR'
+};
+const FIELD_UNIT: Record<LimitedField, string> = { vbL: 'L', vfL: 'L', fbHz: 'Hz', portAreaCm2: 'ซม.²', fb2Hz: 'Hz', port2AreaCm2: 'ซม.²', prSdCm2: 'ซม.²' };
+
+/** A select's choices as a slider limit: the run of buildable choices around the current one. */
+function choiceLimit(values: number[], ok: Map<number, string | null>, current: number): FieldLimit {
+  const runs: [number, number][] = [];
+  for (const v of values) {
+    if (ok.get(v)) continue;
+    const last = runs[runs.length - 1];
+    if (last && values.indexOf(last[1]) === values.indexOf(v) - 1) last[1] = v; else runs.push([v, v]);
+  }
+  const around = runs.find(([a, b]) => current >= a && current <= b) ?? null;
+  const next = around ? values[values.indexOf(around[1]) + 1] : undefined;
+  const prev = around ? values[values.indexOf(around[0]) - 1] : undefined;
+  return { ok: runs, around, belowWhy: prev !== undefined ? ok.get(prev) ?? null : null, aboveWhy: next !== undefined ? ok.get(next) ?? null : null };
 }
 
 /** The driver list grouped by kind (datasheet drivers first, made-up samples last). */
@@ -108,7 +165,41 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
       { label: 'ย้อนกลับ', run: () => patchDesign(before) });
   };
 
-  const shown = allWarnings ? warnings : warnings.slice(0, 2);
+  // Collisions get their own block with a fix; the list below keeps the other warnings.
+  const buildIssues = warnings.filter((w) => w.build);
+  const others = warnings.filter((w) => !w.build);
+  const shown = allWarnings ? others : others.slice(0, 2);
+  const ctx = useMemo<BuildCtx | null>(() => (driver ? { dto, driver, damping } : null), [dto, driver, damping]);
+  // Scanning every slider takes a few milliseconds: let typing and dragging stay ahead of it.
+  const deferred = useDeferredValue(d);
+  const limits = useMemo(() => (ctx ? limitsFor(deferred, ctx) : {}), [deferred, ctx]);
+  const buildable = buildIssues.length === 0;
+  // Select choices that would collide are disabled, but only while the box can be built at all.
+  const choices = useMemo(() => {
+    if (!ctx || !buildable) return null;
+    const why = <K extends 'count' | 'thicknessMm' | 'prCount'>(k: K, vs: number[]) => {
+      const m = buildableChoices(deferred, ctx, k, vs as Design[K][]);
+      return new Map(vs.map((v) => [v, m.get(v as Design[K])?.[0]?.text ?? null] as [number, string | null]));
+    };
+    return {
+      count: why('count', [1, 2, 3, 4]),
+      thickness: why('thicknessMm', material?.thicknessesMm ?? [deferred.thicknessMm]),
+      prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null
+    };
+  }, [deferred, ctx, buildable, material]);
+  const lim = (f: LimitedField) => (buildable ? limits[f] ?? null : limits[f] ? { ...limits[f]!, around: null } : null);
+  const fix = () => {
+    if (!ctx) return;
+    const before = useApp.getState().design;
+    const n = nearestBuildable(before, ctx);
+    if (!n) {
+      showToast('ปรับค่าเดียวแล้วยังสร้างไม่ได้ ลองกด "จัดตู้แนะนำสำหรับลำโพงนี้" เพื่อให้ระบบจัดทั้งตู้ใหม่');
+      setConfirming(true);
+      return;
+    }
+    patchDesign({ [n.field]: n.value });
+    showToast(`ปรับ${FIELD_TH[n.field]}จาก ${before[n.field]} เป็น ${n.value} ${FIELD_UNIT[n.field]} ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+  };
 
   return (
     <section className="right-panel glass" aria-label="ตั้งค่าตู้และผลลัพธ์">
@@ -150,22 +241,30 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
           </button>
         )}
         <button type="button" className="linkbtn wizlink" onClick={() => setMode('wizard')}>ไม่แน่ใจว่าตู้แบบไหนดี? ให้ช่วยเทียบตามเป้าหมาย</button>
+        {!buildable && (
+          <div className="build-block" role="alert">
+            <b><Icon name="alert" size={15} width={2} />ตู้นี้สร้างจริงไม่ได้</b>
+            <ul>{buildIssues.map((w) => <li key={w.text}>{w.text}</li>)}</ul>
+            <button type="button" onClick={fix} disabled={!driver}>ปรับให้สร้างได้</button>
+          </div>
+        )}
 
         <div className="fields">
-          <Slider id="vb" label={d.boxType.startsWith('bp') ? 'ห้องหลัง Vr' : 'ปริมาตรสุทธิ Vb'} value={d.vbL} range={RANGES.vbL} fmt={L} onChange={(v) => p({ vbL: v })} />
+          <Slider id="vb" label={d.boxType.startsWith('bp') ? 'ห้องหลัง Vr' : 'ปริมาตรสุทธิ Vb'} value={d.vbL} range={RANGES.vbL} fmt={L} onChange={(v) => p({ vbL: v })} limit={lim('vbL')} />
           {(d.boxType === 'vented' || d.boxType === 'bp4' || d.boxType === 'bp6') && <>
-            <Slider id="fb" label={d.boxType === 'bp6' ? 'จูนท่อหลัง' : 'ความถี่จูนท่อ Fb'} value={d.fbHz} range={RANGES.fbHz} step={0.5} fmt={Hz} onChange={(v) => p({ fbHz: v })} />
-            <Slider id="pa" label={d.boxType === 'bp6' ? 'พื้นที่ท่อหลัง' : 'พื้นที่ท่อ'} value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} />
+            <Slider id="fb" label={d.boxType === 'bp6' ? 'จูนท่อหลัง' : 'ความถี่จูนท่อ Fb'} value={d.fbHz} range={RANGES.fbHz} step={0.5} fmt={Hz} onChange={(v) => p({ fbHz: v })} limit={lim('fbHz')} />
+            <Slider id="pa" label={d.boxType === 'bp6' ? 'พื้นที่ท่อหลัง' : 'พื้นที่ท่อ'} value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} limit={lim('portAreaCm2')} />
           </>}
-          {(d.boxType === 'bp4' || d.boxType === 'bp6') && <Slider id="vf" label="ห้องหน้า Vf" value={d.vfL} range={RANGES.vfL} fmt={L} onChange={(v) => p({ vfL: v })} />}
+          {(d.boxType === 'bp4' || d.boxType === 'bp6') && <Slider id="vf" label="ห้องหน้า Vf" value={d.vfL} range={RANGES.vfL} fmt={L} onChange={(v) => p({ vfL: v })} limit={lim('vfL')} />}
           {d.boxType === 'bp6' && <>
-            <Slider id="fb2" label="จูนท่อหน้า" value={d.fb2Hz} range={RANGES.fb2Hz} step={0.5} fmt={Hz} onChange={(v) => p({ fb2Hz: v })} />
-            <Slider id="pa2" label="พื้นที่ท่อหน้า" value={d.port2AreaCm2} range={RANGES.port2AreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ port2AreaCm2: v })} />
+            <Slider id="fb2" label="จูนท่อหน้า" value={d.fb2Hz} range={RANGES.fb2Hz} step={0.5} fmt={Hz} onChange={(v) => p({ fb2Hz: v })} limit={lim('fb2Hz')} />
+            <Slider id="pa2" label="พื้นที่ท่อหน้า" value={d.port2AreaCm2} range={RANGES.port2AreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ port2AreaCm2: v })} limit={lim('port2AreaCm2')} />
           </>}
           {d.boxType === 'pr' && <>
-            <Slider id="prs" label="ขนาด PR (Sd ต่อตัว)" value={d.prSdCm2} range={RANGES.prSdCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ prSdCm2: v })} />
+            <Slider id="prs" label="ขนาด PR (Sd ต่อตัว)" value={d.prSdCm2} range={RANGES.prSdCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ prSdCm2: v })} limit={lim('prSdCm2')} />
             <Slider id="prm" label="มวล PR ต่อตัว" value={d.prMassG} range={RANGES.prMassG} step={5} fmt={(v) => `${v} ก.`} onChange={(v) => p({ prMassG: v })} />
-            <Slider id="prn" label="จำนวน PR" value={d.prCount} range={[1, 4]} fmt={(v) => `${v} ตัว`} onChange={(v) => p({ prCount: v })} />
+            <Slider id="prn" label="จำนวน PR" value={d.prCount} range={[1, 4]} fmt={(v) => `${v} ตัว`} onChange={(v) => p({ prCount: v })}
+              limit={choices?.prCount ? choiceLimit([1, 2, 3, 4], choices.prCount, d.prCount) : null} />
           </>}
           <div className="field">
             <div className="field-head">
@@ -183,7 +282,9 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
             <span className="pair">
               {d.boxType === 'isobaric'
                 ? <span className="fixed">2 ดอก (ประกบ)</span>
-                : <select id="cnt" value={d.count} onChange={(e) => p({ count: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} ดอก</option>)}</select>}
+                : <select id="cnt" value={d.count} onChange={(e) => p({ count: Number(e.target.value) })}>
+                    {[1, 2, 3, 4].map((n) => { const why = choices?.count.get(n); return <option key={n} value={n} disabled={!!why} title={why ?? undefined}>{n} ดอก{why ? ' · สร้างไม่ได้' : ''}</option>; })}
+                  </select>}
               <select id="wire" aria-label="การต่อสาย" value={d.wiring} onChange={(e) => p({ wiring: e.target.value as Design['wiring'] })}><option value="parallel">ขนาน</option><option value="series">อนุกรม</option></select>
             </span>
           </div>
@@ -262,7 +363,7 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
                 p({ materialKey: e.target.value, thicknessMm: thicknessFor(mat?.thicknessesMm ?? [d.thicknessMm], d.thicknessMm) });
               }}>{materials.map((x) => <option key={x.key} value={x.key}>{x.nameTh ?? x.name}</option>)}</select>
               <select aria-label="ความหนา" value={d.thicknessMm} onChange={(e) => p({ thicknessMm: Number(e.target.value) })}>
-                {(material?.thicknessesMm ?? [d.thicknessMm]).map((t) => <option key={t} value={t}>{t} มม.</option>)}
+                {(material?.thicknessesMm ?? [d.thicknessMm]).map((t) => { const why = choices?.thickness.get(t); return <option key={t} value={t} disabled={!!why} title={why ?? undefined}>{t} มม.{why ? ' · สร้างไม่ได้' : ''}</option>; })}
               </select>
             </span>
           </div>
@@ -291,7 +392,7 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
         </div>
       </div>
 
-      {warnings.length > 0 && (
+      {others.length > 0 && (
         <div className="rp-results">
           <div className="warns">
             {shown.map((w, i) => (
@@ -299,8 +400,8 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
                 <Icon name="alert" size={15} width={2} /><span>{w.text}</span>
               </div>
             ))}
-            {warnings.length > 2 && (
-              <button className="more" onClick={() => setAllWarnings((v) => !v)}>{allWarnings ? 'ย่อคำเตือน' : `ดูคำเตือนอีก ${warnings.length - 2} ข้อ`}</button>
+            {others.length > 2 && (
+              <button className="more" onClick={() => setAllWarnings((v) => !v)}>{allWarnings ? 'ย่อคำเตือน' : `ดูคำเตือนอีก ${others.length - 2} ข้อ`}</button>
             )}
           </div>
         </div>

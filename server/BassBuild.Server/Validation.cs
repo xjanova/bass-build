@@ -13,6 +13,23 @@ public static class Validation
     public static readonly string[] Categories = ["sub", "woofer", "mid", "fullrange", "pa", "tweeter"];
     public static readonly string[] SourceKinds = ["datasheet", "measured", "user", "estimated", "sample"];
     public static readonly string[] CoilWirings = ["series", "parallel"];
+    public static readonly string[] MediaAngles = ["front", "side", "rear", "angle"];
+    public static readonly string[] MediaTypes = ["image/jpeg", "image/png", "image/webp"];
+    public const int MaxMediaBytes = 3_000_000;
+
+    /// <summary>Measured driver geometry, mm (bolt holes as a count).</summary>
+    public static readonly Dictionary<string, (string Label, double Min, double Max)> ShapeRanges = new()
+    {
+        ["coneMm"] = ("เส้นผ่านศูนย์กลางกรวย", 10, 1500),
+        ["surroundMm"] = ("ความกว้างขอบยาง", 1, 200),
+        ["dustcapMm"] = ("เส้นผ่านศูนย์กลางฝาครอบ", 5, 600),
+        ["coneDepthMm"] = ("ความลึกกรวย", 1, 600),
+        ["flangeMm"] = ("ความหนาขอบโครง", 1, 60),
+        ["magnetMm"] = ("เส้นผ่านศูนย์กลางแม่เหล็ก", 10, 800),
+        ["magnetHeightMm"] = ("ความสูงแม่เหล็ก", 5, 400),
+        ["boltHoles"] = ("จำนวนรูน็อต", 0, 32),
+        ["boltCircleMm"] = ("วงรูน็อต", 10, 1600),
+    };
     public const int MaxProjectDataBytes = 2 * 1024 * 1024;
 
     // Label already carries its spacing so Thai and Latin labels both read naturally.
@@ -55,8 +72,12 @@ public static class Validation
         if (error is not null) return error;
 
         // Rendered as a link by the UI, so only web URLs are accepted (no javascript:, file:, ...).
-        if (d.SourceUrl is { } url && !(Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)))
+        if (d.SourceUrl is { } url && !IsWebUrl(url))
             return new("sourceUrl", "ลิงก์ที่มาต้องขึ้นต้นด้วย http:// หรือ https://");
+        if (MaxLength(d.ImageUrl, "imageUrl", "ลิงก์รูป", 2000) is { } imageError) return imageError;
+        if (d.ImageUrl is { } img && !IsWebUrl(img))
+            return new("imageUrl", "ลิงก์รูปต้องขึ้นต้นด้วย http:// หรือ https://");
+        if (Shape(d.Shape) is { } shapeError) return shapeError;
 
         // JSON cannot carry NaN, but an overflowing literal such as 1e999 deserializes to Infinity.
         foreach (var (field, prop) in DriverNumbers)
@@ -71,6 +92,60 @@ public static class Validation
 
         return null;
     }
+
+    static bool IsWebUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    static ValidationError? Shape(JsonElement? shape)
+    {
+        if (shape is not { } s) return null;
+        if (s.ValueKind != JsonValueKind.Object) return new("shape", "ขนาดที่วัด (shape) ต้องเป็นออบเจกต์ JSON");
+        foreach (var p in s.EnumerateObject())
+        {
+            if (!ShapeRanges.TryGetValue(p.Name, out var r)) return new("shape", $"ไม่รู้จักขนาด {p.Name}");
+            if (p.Value.ValueKind == JsonValueKind.Null) continue;
+            if (p.Value.ValueKind != JsonValueKind.Number || !p.Value.TryGetDouble(out var v) || !double.IsFinite(v) || v < r.Min || v > r.Max)
+                return new("shape", $"{r.Label}ต้องอยู่ระหว่าง {Num(r.Min)} ถึง {Num(r.Max)}{(p.Name == "boltHoles" ? "" : " มม.")}");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// A photo upload: a known angle, a JPEG/PNG/WebP whose bytes really are that type (so nothing
+    /// else can be served back under an image name), at most 3 MB, and small alignment marks.
+    /// </summary>
+    public static ValidationError? Media(string angle, MediaInput m, out byte[] bytes, out string? marks)
+    {
+        bytes = [];
+        marks = null;
+        if (!MediaAngles.Contains(angle)) return new("angle", $"มุมรูปต้องเป็นหนึ่งใน {string.Join(", ", MediaAngles)}");
+        if (m.Mime is null || !MediaTypes.Contains(m.Mime)) return new("mime", "รูปต้องเป็น JPEG, PNG หรือ WebP");
+        if (string.IsNullOrEmpty(m.Data)) return new("data", "ไม่มีข้อมูลรูป");
+        var buffer = new byte[m.Data.Length * 3 / 4 + 3];
+        if (!Convert.TryFromBase64String(m.Data, buffer, out var n)) return new("data", "ข้อมูลรูปไม่ใช่ base64 ที่ถูกต้อง");
+        if (n > MaxMediaBytes) return new("data", "รูปต้องมีขนาดไม่เกิน 3 MB");
+        bytes = buffer[..n];
+        if (!LooksLike(bytes, m.Mime)) return new("data", "ไฟล์ไม่ตรงกับชนิดรูปที่ระบุ");
+        if (m.Marks is { } k)
+        {
+            if (k.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null)) return new("marks", "จุดจัดตำแหน่ง (marks) ต้องเป็นออบเจกต์ JSON");
+            if (k.ValueKind == JsonValueKind.Object)
+            {
+                marks = JsonSerializer.Serialize(k, Api.Json);
+                if (marks.Length > 4096) return new("marks", "จุดจัดตำแหน่งต้องมีขนาดไม่เกิน 4 KB");
+            }
+        }
+        return null;
+    }
+
+    static bool LooksLike(byte[] b, string mime) => mime switch
+    {
+        "image/jpeg" => b.Length > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF,
+        "image/png" => b.Length > 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47,
+        "image/webp" => b.Length > 12 && b[0] == (byte)'R' && b[1] == (byte)'I' && b[2] == (byte)'F' && b[3] == (byte)'F'
+            && b[8] == (byte)'W' && b[9] == (byte)'E' && b[10] == (byte)'B' && b[11] == (byte)'P',
+        _ => false,
+    };
 
     public static ValidationError? Project(ProjectInput p, out ProjectValues values)
     {

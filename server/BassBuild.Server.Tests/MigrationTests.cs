@@ -70,7 +70,7 @@ public sealed class MigrationTests : IDisposable
         using (var c = db.Open())
         {
             // As if the database predates the field: clear it, and set one by hand.
-            c.Execute("UPDATE drivers SET coil_wiring = NULL");
+            c.Execute("UPDATE drivers SET coil_wiring = NULL, image_url = NULL");
             c.Execute("UPDATE drivers SET coil_wiring = 'parallel' WHERE model = 'P3D4-12'");
             c.Execute("DELETE FROM settings WHERE key = 'seed.drivers'");
         }
@@ -81,6 +81,7 @@ public sealed class MigrationTests : IDisposable
         Assert.Equal("parallel", Wiring("MP 300 D4.3"));
         Assert.Equal("parallel", Wiring("P3D4-12")); // the user's value stays
         Assert.Null(Wiring("8W7AE-3")); // single coil
+        Assert.StartsWith("https://", c2.ExecuteScalar<string?>("SELECT image_url FROM drivers WHERE model = '8W7AE-3'"));
     }
 
     [Fact]

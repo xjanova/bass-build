@@ -49,7 +49,7 @@ export function ResultTiles({ res, geo, xmax, conf }: { res: SimResult; geo: Box
       </Tile>
       <Tile entry={hasPort ? 'portLength' : null} label="ท่อ" conf={hasPort ? conf.portLength : null}>
         <div className="k"><span>ท่อยาว</span></div><div className="v">{geo && geo.portFold !== 'none' ? (geo.portLength * 100).toFixed(0) : '—'}</div>
-        <div className="u">{geo?.portFold === 'L' ? 'ซม. · พับตัว L' : geo?.portFold === 'straight' ? 'ซม. · ตรง' : geo?.portFold === 'impossible' ? 'ซม. · ใส่ในตู้ไม่ได้' : 'ไม่มีท่อ'}</div>
+        <div className="u">{geo?.portFold === 'L' ? 'ซม. · พับตัว L' : geo?.portFold === 'straight' ? 'ซม. · ตรง' : geo?.portFold === 'impossible' ? 'ซม. · ใส่ในตู้ไม่ได้' : geo?.portFold === 'short' ? 'ซม. · สั้นกว่าแผง' : 'ไม่มีท่อ'}</div>
       </Tile>
     </div>
   );

@@ -4,11 +4,12 @@ import { loadDampingMaterials, loadDrivers, loadPanelMaterials } from './data/ap
 import { sanitizeDesign, type Slot } from './data/compare';
 import { resultConfidence } from './sim/confidence';
 import type { NotebookCtx } from './sim/formulas';
-import { driverFromDto, fillFor, maxOutputFor, panelModes, ratedWatts, simulate, suggestDesign, sizeBox, solveAt, summarize, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
+import { driverFromDto, fillFor, maxOutputFor, mountOf, panelModes, ratedWatts, simulate, suggestDesign, sizeBox, solveAt, summarize, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
 import { LAB_GRID } from './sim/wizard';
 import { DEFAULT_DESIGN, useApp, type BoxType } from './state/store';
 import { ChartDock } from './ui/ChartDock';
 import { Notebook } from './ui/Notebook';
+import { useDriverLook } from './ui/useDriverLook';
 import { Hud, IrPanel, LeftPanel, OverlayBar, ToastHost, TopBar } from './ui/Panels';
 import { RightPanel } from './ui/RightPanel';
 import { LibraryView } from './ui/Library';
@@ -136,6 +137,9 @@ export function App() {
     d, dto, driver: drv.ok ? drv.driver : null, res, geo, material, wall, modes, max, fill: fillFor(d, damping), conf
   } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The selected driver as measured and photographed (generic proportions where it was not).
+  const driverLook = useDriverLook(dto);
+
   const modelCode = `BB-${dto?.sizeIn ?? '??'}${TYPE_CODE[d.boxType]}-${d.boxType === 'sealed' || d.boxType === 'isobaric' ? Math.round(res?.info.fc ?? 0) : Math.round(d.fbHz)}`;
 
   const fill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr' ? d.stuffing : 0;
@@ -143,8 +147,8 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
-      boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: (dto?.depthMm ?? 190) / 1000,
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
       mode: mode === 'library' || mode === 'wizard' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
       osc: osc?.osc ?? null,
@@ -159,9 +163,10 @@ export function App() {
           : dto?.sdCm2 ? Math.sqrt((dto.sdCm2 * 1e-4) / Math.PI) : geo.driverRadius * 0.82,
         fromPort: d.boxType === 'bp4' || d.boxType === 'bp6'
       },
-      fill
+      fill,
+      driverLook: driverLook.look
     };
-  }, [geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib]);
+  }, [geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib, driverLook]);
 
   return (
     <div className="app">

@@ -82,6 +82,8 @@ interface State {
   slotShown: Record<SlotId, boolean>;
   /** Formula notebook: open (optionally at one entry) or closed. */
   notebook: { focus: string | null } | null;
+  /** Bumped whenever a driver photo is saved or removed, so every view reloads its photos. */
+  mediaVersion: number;
   tool: string;
   backend: Backend | null;
   toast: Toast | null;
@@ -105,6 +107,7 @@ interface State {
   toggleSlot: (id: SlotId) => void;
   openNotebook: (focus?: string | null) => void;
   closeNotebook: () => void;
+  bumpMedia: () => void;
   setTool: (t: string) => void;
   setBackend: (b: Backend) => void;
   showToast: (text: string, action?: Toast['action']) => void;
@@ -130,6 +133,7 @@ export const useApp = create<State>((set) => ({
   slots: readSlots(),
   slotShown: { A: true, B: true, C: true },
   notebook: null,
+  mediaVersion: 0,
   tool: 'select',
   backend: null,
   toast: null,
@@ -164,6 +168,7 @@ export const useApp = create<State>((set) => ({
   toggleSlot: (id) => set((s) => ({ slotShown: { ...s.slotShown, [id]: !s.slotShown[id] } })),
   openNotebook: (focus = null) => set({ notebook: { focus } }),
   closeNotebook: () => set({ notebook: null }),
+  bumpMedia: () => set((s) => ({ mediaVersion: s.mediaVersion + 1 })),
   setTool: (tool) => set({ tool }),
   setBackend: (backend) => set({ backend }),
   showToast: (text, action) => set({ toast: { id: ++toastId, text, action } }),

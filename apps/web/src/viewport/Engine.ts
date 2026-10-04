@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType, Mode, OverlayId } from '../state/store';
 import { Balloon, PanelVibe, PortArrows, Smoke, WavePlane } from './effects';
-import { buildEnclosure, type DriverParts, type Enclosure } from './enclosure';
+import { buildEnclosure, type DriverLook, type DriverParts, type Enclosure } from './enclosure';
 import { looksFor, scanKey, VENEERS, type Finish, type Veneer } from './finishes';
 import { buildRoom } from './room';
 import { iron, smokeTexture, tempToT } from './textures';
@@ -46,6 +46,8 @@ export interface EngineInput {
   balloon: { radius: number; fromPort: boolean };
   /** Fill drawn in x-ray, 0..1 (part of geoKey: changing it rebuilds the box). */
   fill: number;
+  /** The driver's measured shape and photo textures (its key belongs in geoKey). */
+  driverLook?: DriverLook | null;
 }
 
 const re = (z: Cx, wt: number) => z.re * Math.cos(wt) - z.im * Math.sin(wt);
@@ -235,7 +237,7 @@ export class Engine {
     }
     const looks = looksFor(input.finish, input.material, this.textures);
     this.seeThrough = looks.seeThrough;
-    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, looks, input.fill);
+    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, looks, input.fill, input.driverLook);
     this.scene.add(this.enc.group);
     this.buildDims(input.geo);
   }

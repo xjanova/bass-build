@@ -43,6 +43,8 @@ export interface AlignmentRequest {
   maxPortLength?: number;
   /** Same for the rear-chamber port of a 6th-order band-pass (default: maxPortLength). */
   maxRearPortLength?: number;
+  /** Shortest port that can be built: it cannot be shorter than the panel it goes through, m (default 0.02). */
+  minPortLength?: number;
   /** Net volume limits of the main (rear) chamber, m³ — e.g. the UI range, or what the driver needs to fit. */
   minVolume?: number;
   maxVolume?: number;
@@ -165,7 +167,7 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
     for (let i = 0; i < 60; i++, area *= 1.12) {
       const box = make(area);
       const res = simulate(spec(box), { fMin: 10, fMax: 300, points: 90 });
-      if (res.info.ports.some((p) => p.physicalLength < 0.02)) continue; // too narrow to reach this tuning at all
+      if (res.info.ports.some((p) => p.physicalLength < (req.minPortLength ?? 0.02))) continue; // too narrow to reach this tuning at all
       shortest ??= box;
       if (res.info.ports.some((p) => p.physicalLength > limit(p.label))) break;
       fitting = box;

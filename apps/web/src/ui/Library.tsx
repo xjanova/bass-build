@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { blankDriver, parseCsv, parseNumber, parseWdr, toCsv, type DriverDraft } from '../data/importers';
 import { DERIVABLE, deleteDriver, derive, isEditable, MISSING_TH, saveDriver, suitability, validateDraft } from '../data/library';
-import type { DriverDto } from '../data/types';
+import type { DriverDto, DriverShape } from '../data/types';
+import { sdFromCone, SHAPE_FIELDS } from '../sim/driverShape';
 import { useApp } from '../state/store';
+import { ANGLES, deleteMedia } from '../data/media';
+import { DriverPicture, DriverProfile, PhotoPanel, useDriverMedia } from './DriverPhotos';
 import { Icon } from './icons';
 
 const CATS: [string, string][] = [['all', 'ทั้งหมด'], ['sub', 'ซับวูฟเฟอร์'], ['pa', 'PA / รถแห่'], ['woofer', 'วูฟเฟอร์'], ['fullrange', 'ฟูลเรนจ์'], ['mid', 'เสียงกลาง']];
@@ -58,6 +61,8 @@ export function LibraryView() {
   const doDelete = async (d: DriverDto) => {
     setConfirmDelete(null);
     if (!(await deleteDriver(d.id, driversSource))) { showToast('ลบไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
+    // The server drops a driver's photos with it; in the browser they are removed here.
+    if (driversSource !== 'server') await Promise.all(ANGLES.map((x) => deleteMedia(d.id, x.id, driversSource)));
     removeDriver(d.id);
     setSel(null);
     showToast(`ลบ ${d.brand} ${d.model} แล้ว`);
@@ -143,6 +148,7 @@ function DriverDetail({ d, editable, inLab, onUse, onCopy, onEdit, onDelete }: {
   d: DriverDto; editable: boolean; inLab: boolean; onUse: () => void; onCopy: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const der = useMemo(() => derive(d), [d]);
+  const media = useDriverMedia(d.id);
   const fit = suitability(der.ebp, der.values.qts?.v ?? null);
   const bad = der.checks.filter((c) => !c.ok);
   const row = (label: string, v: number | null | undefined, unit: string, digits = 2) => <div><span>{label}</span><b>{fmt(v, digits)}{v != null && unit ? ` ${unit}` : ''}</b></div>;
@@ -160,6 +166,7 @@ function DriverDetail({ d, editable, inLab, onUse, onCopy, onEdit, onDelete }: {
         </div>
       </div>
 
+      <DriverPicture d={d} media={media} />
       {fit && <div className={`fit ${fit.tone}`}>{fit.text}{der.spl1w ? ` · ความไวคำนวณ ${der.spl1w.toFixed(1)} dB 1W/1m` : ''}</div>}
 
       <div className="det-section">ค่า Thiele/Small <span className="muted">· ค่าสีจางคำนวณจากค่าอื่น</span></div>
@@ -186,6 +193,16 @@ function DriverDetail({ d, editable, inLab, onUse, onCopy, onEdit, onDelete }: {
         {row('รูเจาะ', d.cutoutMm, 'มม.', 0)}{row('ขอบนอก', d.outerMm, 'มม.', 0)}{row('ความลึก', d.depthMm, 'มม.', 0)}{row('ปริมาตรแทนที่', d.displacementL, 'L', 2)}
       </div>
 
+      <div className="det-section">รูปทรงจริงสำหรับโมเดล 3D <span className="muted">· ขนาดที่วัด + รูปถ่าย 4 มุม</span></div>
+      <div className="shape-row">
+        <DriverProfile d={d} />
+        <div className="det-grid">
+          {SHAPE_FIELDS.map((f) => { const v = d.shape?.[f.key]; return <div key={f.key} title={f.how}><span>{f.letter} {f.label}</span><b>{v != null ? `${fmt(v, 0)} ${f.unit}` : '—'}</b></div>; })}
+        </div>
+      </div>
+      {!editable && <p className="muted small">ขนาดที่วัดแก้ได้ในสำเนาของคุณ (กด "ทำสำเนาเพื่อแก้") ส่วนรูปถ่ายใส่ให้รุ่นนี้ได้เลย</p>}
+      <PhotoPanel d={d} media={media} />
+
       <div className="det-source">
         <span className={`tag ${d.sourceKind}`}>{editable ? 'ของฉัน' : KIND_LABEL[d.sourceKind] ?? d.sourceKind}</span>
         {d.sourceUrl && /^https?:\/\//i.test(d.sourceUrl) ? <a href={d.sourceUrl} target="_blank" rel="noopener noreferrer">ดูที่มาของข้อมูล ↗</a> : <span className="muted">ไม่มีลิงก์ที่มา</span>}
@@ -205,14 +222,19 @@ const GROUPS: [string, FieldDef[]][] = [
 ];
 
 const NUMERIC = new Set<string>(['sizeIn', 'zNom', ...GROUPS.flatMap(([, f]) => f.map(([k]) => k))]);
-const TEXT = ['brand', 'model', 'category', 'coil', 'coilWiring', 'sourceKind', 'sourceUrl', 'notes'];
+const SHAPE_KEYS = SHAPE_FIELDS.map((f) => `shape.${f.key}`);
+const TEXT = ['brand', 'model', 'category', 'coil', 'coilWiring', 'sourceKind', 'sourceUrl', 'imageUrl', 'notes'];
 
 function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing; others: DriverDto[]; onClose: () => void; onSaved: (d: DriverDto) => void }) {
   const { driversSource } = useApp();
   // What is in every box as typed, so "0," can be on its way to "0,39".
   const [text, setText] = useState<Record<string, string>>(() => {
     const src = editing.draft as Record<string, unknown>;
-    return Object.fromEntries([...NUMERIC, ...TEXT].map((k) => [k, src[k] == null ? '' : String(src[k])]));
+    const shape = (editing.draft.shape ?? {}) as Record<string, unknown>;
+    return Object.fromEntries([
+      ...[...NUMERIC, ...TEXT].map((k) => [k, src[k] == null ? '' : String(src[k])]),
+      ...SHAPE_FIELDS.map((f) => [`shape.${f.key}`, shape[f.key] == null ? '' : String(shape[f.key])])
+    ]);
   });
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -223,7 +245,11 @@ function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing;
   const draft: DriverDraft = useMemo(() => {
     const { id: _id, ...base } = editing.draft as DriverDraft & { id?: number };
     const d = { ...base } as Record<string, unknown>;
-    for (const [k, v] of Object.entries(text)) d[k] = NUMERIC.has(k) ? parseNumber(v) : v;
+    for (const [k, v] of Object.entries(text)) if (!k.startsWith('shape.')) d[k] = NUMERIC.has(k) ? parseNumber(v) : v;
+    const shape: DriverShape = {};
+    for (const f of SHAPE_FIELDS) { const v = parseNumber(text[`shape.${f.key}`]); if (v !== null) shape[f.key] = f.key === 'boltHoles' ? Math.round(v) : v; }
+    d.shape = Object.keys(shape).length ? shape : null;
+    d.imageUrl = (text.imageUrl ?? '').trim() || null;
     // Only a dual-coil driver has a coil wiring, and only the two values the physics knows.
     d.coilWiring = d.coil === 'DVC' && (text.coilWiring === 'series' || text.coilWiring === 'parallel') ? text.coilWiring : null;
     // A new category means the old Thai kind label no longer fits.
@@ -247,6 +273,11 @@ function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing;
     const v = validateDraft(clean, others, editing.id);
     if (v) { setError(v); return; }
     if (clean.sourceUrl && !/^https?:\/\//i.test(clean.sourceUrl)) { setError({ field: 'sourceUrl', message: 'ลิงก์ที่มาต้องขึ้นต้นด้วย http:// หรือ https://' }); return; }
+    if (clean.imageUrl && !/^https:\/\//i.test(clean.imageUrl)) { setError({ field: 'imageUrl', message: 'ลิงก์รูปต้องขึ้นต้นด้วย https://' }); return; }
+    for (const f of SHAPE_FIELDS) {
+      const v = clean.shape?.[f.key];
+      if (v != null && (v < f.min || v > f.max)) { setError({ field: `shape.${f.key}`, message: `${f.label}ต้องอยู่ระหว่าง ${f.min}–${f.max} ${f.unit}` }); return; }
+    }
     setSaving(true);
     const r = await saveDriver(clean, editing.id, driversSource);
     setSaving(false);
@@ -285,10 +316,30 @@ function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing;
         {GROUPS.map(([title, fields]) => (
           <fieldset key={title}><legend>{title}</legend><div className="ed-grid">{fields.map(([k, label, unit]) => input(k, label, unit))}</div></fieldset>
         ))}
+        <fieldset><legend>ขนาดที่วัดจริง · ใช้ปั้นโมเดล 3D</legend>
+          <div className="shape-row">
+            <DriverProfile d={{ ...(draft as DriverDto), id: editing.id ?? 0 }} />
+            <div className="ed-grid">
+              {SHAPE_FIELDS.map((f) => {
+                const k = `shape.${f.key}`;
+                return (
+                  <label key={k} className={`ed-field${error?.field === k ? ' bad' : ''}`} title={f.how}>
+                    <span>{f.letter} {f.label}<em>{f.unit}</em></span>
+                    <input inputMode="decimal" value={text[k] ?? ''} onChange={set(k)} placeholder={f.how.length < 28 ? f.how : ''} aria-invalid={error?.field === k} />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <p className="muted small">วัดด้วยไม้บรรทัดหรือเวอร์เนียร์ ช่องที่เว้นไว้ระบบประมาณจากขนาดลำโพงให้ · ชี้ที่ช่องเพื่อดูวิธีวัด
+            {(() => { const c = parseNumber(text['shape.coneMm']); return c ? ` · Sd จากกรวยที่วัด ≈ ${Math.round(sdFromCone(c))} ซม.²` : ''; })()}
+            {editing.id === null ? ' · บันทึกแล้วจึงใส่รูปถ่าย 4 มุมได้ที่หน้ารายละเอียด' : ''}</p>
+        </fieldset>
         <fieldset><legend>ที่มา</legend>
           <div className="ed-grid">
             <label className="ed-field"><span>แหล่งข้อมูล</span><select value={text.sourceKind} onChange={set('sourceKind')}><option value="datasheet">datasheet</option><option value="measured">วัดเอง</option><option value="user">กรอกเอง</option><option value="estimated">ประมาณ</option></select></label>
             <label className={`ed-field wide${error?.field === 'sourceUrl' ? ' bad' : ''}`}><span>ลิงก์ที่มา</span><input value={text.sourceUrl ?? ''} placeholder="https://…" onChange={set('sourceUrl')} /></label>
+            <label className={`ed-field full${error?.field === 'imageUrl' ? ' bad' : ''}`}><span>ลิงก์รูปจากผู้ผลิต (ไม่บังคับ)</span><input value={text.imageUrl ?? ''} placeholder="https://… (เก็บเป็นลิงก์ ไม่คัดลอกรูป)" onChange={set('imageUrl')} /></label>
             <label className="ed-field full"><span>หมายเหตุ</span><input value={text.notes ?? ''} onChange={set('notes')} /></label>
           </div>
         </fieldset>

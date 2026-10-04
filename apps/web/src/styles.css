@@ -340,6 +340,46 @@ button.tile:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px;
 .params button:hover { border-color: rgba(34, 211, 238, 0.4); }
 .nbbtn { margin-left: auto; height: 30px; background: rgba(15, 23, 42, 0.7); cursor: pointer; }
 
+/* Buildability: unbuildable stretches of a slider, the note when it stops, the block with a fix */
+.zones { position: relative; height: 3px; margin: 1px 8px 0; }
+.zones i { position: absolute; top: 0; height: 3px; border-radius: 2px; background: rgba(240, 171, 252, 0.75); }
+.limit-note { margin-top: 3px; font-size: 11.5px; line-height: 1.4; color: #f5d0fe; }
+.build-block { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border-radius: 9px; border: 1px solid rgba(240, 171, 252, 0.6); background: rgba(240, 171, 252, 0.1); color: #f5d0fe; font-size: 12px; line-height: 1.45; }
+.build-block b { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.build-block ul { margin: 0; padding-left: 18px; }
+.build-block button { align-self: flex-start; height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid rgba(240, 171, 252, 0.7); background: rgba(240, 171, 252, 0.18); color: #fdf4ff; font-weight: 600; }
+
+/* Real driver: picture, measured profile, photo slots, marking */
+.small { font-size: 11.5px; margin: 4px 0 0; }
+.drv-pic { margin: 0 0 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.drv-pic img { max-width: min(100%, 320px); max-height: 220px; object-fit: contain; border-radius: 10px; background: #0b1017; border: 1px solid var(--line); }
+.drv-pic figcaption { font-size: 11px; color: var(--faint); }
+.drv-pic figcaption a { color: var(--cyan-soft); }
+.shape-row { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.shape-row .det-grid, .shape-row .ed-grid { flex: 1; min-width: 240px; }
+.drv-profile { width: 240px; max-width: 100%; height: auto; flex: none; background: rgba(2, 6, 12, 0.45); border: 1px solid var(--line); border-radius: 10px; }
+.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin-top: 8px; }
+.photo-slot { display: flex; gap: 10px; padding: 8px; border: 1px dashed var(--line-2); border-radius: 10px; background: rgba(15, 23, 42, 0.45); }
+.photo-slot.has { border-style: solid; }
+.photo-thumb { flex: none; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; background: #0b1017; display: grid; place-items: center; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb svg { width: 70px; }
+.photo-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; }
+.photo-text details { font-size: 11.5px; color: #cbd5e1; }
+.photo-text summary { cursor: pointer; color: var(--cyan-soft); }
+.photo-text details p { margin: 4px 0 0; line-height: 1.45; }
+.photo-act { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+.photo-act button:not(.linkbtn) { height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line-2); background: rgba(34, 211, 238, 0.1); font-size: 11.5px; }
+.photo-warn { font-size: 11.5px; color: #fcd34d; }
+.markbox { width: min(900px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; background: rgba(8, 12, 18, 0.97); }
+.markbox h3 { margin: 0; font: 700 18px var(--display); color: var(--text-strong); }
+.markbox p { margin: 0; font-size: 12.5px; }
+.markbox .row { display: flex; gap: 8px; }
+.markbox .row button { height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line-2); background: transparent; }
+.mark-stage { position: relative; align-self: center; cursor: crosshair; max-width: 100%; line-height: 0; }
+.mark-stage img { max-width: 100%; max-height: 62dvh; display: block; user-select: none; }
+.mark-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
 /* Wiring, amplifier and cable */
 .loadline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: -2px; }
 .loadline b { color: var(--text-strong); font-family: var(--mono); font-weight: 500; }

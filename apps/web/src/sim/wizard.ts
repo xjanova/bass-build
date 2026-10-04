@@ -182,6 +182,8 @@ function evaluate(input: WizardInput, r: Recipe): Omit<Candidate, 'score' | 'str
   } catch {
     return null; // a recipe this driver cannot reach at all (e.g. a Qtc below its Qts)
   }
+  // Never offer a box that cannot be built (a port or the driver would not fit).
+  if (s.flags.includes('unbuildable')) return null;
   const d: Design = { ...start, ...s.patch };
   // Same grid as the lab's own graphs, so these curves line up with it as a comparison.
   const res = simulate(toSpec(d, driver, damping), LAB_GRID);

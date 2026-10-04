@@ -165,6 +165,11 @@ public sealed class Db
                             UPDATE drivers SET coil_wiring = @CoilWiring
                             WHERE brand = @Brand COLLATE NOCASE AND model = @Model COLLATE NOCASE AND coil_wiring IS NULL
                             """, new { d.Brand, d.Model, d.CoilWiring }, tx);
+                    if (d.ImageUrl is not null)
+                        c.Execute("""
+                            UPDATE drivers SET image_url = @ImageUrl
+                            WHERE brand = @Brand COLLATE NOCASE AND model = @Model COLLATE NOCASE AND image_url IS NULL
+                            """, new { d.Brand, d.Model, d.ImageUrl }, tx);
                     continue;
                 }
                 DriverEndpoints.Insert(c, d, now, tx);

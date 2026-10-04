@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -34,6 +35,10 @@ public class DriverInput
     public string? Coil { get; set; }
     /// <summary>Coil wiring the T/S of a dual-voice-coil driver refer to: "series" or "parallel".</summary>
     public string? CoilWiring { get; set; }
+    /// <summary>Measured geometry (mm) for the 3D model: coneMm, surroundMm, dustcapMm, … (see Validation.ShapeRanges).</summary>
+    public JsonElement? Shape { get; set; }
+    /// <summary>Link to an official product photo. Only the link is kept; the photo stays the maker's.</summary>
+    public string? ImageUrl { get; set; }
     public double? CutoutMm { get; set; }
     public double? OuterMm { get; set; }
     public double? DepthMm { get; set; }
@@ -55,6 +60,9 @@ public class DriverInput
         KindTh = Validation.Clean(KindTh);
         Coil = Validation.Clean(Coil);
         CoilWiring = Validation.Clean(CoilWiring);
+        ImageUrl = Validation.Clean(ImageUrl);
+        // An empty object or a JSON null means "no measurements".
+        if (Shape is { } s && (s.ValueKind == JsonValueKind.Null || (s.ValueKind == JsonValueKind.Object && !s.EnumerateObject().Any()))) Shape = null;
         SourceKind = Validation.Clean(SourceKind) ?? "user";
         SourceUrl = Validation.Clean(SourceUrl);
         Notes = Validation.Clean(Notes);
@@ -74,7 +82,7 @@ public static class DriverEndpoints
 {
     static readonly string[] Columns =
         ["brand", "model", "category", "kind_th", "size_in", "fs", "qts", "qes", "qms", "vas_l", "re", "le_mh", "bl",
-         "mms_g", "cms_mm_per_n", "rms", "sd_cm2", "xmax_mm", "xmech_mm", "pe_w", "spl_db", "z_nom", "coil", "coil_wiring",
+         "mms_g", "cms_mm_per_n", "rms", "sd_cm2", "xmax_mm", "xmech_mm", "pe_w", "spl_db", "z_nom", "coil", "coil_wiring", "shape", "image_url",
          "cutout_mm", "outer_mm", "depth_mm", "displacement_l", "rth_vc", "tau_vc", "rth_mag", "tau_mag",
          "source_kind", "source_url", "verified", "notes"];
 

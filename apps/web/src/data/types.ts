@@ -1,4 +1,17 @@
 /** Shapes returned by the C# server (camelCase JSON). */
+
+/** What to measure on a driver for its 3D model (all optional; missing ones are estimated). */
+export interface DriverShape {
+  coneMm?: number | null; // effective cone diameter, to the middle of the surround
+  surroundMm?: number | null; // surround width
+  dustcapMm?: number | null;
+  coneDepthMm?: number | null; // from the surround down to the dust cap
+  flangeMm?: number | null; // frame flange thickness
+  magnetMm?: number | null;
+  magnetHeightMm?: number | null;
+  boltHoles?: number | null;
+  boltCircleMm?: number | null;
+}
 export interface DriverDto {
   id: number;
   brand: string;
@@ -26,6 +39,10 @@ export interface DriverDto {
   coil: string | null;
   /** Coil wiring a dual-voice-coil driver's T/S were measured with; null when single-coil or not stated. */
   coilWiring?: 'series' | 'parallel' | null;
+  /** Geometry measured on the real driver, mm (bolt holes as a count); shapes its 3D model. */
+  shape?: DriverShape | null;
+  /** Link to an official product photo (shown by link only). */
+  imageUrl?: string | null;
   cutoutMm: number | null;
   outerMm: number | null;
   depthMm: number | null;

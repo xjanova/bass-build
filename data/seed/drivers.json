@@ -36,6 +36,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1669677/pn/010-03031-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03033-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 3 ohm coil. Page covers all W7AE sizes; 8\" column used. Vas published as 0.61 cu ft (17.4 L), L value used. Sd 38 in^2 x 6.4516 = 245.2 cm^2 (page also gives 0.0245 m^2). Xmax 0.75 in (19 mm). Mounting hole 6.94 in (176 mm), frame OD 8.5 in (216 mm), depth 6.83 in (173 mm), displacement 0.06 cu ft (1.7 L) - published mm/L used."
   },
@@ -74,6 +75,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1669677/pn/010-03031-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03031-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 3 ohm coil. Vas 2.33 cu ft (66.0 L), L value used. Sd 84 in^2 x 6.4516 = 541.9 cm^2 (page also gives 0.0542 m^2). Xmax 1.15 in (29 mm). Mounting hole 10.5 in (267 mm), frame OD 12.5 in (318 mm), depth 9.5 in (241 mm), displacement 0.14 cu ft (4.0 L) - published mm/L used."
   },
@@ -112,6 +114,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1707322/pn/010-03034-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03034-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Dual 4 ohm. Page does not state wiring, but published Re 6.493 ohm implies T/S for coils in series (8 ohm); zNom set to 8. Vas 1.920 cu ft (54.37 L), L value used. Sd 75.338 in^2 x 6.4516 = 486.1 cm^2 (page also gives 0.0486 m^2). Xmax 0.75 in (19 mm). Mounting hole 11.02 in (280 mm), OD 12.5 in (318 mm), depth 7.52 in (191 mm), displacement 0.105 cu ft (2.97 L). Odd: page lists reference efficiency 0.11%, but Fs/Vas/Qes give ~0.21% (matches the 85.4 dB SPL); efficiency field not used."
   },
@@ -150,6 +153,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1668237/pn/010-03038-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03159-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 4 ohm coil (4 ohm column of the W3v3 table). Vas 1.138 cu ft (32.23 L), L value used. Sd 53.475 in^2 x 6.4516 = 345.0 cm^2 (page 0.0345 m^2). Xmax 0.550 in (14.0 mm). Mounting hole 9.0625 in (230 mm), OD 10.5 in (267 mm), depth 5.93 in (151 mm), displacement 0.049 cu ft (1.39 L)."
   },
@@ -188,6 +192,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1668237/pn/010-03038-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03038-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 4 ohm coil (4 ohm column). Vas 2.844 cu ft (80.54 L), L value used. Sd 80.600 in^2 x 6.4516 = 520.0 cm^2 (page 0.0520 m^2). Xmax 0.510 in (13.0 mm). Mounting hole 11.0625 in (281 mm), OD 12.5 in (318 mm), depth 6.65 in (169 mm), displacement 0.071 cu ft (2.01 L)."
   },
@@ -226,6 +231,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1709781/pn/010-03207-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03207-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 4 ohm coil (4 ohm column). Vas 2.706 cu ft (76.63 L), L value used. Sd 81.426 in^2 x 6.4516 = 525.3 cm^2 (page 0.0525 m^2). Xmax 0.45 in (11 mm). Mounting hole 11.0625 in (281 mm), OD 12.5 in (318 mm), depth 5.41 in (137 mm), displacement 0.052 cu ft (1.47 L)."
   },
@@ -264,6 +270,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1666237/pn/010-03040-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03040-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Single 4 ohm coil. Vas 2.530 cu ft (71.64 L), L value used. Sd 74.509 in^2 x 6.4516 = 480.7 cm^2 (page 0.0481 m^2). Xmax 0.45 in (11.4 mm). Mounting hole 11.0625 in (281 mm), depth 5.40 in (137 mm), displacement 0.048 cu ft (1.36 L). outerMm null: page lists a single frame OD of 10.52 in (267 mm) for both 10\" and 12\" sizes, which cannot be right for the 12\"."
   },
@@ -302,6 +309,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.garmin.com/en-US/p/1666477/pn/010-03042-00",
+   "imageUrl": "https://res.garmin.com/en/products/010-03042-00/v/cf-lg.jpg",
    "verified": false,
    "notes": "Official JL Audio spec table (jlaudio.com product URL redirects to garmin.com; JL Audio is a Garmin brand). Bl, Mms, Cms, Le not published (null). Xmax is JL's one-way voice-coil-overhang figure. Sensitivity SPL @ 1W/1m. Thin-line, single 2 ohm coil (2 ohm column; page also lists 4 ohm version). Vas 2.26 cu ft (64 L), L value used. Sd 98.26 in^2 x 6.4516 = 633.9 cm^2 (page 0.0634 m^2). Xmax 0.433 in (11 mm). Mounting hole 12.5 in (318 mm); frame OD published as max 14.2 in (361 mm) / min 13.0 in (330 mm) - max used. Depth 2.625 in (67 mm), displacement 0.052 cu ft (1.47 L). Qts from Qes/Qms = 0.487 vs published 0.479 (1.6%, within tolerance). JL says ported enclosures not recommended."
   },
@@ -340,6 +348,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/p3d4-12/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/3b/43/3b43296e-4949-4352-a886-a5ecc6072b59/p3d4-12_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.4 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 11.25 in (285 mm), mounting depth 6.66 in (169.3 mm), displacement 0.106 cu ft (3.0 L) - published mm/L used. Outer diameter not published."
   },
@@ -378,6 +387,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/p3d4-10/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/d9/a4/d9a47e92-ee5d-49bc-a145-58daf8632109/p3d4-10_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.4 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 9.13 in (232 mm), mounting depth 6.18 in (156.8 mm), displacement 0.070 cu ft (2.0 L) - published mm/L used. Outer diameter not published."
   },
@@ -416,6 +426,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/p3d4-15/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/16/0c/160cab39-33f9-4423-a39c-6a4545b3759a/p3d4-15_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.4 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 13.94 in (353 mm), mounting depth 7.58 in (192.5 mm), displacement 0.148 cu ft (4.2 L) - published mm/L used. Outer diameter not published."
   },
@@ -454,6 +465,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/p2d4-12/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/3e/51/3e51dcd1-5126-4366-b353-18a724d80f9f/p2d4-12_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.4 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 11.22 in (285 mm), mounting depth 6.40 in (162 mm), displacement 0.085 cu ft (2.4 L) - published mm/L used. Outer diameter not published."
   },
@@ -492,6 +504,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/p1s4-10/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/fd/86/fd8693a4-940b-4515-b21d-56e4e4f8a76a/p1s4-10_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Single 4 ohm coil. Vas published in litres. Cutout 9.14 in (232 mm), mounting depth 5.33 in (135.4 mm), displacement 0.056 cu ft (1.6 L) - published mm/L used. Outer diameter not published. Page also lists 88 dB @ 2.8V/1m. Qts from Qes/Qms = 0.507 vs published 0.52 (2.5%, within tolerance)."
   },
@@ -530,6 +543,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/t1d412/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/18/46/18468d0c-c7e9-46a7-902e-10ea742665b1/t1d412_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.5 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 11.25 in (285 mm), mounting depth 6.75 in (171 mm), displacement 0.106 cu ft (3.0 L) - published mm/L used. Outer diameter not published."
   },
@@ -568,6 +582,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/t1d415/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/e6/0c/e60c877a-e8af-4599-b564-d2e4dfdb59aa/t1d415_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 6.5 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 13.9375 in (354 mm), mounting depth 8.39 in (213 mm), displacement 0.191 cu ft (5.4 L) - published mm/L used. Outer diameter not published."
   },
@@ -606,6 +621,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://rockfordfosgate.com/products/details/r2d4-12/",
+   "imageUrl": "https://rockfordfosgate.com/media/filer_public/d0/c8/d0c898b3-57ff-4ba7-91ff-7a4b859672f5/r2d4-12_1.png",
    "verified": false,
    "notes": "Rockford Fosgate product page spec table. Bl, Mms, Cms not published (null). SPL @ 1W/1m as published. Page does not state DVC wiring for T/S; published Re 7.17 ohm on a dual-4 ohm sub implies coils in series (8 ohm), so zNom=8. Vas published in litres. Cutout 11.25 in (285 mm), mounting depth 5.067 in (128 mm), displacement 0.046 cu ft (1.3 L) - published mm/L used. Outer diameter not published. Prime (budget) series."
   },
@@ -644,6 +660,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/mp-300-d4-3/",
+   "imageUrl": "https://static.hertz-audio.com/media/2024/12/Hertz_Mille_PRO_MP300_3_emo1.png",
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 260 mm -> Sd = 530.9 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/HERTZ_Mille-PRO_MP300_D4_TechSheet.pdf Sheet: T/S measured with coils in parallel (4+4 ohm -> 2 ohm); for series multiply Re and Le by 4 and BL by 2. Mille Pro series. Sensitivity 86 dB agrees with the 1W/1m efficiency from Fs/Vas/Qes."
   },
@@ -682,6 +699,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/mp-250-d4-3/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 213 mm -> Sd = 356.3 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/HERTZ_Mille-PRO_MP250_3_D4_Tech_Sheet.pdf Sheet: T/S measured with coils in parallel (4+4 ohm -> 2 ohm). Mille Pro series. Qts from Qes/Qms = 0.486 vs published 0.5 (2.9%, within tolerance)."
   },
@@ -720,6 +738,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/cs-300-s4/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 267.7 mm -> Sd = 562.8 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/Hertz_Cento_CS300_S4_Tech_Sheet_rev19A.pdf Single 4 ohm coil, Cento series. Displacement not published. Sensitivity agrees with 1W/1m efficiency from Fs/Vas/Qes."
   },
@@ -758,6 +777,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/cs-250-s4/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 216 mm -> Sd = 366.4 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/Hertz_Cento_CS250_S4_Tech_Sheet_rev19A.pdf Single 4 ohm coil, Cento series. Displacement not published."
   },
@@ -796,6 +816,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/ds-30-3/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 258 mm -> Sd = 522.8 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/DIECI3_TechSheet_DS-30_31.pdf Single 4 ohm coil, Dieci series. Page has no 'Mounting Hole' row; cutout = drawing Dimension B (279 mm), which equals the mounting hole on other Hertz models. CAUTION sensitivity: 1W/1m efficiency from Fs/Vas/Qes is ~87 dB, so the published 91 dB is probably a 2.83 V/1m figure (reference not stated)."
   },
@@ -834,6 +855,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/s-300-s4/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 258 mm -> Sd = 522.8 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/Hertz_UNO_S300_S4_Tech_Sheet.pdf Single 4 ohm coil, Uno (entry) series. Le not published. Mounting Hole row 279 mm (drawing Dimension B says 280 mm). Sensitivity reference not stated; 1W/1m efficiency from Fs/Vas/Qes is ~88.5 dB vs published 89.5 dB."
   },
@@ -872,6 +894,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://hertz-audio.com/product/ss-15-d2/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Hertz product page + official tech sheet. Sd computed as pi*(D/2)^2 from the published effective diameter D (Hertz does not print Sd). Sensitivity reference not stated on the sheet. Hertz defines Xmech as max mechanical excursion each way. Mounting hole/OD/depth from the page (Mounting Hole, Dimension A, Mounting Depth). D = 323 mm -> Sd = 819.4 cm^2. Tech sheet: https://static.hertz-audio.com/media/2021/04/HERTZ_SPL_SS_15_D2.pdf SPL Show series. Sheet: T/S measured with coils in parallel (2+2 ohm -> 1 ohm). Source inconsistent: published Xmech 10.6 mm is smaller than Xmax 15.4 mm (kept as published)."
   },
@@ -910,6 +933,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://static.audison.com/media/2022/10/AUDISON_Prima_APS10D_Tech_Sheet.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Audison Prima, official tech sheet (linked from audison.com/product/aps-10-d/). Dual 4+4 ohm; wiring not stated, Re 2.2 ohm implies coils in parallel (2 ohm). Sd computed as pi*(D/2)^2 from published D = 220 mm -> 380.1 cm^2. Sensitivity reference not stated. Xmax/Xmech published as +/-12.6 and +/-18 mm. Dimensions from drawing: A 270 mm (outer), B 233 mm (basket at flange, used as cutout - no separate hole size published), D 88 mm (depth below flange). Sheet feature text says 'Ultra-low profile (4.7 in / 120 mm)', which matches C1 119 mm (incl. grille) rather than D. Displacement 1.12 l."
   },
@@ -948,6 +972,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://static.audison.com/media/2022/10/AUDISON_Prima_APS8D_Tech_Sheet.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Audison Prima, official tech sheet (linked from audison.com/product/aps-8-d/). Dual 4+4 ohm; wiring not stated, Re 2.1 ohm implies coils in parallel (2 ohm). Sd computed as pi*(D/2)^2 from published D = 173 mm -> 235.1 cm^2. Sensitivity reference not stated. Drawing: A 222 mm (outer), B 187 mm (used as cutout - no separate hole size published), D 79 mm (sheet: 'Ultra-low profile 3.11 in / 79 mm'). Displacement 0.67 l. Qts from Qes/Qms = 0.422 vs published 0.44 (4.1%, within tolerance). Vas from Sd/Cms is ~23.5 L vs published 25.5 L (8%)."
   },
@@ -986,6 +1011,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://audison.com/product/av-12-d4-ii/",
+   "imageUrl": "https://static.audison.com/media/2025/10/AUDISON_AV-12_EMO_2025_07_16-copia.jpg",
    "verified": false,
    "notes": "Audison Voce II product page spec table (Sd printed there as 'D 539 cm^2'). Dual 4+4 ohm; wiring not stated, Re 1.8 ohm implies coils in parallel (2 ohm). Sensitivity reference not stated. Source inconsistent: Qts vs Qes/Qms (0.5 x 6.2 / 6.7 = 0.463, published Qts 0.5) - kept as published. Cutout = 'Mounting Hole 284 mm' from the page's box section (drawing Dimension B 282.9 mm). Outer = Dimension A 318.3 mm. Depth = Dimension D 88 mm (assumed depth below flange, same drawing convention as Audison Prima sheets; Voce II tech sheet not available). Displacement not published."
   },
@@ -1024,6 +1050,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://audison.com/product/av-10-d4-ii/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Audison Voce II product page spec table (Sd printed as 'D 368 cm^2'). Dual 4+4 ohm; wiring not stated, Re 1.82 ohm implies coils in parallel (2 ohm). Sensitivity reference not stated; 1W/1m efficiency from Fs/Vas/Qes is ~81 dB vs published 83.5 dB. Cutout = 'Mounting Hole 233 mm' from the page's box section (Dimension B 232 mm). Outer = Dimension A 274.5 mm. Depth = Dimension D 82.6 mm (assumed depth below flange, same convention as Audison Prima sheets). Displacement not published."
   },
@@ -1062,6 +1089,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.focal-america.com/wp-content/uploads/2011/08/FT_SUBP30.pdf",
+   "imageUrl": "https://www.focal-america.com/wp-content/uploads/2011/08/subp30sub.jpg",
    "verified": false,
    "notes": "Focal Performance, official tech sheet on focal-america.com (Focal's North American site; older 2011 sheet). Single 4 ohm coil. Cms 1.75E-4 m/N x 1000 = 0.175 mm/N. Rms 4.423 kg/s as published. SPL 87.35 dB/W/m used (sheet header also lists 'Sensitivity 90.8dB', reference not stated - likely 2.83 V). Le = published Inductance 1.12 mH. Drawing: outer dia 315.40 mm, mounting depth 146.50 mm below flange; cutout not published (basket dia at flange 272.5 mm). Dual-coil Focal subs (Sub P 25 DB / P 30 DB) skipped: their Re 1.7 ohm does not match the listed 2 x 2.4 ohm coils in any wiring."
   },
@@ -1100,6 +1128,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/15/8/15TBX100",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_08_14_37_09_848_15tbx100_00.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 2000 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 9 mm as published (B&C 'Xmax'); Xvar 11 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1138,6 +1167,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/18-0/8/18tbw100",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/18tbw100cucito-rear.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 3000 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 12 mm as published (B&C 'Xmax'); Xvar 14 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1176,6 +1206,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/18/8/18TBX100",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_09_09_24_33_14_18tbx100_00.jpeg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 2400 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 9 mm as published (B&C 'Xmax'); Xvar 11 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1214,6 +1245,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/18/8/18SW115",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_09_09_21_05_134_18sw115_00.jpeg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 3400 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 14 mm as published (B&C 'Xmax'); Xvar 16 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1252,6 +1284,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/21/8/21DS115",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_09_09_30_56_677_21_DS115_00.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 3400 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 16.5 mm as published (B&C 'Xmax'); Xvar 13.5 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. Odd but as published: Xvar (13.5) < Xmax (16.5)."
   },
@@ -1290,6 +1323,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/21/8/21SW152",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2018_02_12_14_36_23_943_09_37_41_979_21sw152_00.jpeg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 4000 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 15 mm as published (B&C 'Xmax'); Xvar 16 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1328,6 +1362,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/15/8/15PS100",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_07_21_52_01_968_15PS100_00.jpeg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 1400 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 8 mm as published (B&C 'Xmax'); Xvar 6.5 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L."
   },
@@ -1366,6 +1401,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/15/8/15NW76",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 1200 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 8 mm as published (B&C 'Xmax'); Xvar 10 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. Requested under 18 Sound in the brief, but 15NW76 is a B&C model."
   },
@@ -1404,6 +1440,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/12/8/12NW76",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_06_00_22_06_409_12nw76_00.jpeg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 1000 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 8 mm as published (B&C 'Xmax'); Xvar 10 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. Requested under 18 Sound in the brief, but 12NW76 is a B&C model."
   },
@@ -1442,6 +1479,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/12/8/12PE32",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2021_12_09_15_00_33_121_12PE32front.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 500 W is program (+3 dB) - not used. Sensitivity per B&C tooltip: 2.83 V for 8 ohm nominal, 1 m. Xmax 2.8 mm as published (B&C 'Xmax'); Xvar 5 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. Mid-bass/woofer (very low Qts, Xmax 2.8 mm) - not a subwoofer."
   },
@@ -1480,6 +1518,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/18/8/18IPAL",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2018_10_18_18_09_25_478_18IPAL_00.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 3400 W is program (+3 dB) - not used. Xmax 20 mm as published (B&C 'Xmax'); Xvar 15 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. 2 ohm IPAL driver (for Powersoft IPAL amp modules). Sensitivity per B&C tooltip: 1.42 V for 2 ohm (= 1 W), 1 m."
   },
@@ -1518,6 +1557,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.bcspeakers.com/en/products/lf-driver/21/8/21IPAL",
+   "imageUrl": "https://bcspeakers.com/uploads/products/images/2017_04_09_09_28_15_170_21ipal_rear_copia_00.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air (AES-style); 'Continuous Power Handling' 5000 W is program (+3 dB) - not used. Xmax 22 mm as published (B&C 'Xmax'); Xvar 15 mm also published (not Xmech). Cms/Rms not published. Vas dm3 = L. 1 ohm IPAL driver (for Powersoft IPAL amp modules); page title '21IPAL 1Ω'. Sensitivity per B&C tooltip: 1 V for 1 ohm (= 1 W), 1 m."
   },
@@ -1556,6 +1596,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/18-0/8/18NLW9601",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2021/01/17/02_58_13_702_P8pcIsSW.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 3600 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it). Description text: '70mm before damage' (presumably peak-to-peak, not stated)."
   },
@@ -1594,6 +1635,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/21-0/8/21NLW9601",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2021/01/17/01_28_33_266_i7MtbAk8.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 3600 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it)."
   },
@@ -1632,6 +1674,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/18-0/8/18LW1400",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2022/09/28/19_06_04_946_1400.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 1400 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it). Continuous program (1400 W) is not +3 dB over nominal here despite the generic footnote."
   },
@@ -1670,6 +1713,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/21-0/8/21LW1400",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2021/01/16/22_43_03_957_We9oZoyd.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 1600 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it)."
   },
@@ -1708,6 +1752,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/archive/18NLW4000",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2021/01/17/02_41_35_15_VXSKA7cC.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 3200 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it). Archived (discontinued) model page on the manufacturer site."
   },
@@ -1746,6 +1791,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/12-0/8/12NLW9300",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2023/03/27/10_47_58_744_22_26_26_40_12NLW9300_removebg_preview.png",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 1200 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it)."
   },
@@ -1784,6 +1830,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.eighteensound.it/en/products/lf-driver/15-0/8/15NLW9401",
+   "imageUrl": "https://www.eighteensound.it/system/dragonfly/production/2021/01/17/02_58_47_680_15NLW9401_01.jpg",
    "verified": false,
    "notes": "Power: 'Nominal Power Handling' = 2 h continuous pink noise Fs-10Fs, free air; continuous program 2400 W not used. Sensitivity: '1W / 1m average'; footnote 2.83 V for 8 ohm. Xmax as published (definition not stated). Cms/Rms/displacement not published. Vas dm3 = L. sourceUrl on eighteensound.it (official domain; www.eighteensound.com TLS cert is for *.eighteensound.it)."
   },
@@ -1822,6 +1869,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://eminence.com/products/kilomax_pro_18a",
+   "imageUrl": "https://eminence.com/cdn/shop/files/KILOMAX-PRO-18A-18-Professional-Series-Speaker__angle-01.jpg?v=1787140993",
    "verified": false,
    "notes": "Power: 1250 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 2500 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 19.2 mm in notes only (one-way not stated). Rms not published. Vd 1159 cc published. Inch dims taken from the mm values printed alongside. Cross-checked against linked PDF Kilomax_Pro_18A.pdf (same values)."
   },
@@ -1860,6 +1908,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://cdn.shopify.com/s/files/1/0270/8665/1462/files/Kilomax_Pro_15A.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: 1250 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 2500 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 13.5 mm in notes only (one-way not stated). Rms not published. Vd 677.0 cc published. Inch dims taken from the mm values printed alongside. Spec sheet PDF on Eminence's Shopify file CDN (same store path that eminence.com product pages link for spec sheets); the eminence.com product page for this model no longer resolves (404) - possibly discontinued."
   },
@@ -1898,6 +1947,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://eminence.com/products/kappa_pro_15lf2",
+   "imageUrl": "https://eminence.com/cdn/shop/files/Kappa-Pro-15LF-15-Professional-Series-Speaker-Cast-v-2__angle-01.jpg?v=1787141520",
    "verified": false,
    "notes": "Power: 600 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 1200 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 18 mm in notes only (one-way not stated). Rms not published. Vd 571.2 cc published. Inch dims taken from the mm values printed alongside. Current 'Cast v.2' version; cross-checked against linked PDF Kappa_Pro_15LF2.pdf."
   },
@@ -1936,6 +1986,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://cdn.shopify.com/s/files/1/0270/8665/1462/files/Delta_Pro_18A.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: 500 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 1000 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 15.0 mm in notes only (one-way not stated). Rms not published. Vd 796.0 cc published. Inch dims taken from the mm values printed alongside. Spec sheet PDF on Eminence's Shopify file CDN (same store path that eminence.com product pages link for spec sheets); the eminence.com product page for this model no longer resolves (404) - possibly discontinued."
   },
@@ -1974,6 +2025,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://eminence.com/products/sigma_pro_18a",
+   "imageUrl": "https://eminence.com/cdn/shop/files/SIGMA-PRO-18A-18-Professional-Series-Speaker-v-2__angle-01.jpg?v=1787010756",
    "verified": false,
    "notes": "Power: 650 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 1300 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 18 mm in notes only (one-way not stated). Rms not published. Vd 695 cc published. Inch dims taken from the mm values printed alongside. v.2 version; cross-checked against linked PDF Sigma_Pro_18A_2.pdf."
   },
@@ -2012,6 +2064,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://eminence.com/products/omega_pro_15a",
+   "imageUrl": "https://eminence.com/cdn/shop/files/OMEGA-PRO-15A-15-Professional-Series-Speaker__angle-01.jpg?v=1787010885",
    "verified": false,
    "notes": "Power: 800 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 1600 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 12.2 mm in notes only (one-way not stated). Rms not published. Vd 411 cc published. Inch dims taken from the mm values printed alongside. Cross-checked against linked PDF Omega_Pro_15A.pdf."
   },
@@ -2050,6 +2103,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://cdn.shopify.com/s/files/1/0270/8665/1462/files/Beta_12LTA.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: 225 W = Eminence rated 'Watts' (EIA 426A per spec-sheet footnote); program/music 450 W not used. Sensitivity: 1W/1m (2.83V/8 ohm) average over usable range. Xmax as published; Xlim (max mechanical limit) 8.0 mm in notes only (one-way not stated). Rms not published. Vd 170.0 cc published. Inch dims taken from the mm values printed alongside. Spec sheet PDF on Eminence's Shopify file CDN (same store path that eminence.com product pages link for spec sheets); the eminence.com product page for this model no longer resolves (404) - possibly discontinued. American Standard series PA woofer/monitor driver (not a subwoofer)."
   },
@@ -2088,6 +2142,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=201070140",
+   "imageUrl": "https://www.faitalpro.com/products/files/18XL1600/18XL1600_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 3200 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 28 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 192.3 g also published (mmsG uses Mms). Faital's generated datasheet PDF (18XL1600_datasheet_8.pdf) came back with empty spec tables at fetch time; numbers taken from the product page."
   },
@@ -2126,6 +2181,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=201060150",
+   "imageUrl": "https://www.faitalpro.com/products/files/15XL1400/15XL1400_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 2800 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 28 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 162.4 g also published (mmsG uses Mms)."
   },
@@ -2164,6 +2220,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=101060100",
+   "imageUrl": "https://www.faitalpro.com/products/files/15PR400/15PR400_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 800 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 15.5 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 56.8 g also published (mmsG uses Mms). Light PA woofer (3 in Al coil), not a subwoofer."
   },
@@ -2202,6 +2259,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=201080005",
+   "imageUrl": "https://www.faitalpro.com/products/files/21XL3000/21XL3000_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 6000 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 40 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 337.7 g also published (mmsG uses Mms). Substitute for requested 21HP1060, which was not found on faitalpro.com."
   },
@@ -2240,6 +2298,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=201070125",
+   "imageUrl": "https://www.faitalpro.com/products/files/18HP1060/18HP1060_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 2400 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 21 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 164.1 g also published (mmsG uses Mms)."
   },
@@ -2278,6 +2337,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/index.php?id=201050120",
+   "imageUrl": "https://www.faitalpro.com/products/files/12HP1060/12HP1060_photo_magnify.jpg",
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h; max power 2000 W (+3 dB) not used. Sensitivity 1W/1m. Xmax = [(winding depth - gap depth)/2] + gap depth/3 (Faital footnote). Xdamage 21 mm ('max excursion before permanent damage', one-way not stated) - notes only. Bl unit printed 'N/A' (= T·m). Vas dm3 = L. Mmd 113.6 g also published (mmsG uses Mms)."
   },
@@ -2316,6 +2376,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.rcf.it/en/products/product-detail/lf18x401",
+   "imageUrl": "https://www.rcf.it/documents/20128/822357/000_LF18X401_gallery.png/c0960605-82a0-b5d1-d3d5-106f2ed18a26?version=1.1&t=1636010933112&imagePreview=1",
    "verified": false,
    "notes": "Power: 'Power handling capacity' 1500 W (test standard not stated on page/specsheet); program 3000 W not used. Sensitivity reference not stated (8 ohm, so 1W/1m = 2.83V/1m). Sd 0.12 m2 x 10000 = 1200.0 cm2 (coarsely rounded at source). Xmax as published; 'Max. Excursion Before Damage' 50 mm (peak-to-peak per description) - notes only. cutoutMm = front-mount cut-out; depthMm = published 'Height'. Cms/Rms not published. Spec sheet PDF (SPECSHEET - ENG) checked: same values."
   },
@@ -2354,6 +2415,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.rcf.it/en/products/product-detail/lf21n551",
+   "imageUrl": "https://www.rcf.it/documents/20128/824433/000_LF21N551_j_gallery+%281%29.png/85c355e6-eef9-ceeb-f8ac-b8e954a7c2bc?version=1.1&t=1636010968055&imagePreview=1",
    "verified": false,
    "notes": "Power: 'Power handling capacity' 2000 W (test standard not stated on page/specsheet); program 4000 W not used. Sensitivity reference not stated (8 ohm, so 1W/1m = 2.83V/1m). Sd 0.17 m2 x 10000 = 1700.0 cm2 (coarsely rounded at source). Xmax as published; 'Max. Excursion Before Damage' 72 mm (peak-to-peak per description) - notes only. cutoutMm = front-mount cut-out; depthMm = published 'Height'. Cms/Rms not published."
   },
@@ -2392,6 +2454,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.rcf.it/en/products/product-detail/lf15x401",
+   "imageUrl": "https://www.rcf.it/documents/20128/822385/000_LF15X401_singolo_gallery.png/226bb644-6e7d-4904-3cbc-74ecc45265a0?version=1.0&t=1636550713220&imagePreview=1",
    "verified": false,
    "notes": "Power: 'Power handling capacity' 1500 W (test standard not stated on page/specsheet); program 3000 W not used. Sensitivity reference not stated (8 ohm, so 1W/1m = 2.83V/1m). Sd 0.09 m2 x 10000 = 900.0 cm2 (coarsely rounded at source). Xmax as published; 'Max. Excursion Before Damage' 50 mm (peak-to-peak per description) - notes only. cutoutMm = front-mount cut-out; depthMm = published 'Height'. Cms/Rms not published."
   },
@@ -2430,6 +2493,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://lavocespeakers.com/product/san184-50/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h pink noise (AES Power Rating); program 3400 W (+3 dB) not used. Sensitivity: from T/S parameters (Klippel); response plot labelled 2.83V/1m half space. Xmax = (Hvc-Hg)/2 + Hg/4; Xmech = (Hvc-Hg)/2 + (Hg-2) (Lavoce footnotes). Rms not published. outerMm/depthMm read from the dimension drawing in Lavoce Pro-Audio Catalogue 2024 (https://lavocespeakers.com/wp-content/uploads/2026/01/LAVOCE_Pro-Audio-Catalogue_2024.pdf), whose T/S table matches the product page. Baffle cutout not labelled on drawing (drawing shows 422.6 mm basket dia. behind flange) -> cutoutMm null. Website 'Download Datasheet' PDF is behind a captcha - not used. Neodymium magnet. Bl unit printed 'N/A' (= T·m)."
   },
@@ -2468,6 +2532,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://lavocespeakers.com/product/waf153-02/",
+   "imageUrl": null,
    "verified": false,
    "notes": "Power: AES 2-1984 Rev.2003, 2 h pink noise (AES Power Rating); program 1000 W (+3 dB) not used. Sensitivity: from T/S parameters (Klippel); response plot labelled 2.83V/1m half space. Xmax = (Hvc-Hg)/2 + Hg/4; Xmech = (Hvc-Hg)/2 + (Hg-2) (Lavoce footnotes). Rms not published. outerMm/depthMm read from the dimension drawing in Lavoce Pro-Audio Catalogue 2024 (https://lavocespeakers.com/wp-content/uploads/2026/01/LAVOCE_Pro-Audio-Catalogue_2024.pdf), whose T/S table matches the product page. Baffle cutout not labelled on drawing (drawing shows 353.8 mm basket dia. behind flange) -> cutoutMm null. Website 'Download Datasheet' PDF is behind a captcha - not used. Ferrite PA woofer (3 in coil). Catalogue summary table lists different figures (99 dB / 250 W / depth 174.4) - product page and catalogue product sheet agree with the values used here."
   },
@@ -2506,6 +2571,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.precision-devices.com/products/all-products/pd1850-3/",
+   "imageUrl": "https://www.precision-devices.com/wp-content/uploads/2020/10/PD-1850-3-prod-img-3.png",
    "verified": false,
    "notes": "8 ohm version (page lists 4/8/16 ohm; Re 5.22 ohm fits 8 ohm). Power: 800 W A.E.S. rating (AES 35-350 Hz); program 1600 W and peak 3200 W not used. Sensitivity '1W/1m' (footnote: 2.83V, half space, large sealed box). Cms 107 µm/N / 1000 = 0.107 mm/N. Vd 1.28 L published. Rms not published. Depth published as 'Depth (Excl. Flange)' 177.4 mm with flange height 14.5 mm -> depthMm null. Baffle cutout not published ('Chassis Shoulder Diameter' 415 mm) -> cutoutMm null. outerMm = 'Overall Diameter'."
   },
@@ -2544,6 +2610,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.precision-devices.com/products/18-inch-drivers/pd-185c001/",
+   "imageUrl": "https://www.precision-devices.com/wp-content/uploads/2020/10/PD-185C001-prod-img-1.png",
    "verified": false,
    "notes": "8 ohm version (page lists 4/8/16 ohm; Re 5.9 ohm fits 8 ohm). Power: 1200 W A.E.S. rating (AES 30-300 Hz); program 900 W and peak 4800 W not used. Sensitivity '1W/1m' (footnote: 2.83V, half space, large sealed box). Cms 157.4 µm/N / 1000 = 0.1574 mm/N. Vd 1.22 L published. Rms not published. Depth published as 'Depth (Excl. Flange)' 182.47 mm with flange height 14.5 mm -> depthMm null. Baffle cutout not published ('Chassis Shoulder Diameter' 415 mm) -> cutoutMm null. outerMm = 'Overall Diameter'. Odd but as published: footnote says 'Program 900 Watts' while the AES rating is 1200 W."
   },
@@ -2582,6 +2649,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.beyma.com/en/products/c/low-mid-frequency/118LEX16ND8/loudspeaker-18lex1600nd-8-oh/",
+   "imageUrl": "https://www.beyma.com/speakers/ImgArtWeb/beyma-speakers-product-picture-low-mid-frequency-18LEX1600Nd.jpg",
    "verified": false,
    "notes": "Power: 1600 W AES; program 3200 W not used. Sensitivity '1 W/1 m @ ZN'. Xmax as published; Xdamage 65 mm peak-to-peak - notes only. Conversions: Mms 0.229 kg x 1000 = 229.0 g; Cms 104 µm/N / 1000 = 0.104 mm/N; Sd 0.1255 m2 x 10000 = 1255.0 cm2; Vas l = L. Vd 1820 cm3 published. Bl unit printed 'N/A' (= T·m). Outer diameter, baffle cutout and displacement are not on the product page (the datasheet PDF could not be fetched: HTTP 429 to the shell, browser forced a download) -> null."
   },
@@ -2620,6 +2688,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.beyma.com/en/products/c/low-mid-frequency/115LX60V28/altavoz-15lx60v2-8-oh/",
+   "imageUrl": "https://www.beyma.com/speakers/ImgArtWeb/beyma-speakers-product-picture-low-mid-frequency-15LX60V2.jpg",
    "verified": false,
    "notes": "Power: 700 W AES; program 1400 W not used. Sensitivity '1 W @ 1 m'. Xmax as published; Xdamage 58 mm peak-to-peak - notes only. Conversions: Mms 0.147 kg x 1000 = 147.0 g; Cms 92.4 µm/N / 1000 = 0.0924 mm/N; Sd 0.091 m2 x 10000 = 910.0 cm2; Vas l = L. Vd 728 cm3 published. Bl unit printed 'N/A' (= T·m). Outer diameter, baffle cutout and displacement are not on the product page (the datasheet PDF could not be fetched: HTTP 429 to the shell, browser forced a download) -> null. Depth not published on the product page -> null. Ferrite magnet."
   },
@@ -2658,6 +2727,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.beyma.com/en/products/c/low-mid-frequency/121LEX16ND8/loudspeaker-21lex1600-nd-8-oh/",
+   "imageUrl": "https://www.beyma.com/speakers/ImgArtWeb/beyma-speakers-product-picture-low-mid-frequency-21LEX1600ND.jpg",
    "verified": false,
    "notes": "Power: 1600 W AES; program 3200 W not used. Sensitivity '1 W @ 1 m @ ZN'. Xmax as published; Xdamage 65 mm peak-to-peak - notes only. Conversions: Mms 0.393 kg x 1000 = 393.0 g; Cms 72 µm/N / 1000 = 0.072 mm/N; Sd 0.1734 m2 x 10000 = 1734.0 cm2; Vas l = L. Vd 2428 cm3 published. Bl unit printed 'N/A' (= T·m). Outer diameter, baffle cutout and displacement are not on the product page (the datasheet PDF could not be fetched: HTTP 429 to the shell, browser forced a download) -> null."
   },
@@ -2696,6 +2766,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-SD18-1700EL-Rev-1.pdf",
+   "imageUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/SD18-1700EL-ISOfront-600x600.jpg",
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Values confirmed on rendered page. Cms printed 4.3e-05 m/N x1000 = 0.043 mm/N. Hag 15.0, Hvc 24.7 mm (Xmax = (Hvc-Hag)/2). Mild source spread: Fs 45 Hz vs ~42-44 Hz implied by Mms/Cms/Vas; Qes 0.63 vs ~0.67 implied. 'Mounting hole' and 'bolt circle' labels are swapped on the sheet (PCD 450 mm)."
   },
@@ -2734,6 +2805,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2025/04/Datasheet-C18-1000-v4-Rev9.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 86.201 uM/N (= um/N) /1000 = 0.086201 mm/N. Hag 15, Hvc 34 mm. Internally consistent (Fs, Vas, Cms, Qes agree)."
   },
@@ -2772,6 +2844,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-C18-650EL-v3-Rev-1.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 8.5e-05 m/N x1000 = 0.085 mm/N. Hag 15 mm. outerMm left null: sheet prints 'Diameter 446.0 mm (18.35 in)' - mm and inch disagree (18.35 in = 466 mm) and 446.0 equals the mounting-hole circle, so it is a source typo. Used instead of C18-650EL v4, whose sheet is internally inconsistent. T/S internally consistent."
   },
@@ -2810,6 +2883,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2025/01/Datasheet-C15-600EL-v3-rev9.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 90 um/N /1000 = 0.090 mm/N. Hag 15, Hvc 25.5 mm. Mild source spread: Fs 45 Hz vs ~48-49 Hz implied by Mms/Cms/Vas."
   },
@@ -2848,6 +2922,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-C18-1200-Rev-5.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 0.06 mm/N (1 significant digit). Hag 14.0, Hvc 33.0 mm. The P.Audio 18FT-115XB sheet prints an identical T/S set (that model skipped as a likely copy)."
   },
@@ -2886,6 +2961,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-GST-181500-v3-Rev4.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB, reference not stated in table). No Rms, Xmech or displacement published. Image-only PDF: values read from the rendered page. Cms printed 4.3e-05 m/N x1000 = 0.043 mm/N. Hag 14.0, Hvc 32.0 mm. VC 126 mm. Internally consistent."
   },
@@ -2924,6 +3000,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-GST-181200-v3-Rev2-.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 8.6e-05 m/N x1000 = 0.086 mm/N. Hag 15.0, Hvc 27.0 mm. Internally consistent."
   },
@@ -2962,6 +3039,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2023/07/Datasheet-GST-151200-v3.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 7.1e-05 m/N x1000 = 0.071 mm/N. Hag 15.0, Hvc 27.0 mm (printed Xmax 4.12 mm is below (27-15)/2 = 6 mm; kept as published). T/S internally consistent."
   },
@@ -3000,6 +3078,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2024/10/Datasheet-18BM-1200S-Rev6.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Values confirmed on rendered page. cmsMmPerN left null: sheet prints Cms '0.54mm/N', which contradicts its own Fs/Mms (implies ~0.093 mm/N) and Vas/Sd (implies ~0.084 mm/N) - evident typo. Fs, Vas, Mms, Qes otherwise agree. Mmd printed 162.2 g (60 g below Mms - odd, not used). Hag 12.0, Hvc 30.0 mm."
   },
@@ -3038,6 +3117,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2026/05/Datasheet-18BMA-2000S_rev2.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Values confirmed on rendered page. cmsMmPerN left null: sheet prints Cms '8.57 mm/N', a unit typo (8.57e-05 m/N = 0.0857 mm/N would match Fs/Mms and Vas). Hag 15, Hvc 32 mm. VC 125 mm."
   },
@@ -3076,6 +3156,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-15BM-500B-v3-REV-3.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 1.7e-04 m/N x1000 = 0.17 mm/N. Hag 10.0, Hvc 19.6 mm. Consistent within ~5%."
   },
@@ -3114,6 +3195,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2026/05/Datasheet-15BMA-500B_rev2.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Values confirmed on rendered page. Cms printed 0.107 mm/N. Hag 10, Hvc 20 mm. Internally consistent."
   },
@@ -3152,6 +3234,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/06/Datasheet-12BM-500B-REV-5.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 1.6e-04 m/N x1000 = 0.16 mm/N. Hag 10.0, Hvc 19.6 mm. Internally consistent."
   },
@@ -3190,6 +3273,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2023/06/Datasheet-12FT-100MB-Rev8.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB, reference not stated in table). No Rms, Xmech or displacement published. Image-only PDF: values read from the rendered page. Cms printed 0.12 mm/N. Hag 9.5, Hvc 17.0 mm. Internally consistent."
   },
@@ -3228,6 +3312,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2023/04/DataSheet-15FT-100MB-REV-12.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 0.08 mm/N. Hag 9.5, Hvc 23 mm. Source spread ~10%: Fs 55 Hz vs ~50 Hz implied by Mms/Cms/Vas (Qes would then match the printed 0.67)."
   },
@@ -3266,6 +3351,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2023/04/DataSheet-15FT-100SW-Rev-5.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 8.6e-05 m/N x1000 = 0.086 mm/N. Hag 14.0, Hvc 29.0 mm. Internally consistent."
   },
@@ -3304,6 +3390,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/06/Datasheet-15NT-100XB-REV-3.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Neodymium. Cms printed 8.5e-05 m/N x1000 = 0.085 mm/N. Hag 11.0, Hvc 25.0 mm. Internally consistent."
   },
@@ -3342,6 +3429,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2025/04/Datasheet-P-18N-V3-Rev-9.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 0.09 mm/N. Hag 11.0, Hvc 29 mm. Source spread ~10%: Fs 35 Hz vs ~38-39 Hz implied by Mms/Cms/Vas and by Qes."
   },
@@ -3380,6 +3468,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-EX18-1000S-REV-5.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. Cms printed 8.9e-05 m/N x1000 = 0.089 mm/N. Hag 15, Hvc 25.5 mm. Internally consistent."
   },
@@ -3418,6 +3507,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-19FT-125XB-REV12.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. 19-inch nominal (483 mm). Cms printed 0.06 mm/N (1 significant digit). Hag 14.0, Hvc 32.7 mm. VC 127 mm. Source spread ~8%: Fs 33 Hz vs ~36 Hz implied by Mms/Vas."
   },
@@ -3456,6 +3546,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://paudiothailand.com/wp-content/uploads/2022/05/Datasheet-19FT-115XB-REV10.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "P.Audio (STH Professional Audio, Thailand) datasheet. Power = 'Nominal Power Handling' AES rating (continuous program = 2x, not used). Sensitivity as printed (dB; FR graph labelled 'Measured-1W @ 1m'). No Rms, Xmech or displacement published. 19-inch nominal (483 mm). Cms printed 0.07 mm/N. Hag 14.0 mm. Source spread ~6%: Fs 34 Hz vs ~36 Hz implied by Mms/Vas."
   },
@@ -3494,6 +3585,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://celestion.com/product-brochure-pdf.php?id=942",
+   "imageUrl": "https://celestion.com/wp-content/uploads/2019/10/FTR18-4080HDX-BACK-768x768.png",
    "verified": false,
    "notes": "Celestion datasheet. Power = 'Power rating' (AES, 2 h pink noise); 'Continuous power rating' (= AES +3 dB) not used. Sensitivity 1W/1m on axis, 2-pi anechoic. Le at 1 kHz. Rms published in kg/s. Celestion defines Xmax = 0.5*(Hvc-Hg) + 0.25*Hg (more generous than classic (Hvc-Hg)/2). No Xmech or displacement published. Hg 9.5, Hvc 25 mm -> classic (Hvc-Hg)/2 = 7.75 mm. Cms printed 0.10 mm/N. Internally consistent."
   },
@@ -3532,6 +3624,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://celestion.com/product-brochure-pdf.php?id=944",
+   "imageUrl": "https://celestion.com/wp-content/uploads/2019/10/FTR18-4080FD-BACK-768x767.png",
    "verified": false,
    "notes": "Celestion datasheet. Power = 'Power rating' (AES, 2 h pink noise); 'Continuous power rating' (= AES +3 dB) not used. Sensitivity 1W/1m on axis, 2-pi anechoic. Le at 1 kHz. Rms published in kg/s. Celestion defines Xmax = 0.5*(Hvc-Hg) + 0.25*Hg (more generous than classic (Hvc-Hg)/2). No Xmech or displacement published. Hg 10, Hvc 22 mm -> classic (Hvc-Hg)/2 = 6 mm. Sd imperial value mislabelled 'ft3' on the sheet (metric 1134.12 cm2 used). Internally consistent."
   },
@@ -3570,6 +3663,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://celestion.com/product-brochure-pdf.php?id=945",
+   "imageUrl": "https://celestion.com/wp-content/uploads/2019/10/FTR18-4080F-BACK-768x767.png",
    "verified": false,
    "notes": "Celestion datasheet (listed under 'Legacy Pro Audio'). Power = 600 W AES 'Power rating' (continuous 1200 W and EIA 800 W not used). Sensitivity 1W/1m on axis, 2-pi anechoic. Le at 1 kHz. This sheet defines Xmax = (Hvc-Hg)/2: Hg 10, Hvc 22 mm -> 6 mm. Single suspension. No Xmech or displacement published. Internally consistent."
   },
@@ -3608,6 +3702,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://celestion.com/product-brochure-pdf.php?id=968",
+   "imageUrl": "https://celestion.com/wp-content/uploads/2019/09/FTR15-4080FD-BACK-768x769.png",
    "verified": false,
    "notes": "Celestion datasheet. Power = 'Power rating' (AES, 2 h pink noise); 'Continuous power rating' (= AES +3 dB) not used. Sensitivity 1W/1m on axis, 2-pi anechoic. Le at 1 kHz. Rms published in kg/s. Celestion defines Xmax = 0.5*(Hvc-Hg) + 0.25*Hg (more generous than classic (Hvc-Hg)/2). No Xmech or displacement published. Listed under 'Legacy Pro Audio'. Hg 10, Hvc 22 mm -> classic (Hvc-Hg)/2 = 6 mm. Internally consistent."
   },
@@ -3646,6 +3741,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://celestion.com/product-brochure-pdf.php?id=986",
+   "imageUrl": "https://celestion.com/wp-content/uploads/2019/09/CF1840JD-BACK-768x767.png",
    "verified": false,
    "notes": "Celestion datasheet. Power = 'Power rating' (AES, 2 h pink noise); 'Continuous power rating' (= AES +3 dB) not used. Sensitivity 1W/1m on axis, 2-pi anechoic. Le at 1 kHz. Rms published in kg/s. Celestion defines Xmax = 0.5*(Hvc-Hg) + 0.25*Hg (more generous than classic (Hvc-Hg)/2). No Xmech or displacement published. Kevlar-loaded paper cone; a 4 ohm version also exists (8 ohm data used). Hg 10, Hvc 30 mm -> classic (Hvc-Hg)/2 = 10 mm. Internally consistent."
   },
@@ -3684,6 +3780,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://jblpro.com/en/site_elements/2226h-j-specification-sheet",
+   "imageUrl": "https://adn.harmanpro.com/productattachment/9098/product_attachment/x_large-e7fa4729f43dc8ebf7dd1e653cd65376.webp",
    "verified": false,
    "notes": "JBL Professional spec sheet (scanned; values read from the rendered page). Power = AES continuous pink noise rating. Sensitivity 1 W (2.83 V) / 1 m, half space. xmechMm = published 'Maximum Excursion Before Damage (p-p)' / 2. Sd m2 x10000 = cm2. Mms kg x1000 = g. Cms and Rms not published. URL redirects to adn.harmanpro.com/site_elements/resources/20226_1573863138/2226_original.pdf. 8-ohm H version (Re 5.0, Le 1.75 mH, Bl 19.2 N/A). Sd 0.088 m2 -> 880 cm2. Mms 0.098 kg -> 98 g. Max excursion 40 mm p-p -> 20 mm. Cutout = front mount (rear mount 359 mm). Displacement 6 l. Xmax 7.6 mm exceeds (Hvc-Hg)/2 = (19.05-8.1)/2 = 5.5 mm; JBL Xmax definition not stated. Internally consistent."
   },
@@ -3722,6 +3819,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://jblpro.com/en/site_elements/2241h-data-sheet",
+   "imageUrl": "https://adn.harmanpro.com/productattachment/9100/product_attachment/x_large-73af712b841e82c8fcd06ff34e7902d6.webp",
    "verified": false,
    "notes": "JBL Professional spec sheet (scanned; values read from the rendered page). Power = AES continuous pink noise rating. Sensitivity 1 W (2.83 V) / 1 m, half space. xmechMm = published 'Maximum Excursion Before Damage (p-p)' / 2. Sd m2 x10000 = cm2. Mms kg x1000 = g. Cms and Rms not published. URL redirects to adn.harmanpro.com/site_elements/resources/20227_1573864673/2241_original.pdf. 8-ohm H version (Re 5.0, Le 1.75 mH, Bl 19.2 N/A). Sd 0.124 m2 -> 1240 cm2. Mms 0.145 kg -> 145 g. Max excursion 40 mm p-p -> 20 mm. Cutout = front mount (rear 428 mm). Displacement printed '8.51' read as 8.5 l (0.3 ft3). Xmax 7.6 vs (19.05-8.1)/2 = 5.5 mm. Internally consistent."
   },
@@ -3760,6 +3858,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://jblpro.com/en-US/site_elements/tech-note-new-super-vented-gap-maximum-output-low-frequency-transducers",
+   "imageUrl": null,
    "verified": false,
    "notes": "JBL Professional spec sheet (scanned; values read from the rendered page). Power = AES continuous pink noise rating. Sensitivity 1 W (2.83 V) / 1 m, half space. xmechMm = published 'Maximum Excursion Before Damage (p-p)' / 2. Sd m2 x10000 = cm2. Mms kg x1000 = g. Cms and Rms not published. Source is the spec table in JBL Technical Notes Vol.1 No.22 (rev 9-95), not a standalone spec sheet. Sensitivity based on 100-1000 Hz pink noise at 2.83 V. Sd 0.124 m2 -> 1240 cm2. Mms 158 g. Max excursion 50 mm p-p -> 25 mm. Cutout = front mount (rear 428 mm). Displacement 9 l. Xmax 9 mm vs (25-12.7)/2 = 6.15 mm. Printed Qts 0.28 vs 0.274 from Qes/Qms (2%, rounding)."
   },
@@ -3798,6 +3897,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://jblpro.com/en-US/site_elements/tech-note-new-super-vented-gap-maximum-output-low-frequency-transducers",
+   "imageUrl": null,
    "verified": false,
    "notes": "JBL Professional spec sheet (scanned; values read from the rendered page). Power = AES continuous pink noise rating. Sensitivity 1 W (2.83 V) / 1 m, half space. xmechMm = published 'Maximum Excursion Before Damage (p-p)' / 2. Sd m2 x10000 = cm2. Mms kg x1000 = g. Cms and Rms not published. Source is the spec table in JBL Technical Notes Vol.1 No.22 (rev 9-95). Sensitivity based on 100-1000 Hz pink noise at 2.83 V. Sd: sheet prints '0.88 m2 (137 in2)' - the m2 figure is a typo; used 137 in2 x 6.4516 = 883.9 cm2. Mms 99 g. Max excursion 50 mm p-p -> 25 mm. Cutout = front mount (rear 355 mm). Displacement 7 l. Xmax 5 mm vs (17.8-12.7)/2 = 2.55 mm. Low-Qts horn/small-box driver. Internally consistent."
   },
@@ -3836,6 +3936,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://jblpro.com/en-US/site_elements/2206h-j-data-sheet",
+   "imageUrl": "https://adn.harmanpro.com/productattachment/9099/product_attachment/x_large-f4e224577648792ef71db645ace8a33d.webp",
    "verified": false,
    "notes": "JBL Professional spec sheet (scanned; values read from the rendered page). Power = AES continuous pink noise rating. Sensitivity 1 W (2.83 V) / 1 m, half space. xmechMm = published 'Maximum Excursion Before Damage (p-p)' / 2. Sd m2 x10000 = cm2. Mms kg x1000 = g. Cms and Rms not published. URL redirects to adn.harmanpro.com/site_elements/resources/20224_1573861420/2206_original.pdf. AES band 60-600 Hz. 8-ohm H version (Re 5.3, Le 1.5 mH, Bl 18.1 N/A). Sd 0.055 m2 -> 550 cm2 (sheet's 84.7 in2 = 546 cm2). Mms 0.065 kg -> 65 g. Max excursion 40 mm p-p -> 20 mm. Cutout front or rear 280 mm. Displacement printed '41' read as 4 l (0.15 ft3). Xmax 7.5 vs (19-8)/2 = 5.5 mm. Internally consistent."
   },
@@ -3874,6 +3975,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-460-dayton-audio-rss265hf-4-specifications-46172.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-460_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 87.8 dB @ 2.83V/1m (4 ohm nominal, so 2.83V is about 2W). Mms incl. airload. Le @1 kHz. Rms, Xmech not published. Cutout/outer/depth ('Overall Depth', reference plane not stated) from Dayton product page https://daytonaudio.vortxhosting.com/product/118/ (Dayton's site served from its e-commerce host). Qts check 0.452 ok."
   },
@@ -3912,6 +4014,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-464-dayton-audio-rss315hf-4-specifications-46174.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-464_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 90.3 dB @ 2.83V/1m (4 ohm, ~2W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/121/ . That web page shows 'BL 1 Tm' (typo); BL 13.99 Tm taken from the PDF. Qts check 0.388 ok."
   },
@@ -3950,6 +4053,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-468-dayton-audio-rss390hf-4-specifications-46176.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-468_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). 15-inch: outside the 5-12 inch brief but was on the requested model list. SPL 91.2 dB @ 2.83V/1m (4 ohm, ~2W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/126/ . Qts check 0.429 ok."
   },
@@ -3988,6 +4092,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-512--dayton-audio-um12-22-specifications.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-512_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). DVC 2+2 ohm. Datasheet: 'All parameters derived with voice coils wired in series' -> Re 3.2 ohm and all T/S are for SERIES wiring, so zNom stored as 4 (series). SPL 86.7 dB @ 2.83V/1m (series). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/1118/ (also shows SPL 86.7). Qts check 0.594 ok."
   },
@@ -4026,6 +4131,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-356--rs225-8-spec-sheet.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-356_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 86.8 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/104/ . Qts check 0.378 ok."
   },
@@ -4064,6 +4170,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-355--dayton-audio-rs180-8-reference-woofer-8-ohm-specifications.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-355_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 87.1 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/101/ . Qts check 0.312 ok."
   },
@@ -4102,6 +4209,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-354--dayton-audio-rs150-8-6-inch-reference-paper-woofer-specifications.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-354_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). PDF filename says 'paper woofer' but the document title and data are RS150-8 (aluminium cone). SPL 88.7 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/98/ . Qts check 0.342 ok."
   },
@@ -4140,6 +4248,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-305-dayton-audio-dc160-8-specifications-46146.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-305_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 86.1 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/22/ . Feature text says 'low 34 Hz free-air resonance' while the table says Fs 35.7 Hz; table value used. Qts check 0.342 ok."
   },
@@ -4178,6 +4287,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/290-214--dayton-audio-nd105-8-spec-sheet.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/290-214_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). Dayton names it '4in Aluminum Cone Midbass Driver' (extended range 60 Hz-10 kHz), so category woofer; 4-inch is below the 5-inch brief but was on the requested list. SPL 82.7 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Features list '20 mm peak' excursion (not stored as Xmech). Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/56/ . Qts check 0.653 ok (1%)."
   },
@@ -4216,6 +4326,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-352--rs100-8-spec-sheet.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-352_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 84.6 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/90/ . Qts check 0.576 ok."
   },
@@ -4254,6 +4365,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-349--dayton-audio-ps95-8-spec-sheet.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-349_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). SPL 85.56 dB @ 2.83V/1m (8 ohm = 1W). Mms incl. airload. Rms, Xmech not published. Dims ('Overall Depth') from https://daytonaudio.vortxhosting.com/product/1241/ . Qts check 0.721 ok."
   },
@@ -4292,6 +4404,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.parts-express.com/pedocs/specs/295-588--dayton-audio-dma90-4-specification-sheet.pdf",
+   "imageUrl": "https://www.parts-express.com/SSP%20Applications/PartsExpress@SuiteCentric/SCA%202019.1/img/295-588_HR_0.default.jpg",
    "verified": false,
    "notes": "Official Dayton Audio spec-sheet PDF, fetched from parts-express.com/pedocs (Dayton's parent company; same file the Dayton product page links as /images/resources/...; www.daytonaudio.com itself returned an Imperva bot check). Vas published only as 0.08 ft3; 0.08 x 28.3168 = 2.265 L, stored as 2.27 (source has 1 significant digit, low precision). VC diameter 1 in. SPL 89.3 dB @ 2.83V/1m (4 ohm, ~2W). Mms incl. airload. Rms, Xmech not published. Dayton product page https://daytonaudio.vortxhosting.com/product/1620/ lists no mounting dims -> null. Qts check 0.458 ok (1.7%)."
   },
@@ -4330,6 +4443,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://sbacoustics.com/wp-content/uploads/2020/11/6in-SB17NRXC35-8-OEM-only.pdf",
+   "imageUrl": "https://sbacoustics.com/wp-content/uploads/2020/11/6in-SB17NRXC35-4-or-8.jpg",
    "verified": false,
    "notes": "SB Acoustics datasheet PDF from sbacoustics.com. T/S measured on broken-in units; power = rated power handling (IEC 268-5). Datasheet is marked 'OEM Only'. SPL 89 dB @ 2.83V/1m (8 ohm = 1W). Xmax: datasheet gives 'Linear coil travel (p-p) 11 mm' -> 11/2 = 5.5 mm one-way. Mms incl. air. Drawing: frame OD 171.0, depth 75 mm measured from rear face of the 6.5 mm flange (85.9 overall); no cutout stated (basket OD behind flange 144.9 mm) -> cutout null. Xmech not published. Qts check 0.336 ok."
   },
@@ -4368,6 +4482,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://sbacoustics.com/wp-content/uploads/2026/05/8-inch-SB23NRXS45-8.pdf",
+   "imageUrl": "https://sbacoustics.com/wp-content/uploads/2017/12/8in-SB23NRXS45-8.jpg",
    "verified": false,
    "notes": "SB Acoustics datasheet PDF from sbacoustics.com. T/S measured on broken-in units; power = rated power handling (IEC 268-5). SPL 88.5 dB @ 2.83V/1m (8 ohm = 1W). Xmax: 'Linear coil travel (p-p) 13 mm' -> 13/2 = 6.5 mm one-way. Mms incl. air. Drawing: frame OD 234, depth 80.7 mm from rear face of 8.5 mm flange (92.4 overall); no cutout stated (basket OD 205) -> null. Xmech not published. Qts check 0.381 ok."
   },
@@ -4406,6 +4521,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://sbacoustics.com/wp-content/uploads/2020/02/5in-SB15MFC30-8.pdf",
+   "imageUrl": "https://sbacoustics.com/wp-content/uploads/2022/11/5in-SB15MFC30-8-main-photo.jpg",
    "verified": false,
    "notes": "SB Acoustics datasheet PDF from sbacoustics.com. T/S measured on broken-in units; power = rated power handling (IEC 268-5). Requested as 'SB15MFCN30-8'; no such model on sbacoustics.com, the matching 5in MFC 8-ohm woofer is SB15MFC30-8 (used here). SPL 87 dB @ 2.83V/1m (8 ohm = 1W). Xmax: 'Linear coil travel (p-p) 10 mm' -> 5 mm one-way. Mms incl. air. Drawing: frame OD 150.0, depth 68.4 mm from rear face of 6.5 mm flange (79.0 overall); no cutout stated (basket OD 123.9) -> null. Qts check 0.367 ok."
   },
@@ -4444,6 +4560,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://sbacoustics.com/wp-content/uploads/2025/01/4in-SB12PFCR25-8.pdf",
+   "imageUrl": "https://sbacoustics.com/wp-content/uploads/2022/11/4in-SB12PFCR25-8-main-photo.jpg",
    "verified": false,
    "notes": "SB Acoustics datasheet PDF from sbacoustics.com. T/S measured on broken-in units; power = rated power handling (IEC 268-5). 4-inch woofer (below 5-inch brief but on requested list). SPL 84 dB @ 2.83V/1m (8 ohm = 1W). Xmax: 'Linear coil travel (p-p) 10 mm' -> 5 mm one-way. Mms incl. air. Drawing: frame OD 122.0, depth 59.0 mm from rear face of 4.9 mm flange (71.3 overall); no cutout stated (basket OD 102.0) -> null. Qts check 0.478 ok."
   },
@@ -4482,6 +4599,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.scan-speak.dk/datasheet/pdf/18w-8531g00.pdf",
+   "imageUrl": "https://www.scan-speak.dk/wp-content/uploads/2019/01/18W-8531G00-1200x800.jpg",
    "verified": false,
    "notes": "Scan-Speak datasheet PDF from scan-speak.dk (text layer is font-encoded; values read from rendered page). Revelator '18 cm Midwoofer' (sizeIn 7 = 18 cm). SPL 87 dB @ 2.83V/1m (8 ohm = 1W). Xmax 'Linear excursion +/-6.5 mm', Xmech 'Max mech. excursion +/-11 mm'. peW = 100h RMS noise test (IEC 18.4) 60 W; long-term max 70 W. Drawing: OD 182.2, depth 77.4 mm from rear face of 5.6 mm flange; basket OD 156 (no cutout stated) -> null. Cabinet displacement 0.47 l. Qts check 0.362 ok. Note: Sd x Cms implies Vas ~63 L vs published 58.2 L (~9%); published value kept."
   },
@@ -4520,6 +4638,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.scan-speak.dk/datasheet/pdf/22w-8857t00.pdf",
+   "imageUrl": "https://www.scan-speak.dk/wp-content/uploads/2019/01/22w-8857t00-1200x800.jpg",
    "verified": false,
    "notes": "Scan-Speak datasheet PDF from scan-speak.dk (text layer is font-encoded; values read from rendered page). Revelator '22 cm Woofer' (sizeIn 8 nominal; 22 cm = 8.7 in). SPL 86 dB @ 2.83V/1m (8 ohm = 1W). Xmax +/-9 mm, Xmech +/-14 mm. peW = 100h RMS noise test (IEC 18.4) 80 W; long-term max 200 W. Drawing: OD 222, depth 111 mm from rear face of 7 mm flange; basket OD 194.1 (no cutout stated) -> null. Cabinet displacement 1.04 l. Qts check 0.300 ok."
   },
@@ -4558,6 +4677,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.scan-speak.dk/datasheet/pdf/10f-8414g10.pdf",
+   "imageUrl": "https://www.scan-speak.dk/wp-content/uploads/2019/01/10F-8414G10ny.jpg",
    "verified": false,
    "notes": "Scan-Speak datasheet PDF from scan-speak.dk (text layer is font-encoded; values read from rendered page). Discovery '10 cm Fullrange'. SPL 86 dB @ 2.83V/1m (8 ohm = 1W). Xmax +/-2.3 mm, Xmech +/-7.5 mm. peW = 100h RMS noise test (IEC 18.4) 10 W; long-term max 20 W. Drawing: OD 97.5, depth 40 mm from rear face of 3.5 mm flange; basket OD 78 (no cutout stated) -> null. Cabinet displacement 0.03 l. Qts check 0.513 ok."
   },
@@ -4596,6 +4716,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.products-peerless.com/pdf/166",
+   "imageUrl": null,
    "verified": false,
    "notes": "Official Peerless (Tymphany) product sheet, Rev1 MP1, printed July 2025; /pdf/166 redirects to tymphany-driver-files.s3.us-west-1.amazonaws.com/files/driver/pdfs/SLS-P830669.Rev1.MP1 - Product Sheet.pdf. Manufacturer labels it 'WOOFER' (12 in, coated paper cone) -> category woofer. Cms 280 um/N / 1000 = 0.28 mm/N. SPL 88.7 dB both @2.83V and 1W/1m. peW = Power Rating (IEC 268-5) 100 W. Xmax 10.9 mm uses Tymphany's definition (Hvc-Hag)/2 + Hag/3 with Hag 8 / Hvc 24.5 mm; the classic (Hvc-Hag)/2 would be 8.25 mm. Fs measured under different conditions from impedance (sheet footnote). T/S measured free air without preconditioning. Rms not published. Drawing: OD 314.5, depth 139.80 mm from rear face of 3.5 mm flange (151.05 overall ref.); basket OD 277, no cutout stated -> null. Qts check 0.635 ok (0.8%)."
   },
@@ -4634,6 +4755,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.markaudio.com/online_shop/archive/alpair-10-3/",
+   "imageUrl": "https://www.markaudio.com/wp-content/uploads/2019/05/alpair-10-800x600.jpg",
    "verified": false,
    "notes": "Mark Audio product page (archive). Page headline '100mm Fullrange drive unit, 8ohm' (also tagged '6 inch driver', '5in cone'); sizeIn 4 from 100 mm. Sd '8.825K mm2' / 100 = 88.25 cm2. Le '71.379uH' / 1000 = 0.071379 mH. Vas is printed as '26.320m M/N' (garbled unit label); 26.32 is consistent with litres (Vas from Fs, Mms, Sd gives 26.3 L), so stored as 26.32 L. SPL0 87.988 dB, reference not stated on page. Power 30 W nominal. Xmax '7.5mm one way'. Mmd 6.792 g (Mms 7.269 used). Cms, Rms, Xmech not published. Dimension drawings on the page are labelled 'Alpair 10.2' -> mounting dims left null. Qts check 0.316 ok."
   },
@@ -4672,6 +4794,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.markaudio.com/online_shop/ch/chr-70/",
+   "imageUrl": "https://www.markaudio.com/wp-content/uploads/2019/05/chr-70-800x600.jpg",
    "verified": false,
    "notes": "Mark Audio CHR-70 product page (text: 'CHR-70A (Gen. 3)' = CHR-70.3). Page headline '70mm Fullrange drive unit, 8ohm', '4in cone'; sizeIn 3 nominal. Cms printed as '1.44 uM/N' (unit label wrong; 1.44 mm/N matches Fs 65.4 Hz and Mms 4.1 g), stored 1.44 mm/N. Le 32.44 uH / 1000 = 0.03244 mH. SPL 85.4 dB per parameter table (description text says 85.5 dB at 8 ohm; reference not stated). Power 20 W nominal. Xmax '4.3-mm 1 way'. Fs tolerance +/-2.5 Hz. Rms, Xmech not published. Dims from markaudio.com/wp-content/uploads/2019/05/CHR-70-dimensions.png (drawing for CHR-70.3/CHP-70.2/CHBW-70): OD 124 (4 7/8 in), depth 56 mm is OVERALL incl. 6 mm flange (about 50 mm behind flange); 2 mm gasket supplied; no cutout stated -> null. Qts check 0.548 ok."
   },
@@ -4710,6 +4833,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.tb-speaker.com/uploads/files/c437a19a817c805066d11d113e29b0a5.pdf",
+   "imageUrl": "https://www.tb-speaker.com/uploads/images/7d9d3baed212aded83c040dcf4836859.png",
    "verified": false,
    "notes": "Tang Band (TB Speaker) datasheet PDF from tb-speaker.com, values read from rendered page. SPL 95 dB 1W/1m. Cms 1374 uM/N / 1000 = 1.374 mm/N. Sd 0.022 m2 x 10000 = 220 cm2 (2 significant digits in source). Levc printed 0.009 mH (unusually low, as published). peW = rated power input 30 W (max 60 W). Drawing: OD 223.8, depth 105 mm behind 6.0 mm flange (111 overall); basket OD 190, no cutout stated -> null. Rms, Xmech not published. Qts check 0.266 ok."
   },
@@ -4748,6 +4872,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.tb-speaker.com/uploads/files/00369967fbf324b637b5c7c33a998c0b.pdf",
+   "imageUrl": "https://www.tb-speaker.com/uploads/images/c7a8d5a8b3e311ce92ad815246bf4d2e.png",
    "verified": false,
    "notes": "Tang Band (TB Speaker) datasheet PDF from tb-speaker.com, values read from rendered page. 5in PP full range. SPL 90 dB 1W/1m. Cms 1307 uMN-1 / 1000 = 1.307 mm/N. Sd 0.0094 m2 x 10000 = 94 cm2. Levc 0.023 mH. peW = rated power input 28 W (max 56 W). Drawing: OD 157.0, depth 81.5 mm behind 5.8 mm flange (87.4 overall); basket OD 131.0, no cutout stated -> null. Rms, Xmech not published. Qts check 0.439 ok. SOURCE INCONSISTENT (values re-read and confirmed in PDF text layer): published Sd 94 cm2 + Cms 1.307 mm/N imply Vas ~16 L vs published 11.69 L (~38% apart), and Mms/Cms imply Fs ~57 Hz vs 60 Hz; Qes from Bl/Re/Mms ~0.47 vs 0.52. Published values kept unchanged; treat Vas with caution."
   },
@@ -4786,6 +4911,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.tb-speaker.com/uploads/files/64b06c362c8ca54183ea5d57b90131eb.pdf",
+   "imageUrl": "https://www.tb-speaker.com/uploads/images/edcaef5d47865bee2729255f5f2f30c6.png",
    "verified": false,
    "notes": "Tang Band (TB Speaker) datasheet PDF from tb-speaker.com, values read from rendered page. 6in paper woofer, 4 ohm. SPL 88 dB 1W/1m. Cms 1055 uMN-1 / 1000 = 1.055 mm/N. Sd 0.014 m2 x 10000 = 140 cm2. Levc 0.084 mH. peW = rated power input 50 W (max 100 W). Drawing: OD 176.5, depth 109.4 mm behind 5.5 mm flange (120.4 overall); basket OD 147.0, no cutout stated -> null. Rms, Xmech not published. Qts check 0.431 ok."
   },
@@ -4824,6 +4950,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.fostex.jp/en/products/fe206nv2/",
+   "imageUrl": "https://www.fostex.jp/cms/wp-content/uploads/FE206NV2_01.jpg",
    "verified": false,
    "notes": "Fostex product page fostex.jp (FE-NV2: 'Performance and specifications are the same as those of the FE-NV series'). Sd is not printed; it is computed as pi x a^2 from the published 'Equivalent Diaphragm Radius (a)' (cross-checks with published Vas within 5%). Xmax, Rms not published. Dims from the page's 'List of External Dimensions' table + drawing: depth = G (behind flange), C = overall. 20 cm. a = 81.0 mm -> Sd = pi x 8.1^2 = 206.12 cm2. SPL 96.0 dB (1m/1W). peW = rated input 30 W (max 90 W). Frame is square 208 mm (outerMm = side length), baffle hole 185 mm, depth G 83.5 (C 89.3 overall). Qts check 0.260 ok."
   },
@@ -4862,6 +4989,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.fostex.jp/en/products/fe166nv2/",
+   "imageUrl": "https://www.fostex.jp/cms/wp-content/uploads/FE166NV2_01.jpg",
    "verified": false,
    "notes": "Fostex product page fostex.jp (FE-NV2: 'Performance and specifications are the same as those of the FE-NV series'). Sd is not printed; it is computed as pi x a^2 from the published 'Equivalent Diaphragm Radius (a)' (cross-checks with published Vas within 5%). Xmax, Rms not published. Dims from the page's 'List of External Dimensions' table + drawing: depth = G (behind flange), C = overall. 16 cm. a = 65.0 mm -> Sd = pi x 6.5^2 = 132.73 cm2. SPL 94.0 dB (1m/1W). peW = rated input 22 W (max 65 W). Frame is square 166 mm (outerMm = side length), baffle hole 146 mm, depth G 72 (C 77.6 overall). Qts check 0.270 ok."
   },
@@ -4900,6 +5028,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.fostex.jp/en/products/fe126nv2/",
+   "imageUrl": "https://www.fostex.jp/cms/wp-content/uploads/FE126NV2_01.jpg",
    "verified": false,
    "notes": "Fostex product page fostex.jp (FE-NV2: 'Performance and specifications are the same as those of the FE-NV series'). Sd is not printed; it is computed as pi x a^2 from the published 'Equivalent Diaphragm Radius (a)' (cross-checks with published Vas within 5%). Xmax, Rms not published. Dims from the page's 'List of External Dimensions' table + drawing: depth = G (behind flange), C = overall. 12 cm. a = 46.0 mm -> Sd = pi x 4.6^2 = 66.48 cm2. SPL 92.0 dB (1m/1W). peW = rated input 15 W (max 45 W). Spec list says 'Overall Diameter 117 mm', dimension table gives B as square 117 mm; baffle hole 104 mm, depth G 57.5 (C 61.1 overall). Qts check 0.335 ok."
   },
@@ -4938,6 +5067,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.visaton.de/en/products/drivers/fullrange-systems/b-200-6-ohm",
+   "imageUrl": "https://www.visaton.de/sites/default/files/dd_product/B%20200_1i.jpg",
    "verified": false,
    "notes": "Visaton product page (T/S) + datasheet PDF https://www.visaton.de/sites/default/files/dd_product/B%20200_1350.pdf (drawing). Only a 6 ohm version exists (Art. No. 1350). SPL 96 dB @ 2.83V/1m (6 ohm, ~1.33W). Xmax: page 'Maximum linear displacement +/-3.5 mm' (PDF: 'Excursion limit xmech +/-3,5 mm (linear)'). Mms = 'dynamically moved mass'. Rated power 40 W (max 70 W). Drawing: OD 222, depth 89 mm behind 6 mm flange; cutout 190 mm published. Cms, Rms not published. Qts check 0.755 ok."
   },
@@ -4976,6 +5106,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://www.visaton.de/en/products/drivers/fullrange-systems/frs-8-8-ohm",
+   "imageUrl": "https://www.visaton.de/sites/default/files/dd_product/frs8.jpg",
    "verified": false,
    "notes": "Visaton product page, 8 ohm version (Art. No. 2004); drawing from https://www.visaton.de/sites/default/files/dd_product/FRS%208%202003_2004.pdf. 8 cm (3.3 in). SPL 82 dB (1 W/1 m). Only 'Excursion limit xmech +/-2.5 mm' is published (not a linear Xmax) -> xmax null, xmech 2.5. Rated power 30 W (max 50 W). Square frame 78 mm (outerMm = side, 93 mm diagonal); depth 40 mm is OVERALL incl. 4.6 mm flange; cutout 73 mm published. Cms, Rms not published. Qts check 1.038 ok."
   },
@@ -5014,6 +5145,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://faitalpro.com/en/products/LF_Loudspeakers/product_details/datasheet.php?id=401020100",
+   "imageUrl": "https://www.faitalpro.com/products/files/6FE100/6FE100_photo_magnify.jpg",
    "verified": false,
    "notes": "FaitalPRO datasheet PDF (served by faitalpro.com datasheet.php). 6in (160 mm) pro midbass. SPL 91 dB 1W/1m. peW = AES power handling 100 W (2 h, AES2-1984; max 200 W). Vas 15.1 dm3 = 15.1 L. Xmax 5.25 mm uses Faital's definition [(winding depth 12.5 - gap depth 6)/2] + gap/3; the classic (Hvc-Hg)/2 would be 3.25 mm. xmech = 'Xdamage' 13.15 mm (max excursion before permanent damage). Overall diameter '181.2/164 mm' (outerMm 181.2), bolt circle 167, cutout 147, depth 84.5 (flange+gasket 8 mm). Displacement 'NET air volume filled by loudspeaker' 0.4 dm3. Mmd 11.9 g (Mms 14.0 used). Qts check 0.545 ok."
   },
@@ -5052,6 +5184,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://manuals.alpine-usa.com/products/documents/TS_R2-W12D2-D4.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Alpine official T/S sheet (linked from alpine-usa.com product page as support.alpine-usa.com/...; that host returned 404, same file fetched from manuals.alpine-usa.com). Bl, Mms, Cms, Le not published (null). Sensitivity (1W/1m). Re published per coil as '3.5 + 3.5' ohm; re set to the series sum 7.0 ohm and zNom 8 (Qes/Qms/Qts/Fs/Vas are unaffected by series vs parallel when both coils are driven). Sheet also lists Mechanical Travel (Xmech) 72 mm, left null because it appears to be total (peak-to-peak) travel, not one-way. outerMm from sheet 'Dimensions: 11.61 x 11.61 x 6.43 in' (11.61 in x 25.4 = 294.9 mm). cutoutMm/depthMm null: product page (alpine-usa.com/product/r-series-subwoofer-r2w12d4) gives 'Cutout Size: 10-7/8 in (231mm)' and 'Mounting Depth: 6-1/2 in (152mm)' - inch and mm disagree (10-7/8 in = 276 mm, 6-1/2 in = 165 mm), so not used. Product page lists sensitivity 84.5 dB; sheet value 84.6 dB used."
   },
@@ -5090,6 +5223,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://manuals.alpine-usa.com/products/documents/TS_R2-W10D2-D4.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Alpine official T/S sheet (linked from alpine-usa.com product page as support.alpine-usa.com/...; that host returned 404, same file fetched from manuals.alpine-usa.com). Bl, Mms, Cms, Le not published (null). Sensitivity (1W/1m). Re published per coil as '3.5 + 3.5' ohm; re set to the series sum 7.0 ohm and zNom 8 (Qes/Qms/Qts/Fs/Vas are unaffected by series vs parallel when both coils are driven). Sheet also lists Mechanical Travel (Xmech) 70 mm, left null because it appears to be total (peak-to-peak) travel, not one-way. Cutout 9-1/16 in (231 mm) and mounting depth 6 in (152 mm) from product page alpine-usa.com/product/r-series-subwoofer-r2w10d4 (published mm used). outerMm from sheet 'Dimensions: 9.72 x 9.72 x 5.92 in' (9.72 x 25.4 = 246.9 mm). Product page lists sensitivity 82.4 dB; sheet value 82.8 dB used."
   },
@@ -5128,6 +5262,7 @@
    "tauMag": null,
    "sourceKind": "datasheet",
    "sourceUrl": "https://manuals.alpine-usa.com/products/documents/TS_R2-W8D2-D4.pdf",
+   "imageUrl": null,
    "verified": false,
    "notes": "Alpine official T/S sheet (linked from alpine-usa.com product page as support.alpine-usa.com/...; that host returned 404, same file fetched from manuals.alpine-usa.com). Bl, Mms, Cms, Le not published (null). Sensitivity (1W/1m). Re published per coil as '3.6 + 3.6' ohm; re set to the series sum 7.2 ohm and zNom 8 (Qes/Qms/Qts/Fs/Vas are unaffected by series vs parallel when both coils are driven). Sheet also lists Mechanical Travel (Xmech) 52 mm, left null because it appears to be total (peak-to-peak) travel, not one-way. Sheet is the 8\" (Size: 8\", Sd 201 cm^2) but its T/S column headers are mislabeled 'R2-W12D2/R2-W12D4' - values taken from the D4 column. Cutout 6-15/16 in (176 mm) from product page alpine-usa.com/product/r-series-subwoofer-r2w8d4. depthMm null: page gives '4-3/8 in (118mm)' which disagree (4-3/8 in = 111 mm). outerMm from sheet 'Dimensions: 7.64 x 7.64 x 4.56 in' (194.1 mm). Product page sensitivity 83.5 dB; sheet 83.7 dB used."
   }

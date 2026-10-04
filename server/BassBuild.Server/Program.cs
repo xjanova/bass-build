@@ -57,6 +57,7 @@ if (File.Exists(Path.Combine(dist, "index.html")))
 var api = app.MapGroup("/api");
 CatalogEndpoints.Map(api);
 DriverEndpoints.Map(api);
+MediaEndpoints.Map(api);
 ProjectEndpoints.Map(api);
 SettingsEndpoints.Map(api);
 
