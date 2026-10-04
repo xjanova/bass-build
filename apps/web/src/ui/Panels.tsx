@@ -117,7 +117,7 @@ export function OverlayBar({ geo }: { geo: BoxGeometry | null }) {
   );
 }
 
-export function Hud({ f11, wall }: { f11: number; wall: WallDamping }) {
+export function Hud({ modes, wall, vib }: { modes: { side: number; back: number }; wall: WallDamping; vib: { r: number; h: number; pk: number } }) {
   const { mode, genHz, slow, design: d, overlays } = useApp();
   const lab = mode === 'lab';
   return (
@@ -136,17 +136,24 @@ export function Hud({ f11, wall }: { f11: number; wall: WallDamping }) {
       )}
       {lab && overlays.vib && (
         <div className="legend"><span style={{ color: '#c4b5fd' }}>
-          โหมดผนัง (1,1) ≈ {f11.toFixed(0)} Hz{wall.ampFactor < 1 ? ` · แผ่นซับแรงสั่นทำให้สั่นน้อยลง ×${(1 / wall.ampFactor).toFixed(1)}` : ''} · ภาพขยายเกินจริง
+          ผนังข้าง (1,1) ≈ {modes.side.toFixed(0)} Hz · ผนังหลังซึ่งกว้างสุด ≈ {modes.back.toFixed(0)} Hz · ตอนนี้แรงดันในตู้ {vib.pk.toFixed(0)} Pa ที่ {genHz} Hz
+          {vib.r > 0.8 && vib.r < 1.25 ? ' ใกล้เรโซแนนซ์' : ''} · ขยาย ×{vib.h.toFixed(1)}
+          {wall.ampFactor < 1 ? ` (แผ่นซับแรงสั่นกดยอดเรโซแนนซ์ลง ×${(1 / wall.ampFactor).toFixed(1)})` : ''} · ภาพขยายเกินจริง
+        </span></div>
+      )}
+      {lab && overlays.balloon && (
+        <div className="legend"><span style={{ color: '#67e8f9' }}>
+          ทิศทางเสียง: ลูกสูบในแผงกั้น (ประมาณ) · ka {'<'} 1 แทบรอบทิศ · ไม่รวมการเลี้ยวเบนของตู้
         </span></div>
       )}
     </div>
   );
 }
 
-export function IrPanel({ thermal }: { thermal: { tvc: number; tmag: number; reRise: number; seconds: number } }) {
+export function IrPanel({ thermal, speedup }: { thermal: { tvc: number; tmag: number; reRise: number; seconds: number }; speedup: number }) {
   return (
     <div className="irbox irfloat">
-      <h4>ทดสอบความร้อน · {thermal.seconds.toFixed(0)} วินาที</h4>
+      <h4>ทดสอบความร้อน · จำลอง {(thermal.seconds / 60).toFixed(1)} นาที (เร่ง ×{speedup})</h4>
       <div className="grid">
         <span>วอยซ์คอยล์ {thermal.tvc.toFixed(0)} °C</span><span>แม่เหล็ก {thermal.tmag.toFixed(0)} °C</span>
         <span>Re ร้อน ×{thermal.reRise.toFixed(2)}</span><span>ดังลดลง {(20 * Math.log10(1 / thermal.reRise)).toFixed(1)} dB</span>

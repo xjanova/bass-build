@@ -23,7 +23,9 @@ export interface Enclosure {
   hiddenDrivers: DriverParts[]; // band-pass / isobaric inner drivers
   passiveRadiators: DriverParts[];
   portMouth: { y: number; z: number; width: number; height: number } | null;
-  sources: { cone: THREE.Vector3; port: THREE.Vector3 | null };
+  /** Round rear-chamber port on the back panel of a 6th-order band-pass. */
+  rearPortMouth: { y: number; z: number; radius: number } | null;
+  sources: { cone: THREE.Vector3; port: THREE.Vector3 | null; port2: THREE.Vector3 | null };
   sideCenter: (side: -1 | 1) => THREE.Vector3;
   dispose: () => void;
 }
@@ -69,7 +71,7 @@ function buildDriver(R: number, depth: number, passive: boolean): DriverParts {
   return { root, moving, cone, cap, surround, frame, magnet };
 }
 
-export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number, prCount: number, depth: number, looks: Looks): Enclosure {
+export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number, prCount: number, depth: number, looks: Looks, fill: number): Enclosure {
   const g = new THREE.Group();
   g.name = 'enclosure';
   const { wx, hx, dx, wi, t, slotH } = geo;
@@ -89,7 +91,33 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   shell.push(slab(wx, t, dx, looks.side(wx, dx), 0, hx - t / 2, 0));
   shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), -wx / 2 + t / 2, hx / 2, 0));
   shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), wx / 2 - t / 2, hx / 2, 0));
-  shell.push(slab(wi, hx - 2 * t, t, looks.front(), 0, hx / 2, -dx / 2 + t / 2));
+  // Back panel; a 6th-order band-pass vents its rear chamber through a round port in it.
+  let rearPortMouth: Enclosure['rearPortMouth'] = null;
+  if (geo.rearPort) {
+    const rp = geo.rearPort;
+    const back = new THREE.Shape();
+    back.moveTo(-wi / 2, 0); back.lineTo(wi / 2, 0); back.lineTo(wi / 2, hx - 2 * t); back.lineTo(-wi / 2, hx - 2 * t); back.lineTo(-wi / 2, 0);
+    const hole = new THREE.Path();
+    hole.absarc(0, rp.y - t, rp.radius, 0, Math.PI * 2, true);
+    back.holes.push(hole);
+    const panel = new THREE.Mesh(new THREE.ExtrudeGeometry(back, { depth: t, bevelEnabled: false, curveSegments: 40 }), looks.front());
+    panel.position.set(0, t, -dx / 2);
+    g.add(panel);
+    shell.push(panel);
+    // The tube runs straight into the rear chamber (x-ray only); its dark inside shows through the hole.
+    const run = Math.max(0.02, Math.min(rp.length, rp.room));
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(rp.radius, rp.radius, run, 32, 1, true), new THREE.MeshStandardMaterial({ color: 0x1f2937, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+    tube.rotation.x = Math.PI / 2;
+    tube.position.set(0, rp.y, -dx / 2 + run / 2);
+    internals.add(tube);
+    const inside = new THREE.Mesh(new THREE.CircleGeometry(rp.radius, 32), new THREE.MeshBasicMaterial({ color: 0x020304 }));
+    inside.rotation.y = Math.PI;
+    inside.position.set(0, rp.y, -dx / 2 + Math.min(0.03, run));
+    g.add(inside);
+    rearPortMouth = { y: rp.y, z: -dx / 2, radius: rp.radius };
+  } else {
+    shell.push(slab(wi, hx - 2 * t, t, looks.front(), 0, hx / 2, -dx / 2 + t / 2));
+  }
 
   // Front baffle with real holes (drivers, passive radiators), sitting above the slot port.
   const bottomOfBaffle = hasFrontPort ? t + slotH + t : t;
@@ -97,17 +125,21 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   const shape = new THREE.Shape();
   shape.moveTo(-wi / 2, 0); shape.lineTo(wi / 2, 0); shape.lineTo(wi / 2, bh); shape.lineTo(-wi / 2, bh); shape.lineTo(-wi / 2, 0);
   const frontMounted = boxType === 'bp4' || boxType === 'bp6' ? 0 : boxType === 'isobaric' ? 1 : count;
-  const prs = boxType === 'pr' ? prCount : 0;
+  const prs = boxType === 'pr' ? geo.prLayout.front : 0;
   const slots = frontMounted + prs;
   const cy = geo.driverY - bottomOfBaffle;
   const spacing = 2 * R + 0.03;
+  // One row across the baffle; passive radiators keep their own size.
+  const radii = Array.from({ length: slots }, (_, i) => (i < frontMounted ? R : geo.prRadius));
+  const rowWidth = radii.reduce((a, r) => a + 2 * r, 0) + 0.03 * Math.max(0, slots - 1);
   const centers: number[] = [];
-  for (let i = 0; i < slots; i++) centers.push((i - (slots - 1) / 2) * spacing);
-  for (const x of centers) {
+  let cursor = -rowWidth / 2;
+  for (const r of radii) { centers.push(cursor + r); cursor += 2 * r + 0.03; }
+  centers.forEach((x, i) => {
     const hole = new THREE.Path();
-    hole.absarc(x, cy, geo.cutoutRadius, 0, Math.PI * 2, true);
+    hole.absarc(x, cy, i < frontMounted ? geo.cutoutRadius : geo.prRadius * 0.9, 0, Math.PI * 2, true);
     shape.holes.push(hole);
-  }
+  });
   const baffleGeo = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 });
   const baffle = new THREE.Mesh(baffleGeo, looks.front());
   baffle.position.set(0, bottomOfBaffle, dx / 2 - t);
@@ -118,7 +150,7 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   const passiveRadiators: DriverParts[] = [];
   centers.forEach((x, i) => {
     const passive = i >= frontMounted;
-    const d = buildDriver(R, depth, passive);
+    const d = buildDriver(passive ? geo.prRadius : R, depth, passive);
     d.root.position.set(x, geo.driverY, dx / 2);
     g.add(d.root);
     // magnets live inside the box: only visible in x-ray
@@ -128,11 +160,28 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     (passive ? passiveRadiators : drivers).push(d);
   });
 
+  // Side-mounted passive radiators, surface-mounted on the outside of each side panel, facing out.
+  if (boxType === 'pr') {
+    const n = geo.prLayout.perSide;
+    for (const side of [-1, 1] as const) {
+      for (let i = 0; i < n; i++) {
+        const d = buildDriver(geo.prRadius, depth, true);
+        const z = (i - (n - 1) / 2) * (2 * geo.prRadius + 0.03);
+        d.root.rotation.y = side * Math.PI / 2;
+        d.root.position.set(side * wx / 2, hx / 2, z);
+        g.add(d.root);
+        d.magnet.removeFromParent();
+        passiveRadiators.push(d);
+      }
+    }
+  }
+
   // Band-pass / isobaric: drivers hidden inside, on a divider (visible in x-ray only).
   const hiddenDrivers: DriverParts[] = [];
   if (boxType === 'bp4' || boxType === 'bp6' || boxType === 'isobaric') {
     const n = boxType === 'isobaric' ? 1 : count;
-    const zDiv = boxType === 'isobaric' ? dx / 2 - depth - 0.03 : -dx / 2 + dx * 0.45;
+    // A band-pass divider splits the inside by the two chamber volumes.
+    const zDiv = boxType === 'isobaric' ? dx / 2 - depth - 0.03 : -dx / 2 + t + geo.di * geo.rearFraction;
     for (let i = 0; i < n; i++) {
       const d = buildDriver(R, depth, false);
       d.root.position.set((i - (n - 1) / 2) * spacing, geo.driverY, zDiv);
@@ -145,14 +194,16 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   // Slot port: ceiling panel from the front edge, plus an L-shaped riser when it is long.
   let portMouth: Enclosure['portMouth'] = null;
   if (hasFrontPort) {
-    const run = Math.min(geo.portLength, geo.di - slotH - 0.01);
+    // In a band-pass the port lives in the front chamber only, so it folds up at the divider.
+    const run = Math.min(geo.portLength, geo.frontDepth - slotH - 0.01);
+    const foldZ = dx / 2 - t - geo.frontDepth + slotH + t / 2;
     const ceiling = slab(wi, t, Math.max(0.02, run + t), portMat(), 0, t + slotH + t / 2, dx / 2 - (run + t) / 2);
     shell.push(ceiling);
     const tunnel = new THREE.Mesh(new THREE.PlaneGeometry(wi, slotH), new THREE.MeshBasicMaterial({ color: 0x020304 }));
     tunnel.position.set(0, t + slotH / 2, dx / 2 - Math.max(0.03, run * 0.6));
     g.add(tunnel);
     const rest = geo.portLength - run;
-    if (rest > 0.02) slab(wi, Math.min(rest, geo.hi - slotH - t), t, portMat(), 0, t + slotH + Math.min(rest, geo.hi - slotH - t) / 2, -dx / 2 + t + slotH + t / 2, internals);
+    if (rest > 0.02) slab(wi, Math.min(rest, geo.hi - slotH - t), t, portMat(), 0, t + slotH + Math.min(rest, geo.hi - slotH - t) / 2, foldZ, internals);
     portMouth = { y: t + slotH / 2, z: dx / 2, width: wi, height: slotH };
   }
 
@@ -165,12 +216,16 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, 0, internals);
   slab(bar, innerH, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, 0, internals);
   slab(bar, innerH, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, 0, internals);
-  const fluff = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.006, 0), new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45 }), 220);
-  let seed = 7;
-  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const m4 = new THREE.Matrix4();
-  for (let i = 0; i < 220; i++) fluff.setMatrixAt(i, m4.makeTranslation((rnd() - 0.5) * wi * 0.85, yA + 0.04 + rnd() * (innerH - 0.08), -dx / 2 + t + 0.02 + rnd() * geo.di * 0.35));
-  internals.add(fluff);
+  // Fill, drawn as many tufts as the fill amount calls for (none when the box is empty).
+  const tufts = Math.round(220 * Math.min(1, Math.max(0, fill)));
+  if (tufts > 0) {
+    const fluff = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.006, 0), new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45 }), tufts);
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const m4 = new THREE.Matrix4();
+    for (let i = 0; i < tufts; i++) fluff.setMatrixAt(i, m4.makeTranslation((rnd() - 0.5) * wi * 0.85, yA + 0.04 + rnd() * (innerH - 0.08), -dx / 2 + t + 0.02 + rnd() * Math.max(0.02, geo.di - 0.04)));
+    internals.add(fluff);
+  }
   internals.visible = false;
   g.add(internals);
 
@@ -192,10 +247,11 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
 
   const cone0 = drivers[0] ?? hiddenDrivers[0];
   return {
-    group: g, shell, baffle, internals, edges, drivers, hiddenDrivers, passiveRadiators, portMouth,
+    group: g, shell, baffle, internals, edges, drivers, hiddenDrivers, passiveRadiators, portMouth, rearPortMouth,
     sources: {
-      cone: new THREE.Vector3(cone0 ? cone0.root.position.x : 0, geo.driverY, frontMounted > 0 ? dx / 2 : dx / 2),
-      port: portMouth ? new THREE.Vector3(0, portMouth.y, dx / 2) : null
+      cone: new THREE.Vector3(cone0 ? cone0.root.position.x : 0, geo.driverY, dx / 2),
+      port: portMouth ? new THREE.Vector3(0, portMouth.y, dx / 2) : null,
+      port2: rearPortMouth ? new THREE.Vector3(0, rearPortMouth.y, -dx / 2) : null
     },
     sideCenter: (side) => new THREE.Vector3(side * (wx / 2 + 0.002), hx / 2, 0),
     dispose: () => g.traverse((o) => {

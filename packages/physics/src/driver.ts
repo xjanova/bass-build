@@ -123,5 +123,7 @@ export const ebp = (d: Pick<Driver, 'fs' | 'qes'>): number => d.fs / d.qes;
 /** Reference efficiency η0 and the 1 W / 1 m half-space sensitivity it implies. */
 export function referenceEfficiency(d: Pick<Driver, 'fs' | 'vas' | 'qes'>, air: Air = AIR_20C): { eta0: number; spl1w1m: number } {
   const eta0 = ((4 * Math.PI * Math.PI) / Math.pow(air.c, 3)) * Math.pow(d.fs, 3) * d.vas / d.qes;
-  return { eta0, spl1w1m: 112.1 + 10 * Math.log10(eta0) };
+  // 1 W acoustic into half space at 1 m: p² = ρc·W/(2πr²); 112.1 dB is this term for ρ = 1.18.
+  const halfSpace = 10 * Math.log10((air.rho * air.c) / (2 * Math.PI * 2e-5 * 2e-5));
+  return { eta0, spl1w1m: halfSpace + 10 * Math.log10(eta0) };
 }

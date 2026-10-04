@@ -37,10 +37,13 @@ export function fillFor(d: Design, damping: DampingMaterialDto[]): FillSpec {
   return { stuffing: d.stuffing, stuffingGain: k.gain, qa: k.qa / d.stuffing };
 }
 
-/** Constrained-layer damping sheets: thickness as sold, and the loss factor they add to a wood panel. */
-const CLD: Record<string, { thicknessMm: number; eta: number }> = {
-  butyl_cld: { thicknessMm: 2, eta: 0.12 },
-  bitumen_cld: { thicknessMm: 3, eta: 0.08 }
+/**
+ * Constrained-layer damping sheets: thickness as sold, and how much loss factor they add per unit
+ * of sheet-to-panel thickness ratio. A thin sheet on a thick wall adds little (≈0.01–0.03 on 18 mm MDF).
+ */
+const CLD: Record<string, { thicknessMm: number; etaPerRatio: number }> = {
+  butyl_cld: { thicknessMm: 2, etaPerRatio: 0.15 },
+  bitumen_cld: { thicknessMm: 3, etaPerRatio: 0.1 }
 };
 
 export interface WallDamping { massKgM2: number; eta: number; f11Factor: number; ampFactor: number }
@@ -53,7 +56,7 @@ export function wallDamping(d: Design, panel: PanelMaterialDto | undefined, damp
   if (!sheet || !m) return { massKgM2: 0, eta: eta0, f11Factor: 1, ampFactor: 1 };
   const massKgM2 = ((m.densityKgM3 ?? 1600) * sheet.thicknessMm) / 1000;
   const panelMass = (panel?.densityKgM3 ?? 750) * (d.thicknessMm / 1000);
-  const eta = eta0 + sheet.eta;
+  const eta = eta0 + Math.min(0.08, sheet.etaPerRatio * (sheet.thicknessMm / d.thicknessMm));
   return { massKgM2, eta, f11Factor: Math.sqrt(panelMass / (panelMass + massKgM2)), ampFactor: eta0 / eta };
 }
 
@@ -108,10 +111,25 @@ export interface BoxGeometry {
   slotH: number;
   portLength: number;
   portFold: 'none' | 'straight' | 'L' | 'impossible';
+  /** Share of the inside depth taken by a band-pass rear chamber (by volume); 0 otherwise. */
+  rearFraction: number;
+  /** Inside depth the front port can run in: the whole box, or a band-pass front chamber. */
+  frontDepth: number;
+  /** Round port of a 6th-order band-pass rear chamber, out through the back panel. */
+  rearPort: { y: number; radius: number; length: number; room: number; fits: boolean } | null;
   /** Driver centre height above the box bottom, m. */
   driverY: number;
   driverRadius: number;
   cutoutRadius: number;
+  /** Outer (frame) radius of a passive radiator, from its Sd. */
+  prRadius: number;
+  /** Passive radiators in the front row (0 or 1) and on each side panel (pairs face apart). */
+  prLayout: { front: number; perSide: number };
+  /**
+   * Litres of inside space the box needs beyond the requested volume because the drivers, ports
+   * or magnets do not fit otherwise (0 when they fit). The extra must be filled with blocks.
+   */
+  oversizeL: number;
   fits: boolean;
   magnetClear: boolean;
   panelAreaM2: number;
@@ -126,32 +144,94 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
   const depth = (dto?.depthMm ?? 190) / 1000;
   const front = res?.info.ports.find((p) => p.label === 'port' || p.label === 'front port');
   const portLen = front ? Math.max(0, front.physicalLength) : 0;
-  const portVol = (res?.info.ports ?? []).reduce((s, p) => s + p.area * p.count * Math.min(1.5, Math.max(0, p.physicalLength)) * 1.3, 0);
   const net = L(d.vbL) + (d.boxType === 'bp4' || d.boxType === 'bp6' ? L(d.vfL) : 0);
-  const gross = net + drivers * L(dto?.displacementL ?? 3) + portVol + 0.001;
+  const bandpassBox = d.boxType === 'bp4' || d.boxType === 'bp6';
+  // Boards inside the box take volume too: band-pass divider, isobaric mounting baffle.
+  const innerBoards = bandpassBox || d.boxType === 'isobaric' ? 1 : 0;
 
-  let hi = Math.cbrt(gross / (1.25 * 0.8));
-  let wi = 1.25 * hi;
-  let di = 0.8 * hi;
-  const slotGuess = front ? front.area / wi : 0;
-  const needH = outer + 0.03 + (front ? slotGuess + t : 0);
-  if (hi < needH) {
-    hi = needH;
-    di = Math.sqrt(gross / (hi * 1.5625));
-    wi = 1.5625 * di;
+  // What has to fit inside: a row of drivers / passive radiators across the baffle (or on a
+  // band-pass divider), their height plus the slot, and the magnet depth (two in an isobaric pair).
+  const bandpassType = d.boxType === 'bp4' || d.boxType === 'bp6';
+  const prRadius = Math.sqrt((d.prSdCm2 * 1e-4) / Math.PI) / 0.82;
+  // Pairs of passive radiators go on the side panels facing apart (their pushes cancel, as in
+  // most commercial PR subwoofers); an odd one sits in the front row next to the drivers.
+  const prs = d.boxType === 'pr' ? d.prCount : 0;
+  const prLayout = { front: prs % 2, perSide: Math.floor(prs / 2) };
+  const rowDiameters = [
+    ...Array(bandpassType ? d.count : d.boxType === 'isobaric' ? 1 : d.count).fill(outer),
+    ...Array(prLayout.front).fill(2 * prRadius)
+  ];
+  const needW = rowDiameters.reduce((a, b) => a + b, 0) + 0.03 * Math.max(0, rowDiameters.length - 1) + 0.04;
+  const tallest = Math.max(outer, prs ? 2 * prRadius : 0);
+  const rf = bandpassType ? d.vbL / (d.vbL + d.vfL) : 1;
+  // A centimetre more than the magnet clearance check below asks for, so the two never disagree.
+  const needD = Math.max(
+    bandpassType ? (depth + 0.03 + t) / rf : d.boxType === 'isobaric' ? 2 * depth + 0.06 : depth + 0.03,
+    prLayout.perSide ? prLayout.perSide * 2 * prRadius + 0.03 * (prLayout.perSide - 1) + 0.04 : 0
+  );
+  // An isobaric pair needs a tunnel the size of one driver around the inner unit, on top of Vb.
+  const tunnel = d.boxType === 'isobaric' ? (outer + 0.04) * (outer + 0.04) * (depth + 0.03) : 0;
+
+  // Two passes: the slot's wall board volume (width × thickness × length) needs the width first.
+  let hi = 0, wi = 0, di = 0, oversizeL = 0;
+  for (let pass = 0, width = 0; pass < 2; pass++) {
+    const portVol = (res?.info.ports ?? []).reduce((s, p) => {
+      const len = Math.min(1.5, Math.max(0, p.physicalLength));
+      // A slot along the floor has one board wall; a round tube about a tenth extra.
+      const wall = p === front && width > 0 ? width * t * len : p.area * len * 0.1;
+      return s + p.area * p.count * len + wall;
+    }, 0);
+    const gross = net + tunnel + drivers * L(dto?.displacementL ?? 3) + portVol + innerBoards * (width || 1.25 * Math.cbrt(net)) * Math.cbrt(net) * t + 0.001;
+    // Start from W:H:D = 1.25 : 1 : 0.8, then raise any side below its minimum and share the
+    // rest of the volume among the sides that are still free.
+    const k = Math.cbrt(gross / (1.25 * 0.8));
+    const dims = [1.25 * k, k, 0.8 * k];
+    const fixed = [false, false, false];
+    for (let it = 0; it < 4; it++) {
+      const slot = front ? front.area / dims[0] : 0;
+      const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), needD];
+      let changed = false;
+      dims.forEach((v, j) => { if (!fixed[j] && v < mins[j]) { dims[j] = mins[j]; fixed[j] = true; changed = true; } });
+      if (!changed) break;
+      const free = [0, 1, 2].filter((j) => !fixed[j]);
+      if (!free.length) break;
+      const s = Math.pow(gross / (dims[0] * dims[1] * dims[2]), 1 / free.length);
+      free.forEach((j) => { dims[j] *= s; });
+    }
+    [wi, hi, di] = dims;
+    oversizeL = Math.max(0, (wi * hi * di - gross) * 1000);
+    width = wi;
   }
   const slotH = front ? front.area / wi : 0;
   const usableBottom = t + (front ? slotH + t : 0);
   const driverY = usableBottom + (hi + t - usableBottom) / 2;
   const fits = hi - (front ? slotH + t : 0) >= outer + 0.01;
-  const magnetClear = di - depth - (front && portLen > di - slotH - 0.03 ? slotH + t : 0) >= 0.02;
-  const portFold: BoxGeometry['portFold'] = !front ? 'none' : portLen <= 0 ? 'impossible' : portLen <= di - 0.03 ? 'straight' : portLen <= di + hi - 0.06 ? 'L' : 'impossible';
+  const bandpass = d.boxType === 'bp4' || d.boxType === 'bp6';
+  // The divider sits where it splits the inside by the two net volumes.
+  const rearFraction = bandpass ? d.vbL / (d.vbL + d.vfL) : 0;
+  // The divider board itself sits on the rear-chamber side.
+  const frontDepth = bandpass ? di * (1 - rearFraction) : di;
+  // Where the magnet must fit: behind the baffle, in a band-pass rear chamber, or behind a clamped pair.
+  const magnetClear = bandpass
+    ? di * rearFraction - t - depth >= 0.02
+    : d.boxType === 'isobaric'
+      ? di - 2 * depth - 0.03 >= 0.02
+      : di - depth - (front && portLen > di - slotH - 0.03 ? slotH + t : 0) >= 0.02;
+  const portFold: BoxGeometry['portFold'] = !front ? 'none' : portLen <= 0 ? 'impossible' : portLen <= frontDepth - 0.03 ? 'straight' : portLen <= frontDepth + hi - 0.06 ? 'L' : 'impossible';
+  const rp = d.boxType === 'bp6' ? res?.info.ports.find((p) => p.label === 'rear port') : undefined;
+  const rearPort: BoxGeometry['rearPort'] = rp ? (() => {
+    const radius = Math.sqrt(rp.area / Math.PI);
+    const room = di * rearFraction - t - 0.03;
+    const length = rp.physicalLength;
+    return { y: t + radius + 0.02, radius, length, room, fits: length > 0 && length <= room + hi - 2 * radius - 0.06 };
+  })() : null;
   const wx = wi + 2 * t, hx = hi + 2 * t, dx = di + 2 * t;
-  const panelAreaM2 = 2 * wx * dx + 2 * wx * hi + 2 * di * hi + (front ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi;
+  // Outside panels, the slot board, bracing (about half a panel) and any divider / inner baffle.
+  const panelAreaM2 = 2 * wx * dx + 2 * wx * hi + 2 * di * hi + (front ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi + innerBoards * wi * hi;
   const density = material?.densityKgM3 ?? 750;
   return {
-    wx, hx, dx, wi, hi, di, t, slotH, portLength: portLen, portFold, driverY,
-    driverRadius: outer / 2, cutoutRadius: (dto?.cutoutMm ?? outer * 900) / 2000,
+    wx, hx, dx, wi, hi, di, t, slotH, portLength: portLen, portFold, rearFraction, frontDepth, rearPort, driverY,
+    driverRadius: outer / 2, cutoutRadius: (dto?.cutoutMm ?? outer * 900) / 2000, prRadius, prLayout, oversizeL,
     fits, magnetClear, panelAreaM2,
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
     weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2,
@@ -161,25 +241,33 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
 
 // ---- thermal (voice coil / magnet) -------------------------------------------------------------
 
-/** Two-node first-order estimate. Rth defaults to "≈110 K rise at rated power" when the datasheet is silent. */
+/**
+ * Two-node thermal estimate with the coil sitting on the magnet: the magnet warms slowly
+ * (τ ≈ 20 min) and the coil rises above it quickly (τ ≈ 20 s). The total thermal resistance
+ * defaults to "≈110 K coil rise at rated power" (70 % coil-to-magnet, 30 % magnet-to-air) when
+ * the datasheet is silent.
+ */
 export function thermalAt(watts: number, peW: number | null | undefined, seconds: number): { tvc: number; tmag: number; reRise: number } {
   const pe = peW && peW > 0 ? peW : 300;
-  const rthVc = 110 / pe;
-  const rthMag = 35 / pe;
-  const tvc = 25 + watts * rthVc * (1 - Math.exp(-seconds / 15));
-  const tmag = 25 + watts * rthMag * (1 - Math.exp(-seconds / 90));
+  const rTotal = 110 / pe;
+  const tmag = 25 + watts * 0.3 * rTotal * (1 - Math.exp(-seconds / 1200));
+  const tvc = tmag + watts * 0.7 * rTotal * (1 - Math.exp(-seconds / 20));
   return { tvc, tmag, reRise: 1 + 0.00393 * (tvc - 25) };
 }
 
-/** Lowest bending mode of the larger side panel, simply supported (Kirchhoff plate). */
-export function panelMode(geo: BoxGeometry, material: PanelMaterialDto | undefined, f11Factor = 1): number {
+/**
+ * Lowest bending mode (1,1) of the side panel (the one drawn in the vibration view) and of the
+ * back panel (the largest unbroken one, so the lowest), simply supported Kirchhoff plates —
+ * conservative: clamped edges would sit about 1.8× higher.
+ */
+export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefined, f11Factor = 1): { side: number; back: number } {
   const e = (material?.eGpa ?? 3.5) * 1e9;
   const rho = material?.densityKgM3 ?? 750;
   const nu = material?.poisson ?? 0.25;
   const h = geo.t;
   const bend = (e * h * h * h) / (12 * (1 - nu * nu));
-  const [a, b] = geo.wi > geo.di ? [geo.wi, geo.hi] : [geo.di, geo.hi];
-  return (Math.PI / 2) * Math.sqrt(bend / (rho * h)) * (1 / (a * a) + 1 / (b * b)) * f11Factor;
+  const f11 = (a: number, b: number) => (Math.PI / 2) * Math.sqrt(bend / (rho * h)) * (1 / (a * a) + 1 / (b * b)) * f11Factor;
+  return { side: f11(geo.di, geo.hi), back: f11(geo.wi, geo.hi) };
 }
 
 // ---- warnings ---------------------------------------------------------------------------------
@@ -214,6 +302,8 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
     out.push({ level: 'bad', text: `ระยะชัก ${m.excursionMax.mm.toFixed(1)} มม. เกิน Xmax ${xmax} มม. ที่ ${m.excursionMax.f.toFixed(0)} Hz${below && !d.subsonic ? ' (ต่ำกว่าจูน) เปิด Subsonic ช่วยได้' : ' ลดกำลังหรือเพิ่มปริมาตร'}` });
   }
   if (geo.portFold === 'impossible') out.push({ level: 'bad', text: geo.portLength <= 0 ? 'พื้นที่ท่อเล็กเกินไปสำหรับความถี่จูนนี้ ท่อสั้นจนติดลบ' : `ท่อยาว ${(geo.portLength * 100).toFixed(0)} ซม. ใส่ในตู้ไม่ได้ ลดพื้นที่ท่อหรือเพิ่ม Fb` });
+  if (geo.rearPort && !geo.rearPort.fits) out.push({ level: 'bad', text: geo.rearPort.length <= 0 ? 'ท่อหลังเล็กเกินไปสำหรับความถี่จูนนี้ ท่อสั้นจนติดลบ' : `ท่อหลังยาว ${(geo.rearPort.length * 100).toFixed(0)} ซม. ใส่ห้องหลังไม่ได้ ลดพื้นที่ท่อหลังหรือเพิ่มความถี่จูนท่อหลัง` });
+  if (geo.oversizeL > 0.5) out.push({ level: 'bad', text: `ตู้ ${d.vbL} L เล็กเกินกว่าจะใส่ลำโพง ท่อ และแม่เหล็กได้ ตัวตู้ต้องโตขึ้นอีก ${geo.oversizeL.toFixed(0)} L แล้วเสริมไม้กินที่ให้เหลือปริมาตรเท่าที่ตั้ง หรือเพิ่มปริมาตร` });
   if (!geo.fits) out.push({ level: 'bad', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
   if (!geo.magnetClear) out.push({ level: 'warn', text: 'แม่เหล็กชิดผนังหลังหรือท่อเกินไป' });
   if (m.impedanceMin.ohms < 2) out.push({ level: 'warn', text: `อิมพีแดนซ์ต่ำสุด ${m.impedanceMin.ohms.toFixed(1)} Ω แอมป์ต้องรับโหลดต่ำได้` });
@@ -241,12 +331,17 @@ const RECIPE_TH: Record<AlignmentRecipe, string> = {
 };
 
 /**
- * Longest port the box can hold folded once (an L along the floor and up the back), using the
- * same proportions sizeBox lays the box out with (W:H:D = 1.25 : 1 : 0.8).
+ * Longest ports the box can hold folded once (an L along the floor and up the wall), using the
+ * same proportions sizeBox starts from (W:H:D = 1.25 : 1 : 0.8). In a band-pass the front port
+ * only has the front chamber's depth and the rear port only the rear chamber's.
  */
-function portRoom(netLitres: number): number {
+function portRoom(netLitres: number, rearFraction: number): { front: number; rear: number } {
   const hi = Math.cbrt((netLitres / 1000) * 1.15);
-  return Math.max(0.1, 1.8 * hi - 0.08);
+  const di = 0.8 * hi;
+  return {
+    front: Math.max(0.1, 0.9 * (di * (1 - rearFraction) + hi) - 0.08),
+    rear: Math.max(0.1, 0.9 * (di * rearFraction + hi) - 0.15)
+  };
 }
 
 /** Range of every slider the suggestion writes to; RightPanel uses the same table. */
@@ -271,8 +366,10 @@ export function suggestDesign(d: Design, driver: Driver, dto: DriverDto | undefi
   // First pass sizes the box; the second limits the port to what that box can hold.
   const first = suggestAlignment({ ...base, type: d.boxType });
   const fb = first.box;
-  const litres = 1000 * (fb.type === 'bp4' || fb.type === 'bp6' ? fb.vr + fb.vf : 'vb' in fb ? fb.vb : 0);
-  const a = suggestAlignment({ ...base, type: d.boxType, maxPortLength: Math.min(1.2, portRoom(litres)) });
+  const bp = fb.type === 'bp4' || fb.type === 'bp6';
+  const litres = 1000 * (bp ? fb.vr + fb.vf : 'vb' in fb ? fb.vb : 0);
+  const room = portRoom(litres, bp ? fb.vr / (fb.vr + fb.vf) : 0);
+  const a = suggestAlignment({ ...base, type: d.boxType, maxPortLength: Math.min(1.2, room.front), maxRearPortLength: Math.min(1.2, room.rear) });
   flags.unshift(...a.flags);
   const b = a.box;
   const patch: Partial<Design> = { watts };

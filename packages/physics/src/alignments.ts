@@ -33,6 +33,8 @@ export interface AlignmentRequest {
   targetPortVelocity?: number;
   /** Longest port that fits (or is still practical), m (default 1.2). */
   maxPortLength?: number;
+  /** Same for the rear-chamber port of a 6th-order band-pass (default: maxPortLength). */
+  maxRearPortLength?: number;
   air?: Air;
 }
 
@@ -65,7 +67,8 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
   // Isobaric pair = one compound driver with half the Vas; n drivers in one box = n·Vas.
   const vas = req.type === 'isobaric' ? d.vas / 2 : d.vas * n;
   const fill = req.fill ?? {};
-  const gain = 1 + (fill.stuffingGain ?? 0.4) * Math.min(1, Math.max(0, fill.stuffing ?? 0));
+  // The isobaric box model takes no fill, so its volume must not be shrunk for one.
+  const gain = req.type === 'isobaric' ? 1 : 1 + (fill.stuffingGain ?? 0.4) * Math.min(1, Math.max(0, fill.stuffing ?? 0));
   const flags: AlignmentFlag[] = [];
 
   const sealedVolume = (qtc: number) => vas / ((qtc / d.qts) ** 2 - 1);
@@ -87,14 +90,15 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
   const sizePorts = (make: (area: number) => BoxDesign): BoxDesign => {
     const target = req.targetPortVelocity ?? 17;
     const maxLen = req.maxPortLength ?? 1.2;
+    const maxRear = req.maxRearPortLength ?? maxLen;
+    const limit = (label: string) => (label === 'rear port' ? maxRear : maxLen);
     let area = Math.max(5e-4, 0.02 * d.sd * n);
     let fitting: BoxDesign | null = null;
     for (let i = 0; i < 60; i++, area *= 1.12) {
       const box = make(area);
       const res = simulate(spec(box), { fMin: 10, fMax: 300, points: 90 });
-      const lengths = res.info.ports.map((p) => p.physicalLength);
-      if (lengths.some((l) => l < 0.02)) continue; // too narrow to reach this tuning at all
-      if (lengths.some((l) => l > maxLen)) break;
+      if (res.info.ports.some((p) => p.physicalLength < 0.02)) continue; // too narrow to reach this tuning at all
+      if (res.info.ports.some((p) => p.physicalLength > limit(p.label))) break;
       fitting = box;
       if (res.metrics.portVelocityMax.ms <= target) return box;
     }

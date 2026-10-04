@@ -173,6 +173,19 @@ describe('subsonic filter', () => {
   });
 });
 
+describe('wiring', () => {
+  it('an isobaric pair in series shows twice the coil impedance, not half', () => {
+    const z = (wiring: 'series' | 'parallel') => simulate({ driver: ideal, wiring, box: { type: 'isobaric', vb: 0.025 }, drive: { volts: 2.83 } }, { fMin: 150, fMax: 300, points: 20 }).metrics.impedanceMin.ohms;
+    near(z('series'), 4 * z('parallel'), 0.02);
+    expect(z('series')).toBeGreaterThan(ideal.re * 1.9);
+  });
+
+  it('finds the worst excursion anywhere in the simulated range', () => {
+    const res = simulate({ driver: ideal, box: { type: 'vented', vb: 0.1, fb: 30, port: { area: 0.01 } }, drive: { watts: 100 } }, { fMin: 10, fMax: 500, points: 200 });
+    expect(res.metrics.excursionMax.mm).toBeCloseTo(Math.max(...res.curves.excursionMm), 9);
+  });
+});
+
 describe('box filling', () => {
   const sealed = (extra: object) => simulate({ driver: ideal, box: { type: 'sealed', vb: 0.05, ...extra }, drive: { volts: 2.83 } }, { fMin: 10, fMax: 500, points: 400 });
 
@@ -223,10 +236,14 @@ describe('suggested alignments', () => {
   });
 
   it('4th-order band-pass is flat between two corners', () => {
-    const { res } = run('bp4');
+    const { a, res } = run('bp4');
+    if (a.box.type !== 'bp4') throw new Error('expected a band-pass box');
     expect(res.metrics.f3).not.toBeNull();
     expect(res.metrics.f3High!).toBeGreaterThan(res.metrics.f3! * 2);
-    expect(res.metrics.splMax - res.metrics.referenceSpl).toBeLessThan(1);
+    // S = 0.7 is the maximally flat case: no dip at the tuning between the two humps.
+    const { freqs, spl } = res.curves;
+    const i = freqs.findIndex((f) => f >= (a.box as { fb: number }).fb);
+    expect(Math.max(...spl) - spl[i]).toBeLessThan(0.5);
   });
 
   it('flags a high-Qts driver instead of pretending it suits every box', () => {

@@ -80,7 +80,7 @@ export function pressureAt(sol: Solution, opts: SimOptions = {}, air = AIR_20C):
 }
 
 const totalImpedance = (sol: Solution, wiring: 'parallel' | 'series'): Cx => {
-  // Identical drivers: parallel → Z/n, series → n·Z. Isobaric pairs are wired in parallel.
+  // Identical drivers: parallel → Z/n, series → sum. Isobaric pairs can be wired either way too.
   const z = sol.drivers.map((d) => d.zin);
   if (z.length === 1) return z[0];
   if (wiring === 'series') return z.reduce((a, b) => add(a, b), ZERO);
@@ -97,7 +97,7 @@ export function simulate(spec: SystemSpec, opts: SimOptions = {}): SimResult {
   const air = spec.air ?? AIR_20C;
   const { net, info } = buildNetwork(spec);
   const freqs = logFrequencies(opts.fMin ?? 10, opts.fMax ?? 500, opts.points ?? 240);
-  const wiring = spec.box.type === 'isobaric' ? 'parallel' : spec.wiring ?? 'parallel';
+  const wiring = spec.wiring ?? 'parallel';
   const curves: Curves = { freqs, spl: [], phase: [], groupDelayMs: [], impedance: [], impedancePhase: [], excursionMm: [], portVelocity: [] };
   const rawPhase: number[] = [];
 
@@ -166,8 +166,9 @@ function computeMetrics(spec: SystemSpec, info: BuildInfo, c: Curves, opts: SimO
     for (let i = 0; i < f.length; i++) if (f[i] >= lo && f[i] <= hi && arr[i] > best.v) best = { v: arr[i], f: f[i] };
     return best;
   };
-  const exc = inBand(15, 200, c.excursionMm);
-  const vel = inBand(15, 200, c.portVelocity);
+  // Worst case over everything simulated: an unfiltered box can over-travel below 15 Hz.
+  const exc = inBand(f[0], f[f.length - 1], c.excursionMm);
+  const vel = inBand(f[0], f[f.length - 1], c.portVelocity);
   let zMin = { ohms: Infinity, f: f[0] };
   for (let i = 0; i < f.length; i++) if (f[i] > 10 && c.impedance[i] < zMin.ohms) zMin = { ohms: c.impedance[i], f: f[i] };
   const peaks: number[] = [];

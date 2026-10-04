@@ -3,9 +3,10 @@ import * as THREE from 'three/webgpu';
 import type { BoxGeometry } from '../sim/model';
 
 /**
- * Pressure field on a horizontal slice from two monopoles (cone and port) using the complex
- * volume velocities from the lumped model: p(r,t) = Re{A e^{j(ωt − kr)}} / r.
- * Physically consistent wavelength and cone/port phase, but no box diffraction (that is FDTD's job).
+ * Pressure field on a horizontal slice from up to three monopoles (cone, front port or passive
+ * radiator, rear port of a 6th-order band-pass) using the complex volume velocities from the
+ * lumped model: p(r,t) = Re{A e^{j(ωt − kr)}} / r. Physically consistent wavelength and phase
+ * between the sources, but no box diffraction (that is FDTD's job).
  */
 export class WavePlane {
   readonly mesh: THREE.Mesh;
@@ -15,6 +16,8 @@ export class WavePlane {
   private readonly a1 = uniform(new THREE.Vector2());
   private readonly s2 = uniform(new THREE.Vector3());
   private readonly a2 = uniform(new THREE.Vector2());
+  private readonly s3 = uniform(new THREE.Vector3());
+  private readonly a3 = uniform(new THREE.Vector2());
   private readonly norm = uniform(1);
 
   constructor() {
@@ -24,7 +27,7 @@ export class WavePlane {
       const ph = this.phase.sub(this.k.mul(r));
       return a.x.mul(cos(ph)).sub(a.y.mul(sin(ph))).div(r);
     };
-    const v = clamp(src(this.s1, this.a1).add(src(this.s2, this.a2)).mul(this.norm), -1, 1);
+    const v = clamp(src(this.s1, this.a1).add(src(this.s2, this.a2)).add(src(this.s3, this.a3)).mul(this.norm), -1, 1);
     const pos = mix(vec3(0.133, 0.827, 0.933), vec3(0.92, 0.99, 1.0), v.mul(v));
     // Isobars every 1/6 of full scale: at bass frequencies the whole slice breathes in phase,
     // and the lines are what shows the pressure falling off with distance.
@@ -36,13 +39,15 @@ export class WavePlane {
     this.mesh.renderOrder = 2;
   }
 
-  /** a = complex source strengths (any common scale), positions in world metres. */
-  setSources(cone: THREE.Vector3, aCone: [number, number], port: THREE.Vector3 | null, aPort: [number, number], k: number, y: number, centerZ: number): void {
-    this.s1.value.copy(cone);
-    this.a1.value.set(aCone[0], aCone[1]);
-    if (port) { this.s2.value.copy(port); this.a2.value.set(aPort[0], aPort[1]); } else this.a2.value.set(0, 0);
+  /** Complex source strengths (any common scale) at positions in world metres; null = silent. */
+  setSources(sources: ({ at: THREE.Vector3; a: [number, number] } | null)[], k: number, y: number, centerZ: number): void {
+    const slots: [typeof this.s1, typeof this.a1][] = [[this.s1, this.a1], [this.s2, this.a2], [this.s3, this.a3]];
+    let total = 0;
+    slots.forEach(([sv, av], i) => {
+      const src = sources[i];
+      if (src) { sv.value.copy(src.at); av.value.set(src.a[0], src.a[1]); total += Math.hypot(...src.a); } else av.value.set(0, 0);
+    });
     this.k.value = k;
-    const total = Math.hypot(...aCone) + (port ? Math.hypot(...aPort) : 0);
     this.norm.value = total > 0 ? 0.55 / total : 0;
     this.mesh.position.set(0, y, centerZ);
   }

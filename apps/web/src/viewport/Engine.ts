@@ -16,8 +16,9 @@ export interface Osc {
   coneX: Cx; // peak cone displacement, m (complex)
   prX: Cx | null; // peak passive-radiator displacement, m
   portV: Cx | null; // peak outward air velocity at the port mouth, m/s
-  coneU: Cx; // RMS volume velocity of the front-radiating cone(s)
-  portU: Cx | null; // RMS outward volume velocity of the port / PR
+  coneU: Cx | null; // RMS volume velocity of the cone(s) radiating outside; null inside a band-pass
+  portU: Cx | null; // RMS outward volume velocity of the front port / PR
+  port2U: Cx | null; // RMS outward volume velocity of a band-pass rear port
 }
 
 export interface EngineInput {
@@ -39,9 +40,12 @@ export interface EngineInput {
   portPeak: number;
   splAtGen: number;
   thermal: { tvc: number; tmag: number } | null;
-  f11: number;
-  /** Relative wall vibration amplitude (1 = bare panel; damping sheets make it smaller). */
-  vibAmp: number;
+  /** Side-panel response at the generator frequency: visual amplitude and phase vs the generator. */
+  vib: { amp: number; phase: number };
+  /** Directivity balloon: piston radius, and whether the sound leaves through the port (band-pass). */
+  balloon: { radius: number; fromPort: boolean };
+  /** Fill drawn in x-ray, 0..1 (part of geoKey: changing it rebuilds the box). */
+  fill: number;
 }
 
 const re = (z: Cx, wt: number) => z.re * Math.cos(wt) - z.im * Math.sin(wt);
@@ -178,17 +182,28 @@ export class Engine {
     this.micLabel.position.set(0, g.driverY + 0.12, 0);
     this.mic.position.set(0, 0, g.dx / 2 + 1);
 
-    const bkey = `${input.genHz}|${g.driverRadius}|${g.driverY}|${g.dx}`;
+    const viaPort = input.balloon.fromPort && enc.portMouth;
+    const bkey = `${input.genHz}|${input.balloon.radius}|${viaPort}|${g.driverY}|${g.dx}`;
     if (bkey !== this.balloonKey) {
       this.balloonKey = bkey;
-      this.balloon.update(input.genHz, g.driverRadius * 0.82, new THREE.Vector3(enc.sources.cone.x, g.driverY, g.dx / 2 + 0.02));
+      const at = viaPort ? new THREE.Vector3(0, enc.portMouth!.y, g.dx / 2 + 0.02) : new THREE.Vector3(enc.sources.cone.x, g.driverY, g.dx / 2 + 0.02);
+      this.balloon.update(input.genHz, input.balloon.radius, at);
     }
     if (input.osc) {
       const w = 2 * Math.PI * input.genHz;
       const k = w / 343;
       // A = jωρU/2π → (−ωρ U.im, ωρ U.re)/2π; only relative scale matters for the colour map.
       const a = (u: Cx): [number, number] => [-u.im, u.re];
-      this.wave.setSources(enc.sources.cone, a(input.osc.coneU), enc.sources.port ?? (enc.passiveRadiators[0] ? enc.passiveRadiators[0].root.position : null), input.osc.portU ? a(input.osc.portU) : [0, 0], k, g.driverY, g.dx / 2 + 0.6);
+      const o = input.osc;
+      // Opposed passive radiators act as one source at their centre at bass wavelengths.
+      const prs = enc.passiveRadiators.map((p) => p.root.position);
+      const prCentre = prs.length ? prs.reduce((a, b) => a.clone().add(b), new THREE.Vector3()).multiplyScalar(1 / prs.length) : null;
+      const front = enc.sources.port ?? prCentre;
+      this.wave.setSources([
+        o.coneU ? { at: enc.sources.cone, a: a(o.coneU) } : null,
+        front && o.portU ? { at: front, a: a(o.portU) } : null,
+        enc.sources.port2 && o.port2U ? { at: enc.sources.port2, a: a(o.port2U) } : null
+      ], k, g.driverY, g.dx / 2 + 0.6);
     }
     this.applyLooks(input);
     this.controls.target.set(0, g.hx * 0.45, 0.1);
@@ -203,7 +218,7 @@ export class Engine {
     }
     const looks = looksFor(input.finish, input.material, this.textures);
     this.seeThrough = looks.seeThrough;
-    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, looks);
+    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, looks, input.fill);
     this.scene.add(this.enc.group);
     this.buildDims(input.geo);
   }
@@ -271,15 +286,18 @@ export class Engine {
         if (this.arrows.group.visible) this.arrows.update(enc.portMouth, vNow, inp.portPeak);
         if (this.smoke.mesh.visible) this.smoke.update(this.tPhys, w, vPk, vNow, ph, enc.portMouth, this.camera);
         if (this.airLabel.visible && enc.portMouth) {
-          (this.airLabel.element as HTMLElement).textContent = `ลมท่อ ${Math.abs(vNow).toFixed(1)} m/s`;
+          // The peak at the generator frequency: the instantaneous value flickers too fast to read.
+          (this.airLabel.element as HTMLElement).textContent = `ลมท่อ สูงสุด ${vPk.toFixed(1)} m/s`;
           this.airLabel.position.set(enc.portMouth.width / 2 + 0.2, enc.portMouth.y, enc.portMouth.z + 0.1);
         }
       } else {
         for (const d of [...enc.drivers, ...enc.hiddenDrivers, ...enc.passiveRadiators]) d.moving.position.z = 0;
       }
       if (this.vibe.mesh.visible) {
+        // The wall is driven by the box pressure, so it moves at the generator frequency (forced
+        // response), not at its own resonance; the amplitude carries the resonance build-up.
         const side: -1 | 1 = this.camera.position.x < 0 ? -1 : 1;
-        this.vibe.update(inp.geo, side, 2 * Math.PI * inp.f11 * this.tPhys, inp.vibAmp);
+        this.vibe.update(inp.geo, side, 2 * Math.PI * inp.genHz * this.tPhys + inp.vib.phase + Math.PI / 2, inp.vib.amp);
       }
       this.irClock += dt;
       if (inp.thermal && this.irClock > 0.25) {
