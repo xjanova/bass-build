@@ -125,11 +125,29 @@ public sealed class Db
         SeedTable<DampingMaterial>(c, tx, "damping_materials", DampingColumns, materials, "dampingMaterials", log);
         SeedTable<Hardware>(c, tx, "hardware", HardwareColumns, materials, "hardware", log);
 
-        if (IsEmpty(c, tx, "drivers"))
+        SeedDrivers(c, tx, seedDir, log);
+        tx.Commit();
+    }
+
+    /// <summary>Datasheet drivers first, then the made-up samples — the same order as the web build.</summary>
+    static readonly string[] DriverSeedFiles = ["drivers.json", "drivers.sample.json"];
+
+    /// <summary>
+    /// Adds every seed driver whose brand + model is not in the table yet, so an existing database
+    /// picks up newly added datasheet drivers. Runs only when the seed files changed (their hash is
+    /// kept in settings), so a seed driver the user deleted stays deleted until the next seed update.
+    /// </summary>
+    static void SeedDrivers(SqliteConnection c, IDbTransaction tx, string seedDir, ILogger log)
+    {
+        var texts = DriverSeedFiles.Select(f => Path.Combine(seedDir, f)).Select(p => File.Exists(p) ? File.ReadAllText(p) : "").ToArray();
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join("\u0000", texts))));
+        if (c.ExecuteScalar<string?>("SELECT value FROM settings WHERE key = 'seed.drivers'", transaction: tx) == hash) return;
+
+        var now = Now();
+        var count = 0;
+        foreach (var file in DriverSeedFiles)
         {
-            var now = Now();
-            var count = 0;
-            foreach (var d in Items<DriverInput>(ReadJson(Path.Combine(seedDir, "drivers.sample.json"), log), "drivers"))
+            foreach (var d in Items<DriverInput>(ReadJson(Path.Combine(seedDir, file), log), "drivers"))
             {
                 d.Normalize();
                 if (Validation.Driver(d) is { } err)
@@ -137,13 +155,14 @@ public sealed class Db
                     log.LogWarning("Skipping seed driver {Brand} {Model}: invalid {Field}", d.Brand, d.Model, err.Field);
                     continue;
                 }
+                var exists = c.ExecuteScalar<long>("SELECT COUNT(*) FROM drivers WHERE brand = @Brand COLLATE NOCASE AND model = @Model COLLATE NOCASE", new { d.Brand, d.Model }, tx) > 0;
+                if (exists) continue;
                 DriverEndpoints.Insert(c, d, now, tx);
                 count++;
             }
-            log.LogInformation("Seeded {Count} rows into {Table}", count, "drivers");
         }
-
-        tx.Commit();
+        c.Execute("INSERT INTO settings (key, value) VALUES ('seed.drivers', @hash) ON CONFLICT(key) DO UPDATE SET value = excluded.value", new { hash }, tx);
+        log.LogInformation("Seeded {Count} rows into {Table}", count, "drivers");
     }
 
     static void SeedTable<T>(SqliteConnection c, IDbTransaction tx, string table, string[] columns, JsonElement? root, string property, ILogger log)

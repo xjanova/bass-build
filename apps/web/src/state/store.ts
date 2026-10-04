@@ -7,7 +7,7 @@ import type { Finish } from '../viewport/finishes';
 export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
 export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd';
-export type Mode = 'design' | 'lab';
+export type Mode = 'design' | 'lab' | 'library';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
 export interface Design {
@@ -49,7 +49,7 @@ export interface Ghost { curves: Curves; label: string }
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
 export type Backend = 'webgpu' | 'webgl' | 'none';
 /** Main tabs that are still on the roadmap; clicking one shows what it will do. */
-export type Teaser = 'ai' | 'blueprint' | 'library';
+export type Teaser = 'ai' | 'blueprint';
 
 interface State {
   mode: Mode;
@@ -74,6 +74,9 @@ interface State {
   setMaterials: (m: PanelMaterialDto[]) => void;
   setDamping: (m: DampingMaterialDto[]) => void;
   selectDriver: (id: number) => void;
+  /** Adds or replaces a driver in the list (after it was saved). */
+  upsertDriver: (d: DriverDto) => void;
+  removeDriver: (id: number) => void;
   patchDesign: (p: Partial<Design>) => void;
   setGen: (hz: number) => void;
   setSlow: (s: number) => void;
@@ -112,13 +115,21 @@ export const useApp = create<State>((set) => ({
   setDrivers: (drivers, source) => set((s) => ({
     drivers,
     driversSource: source,
-    // Keep the current choice if it still exists; otherwise prefer the 15" sample, then the first.
-    driverId: drivers.some((d) => d.id === s.driverId) ? s.driverId : (drivers.find((d) => d.model === 'SPL-15') ?? drivers[0])?.id ?? null
+    // Keep the current choice if it still exists; otherwise start on a Thai-made 18" outdoor
+    // woofer from the datasheet set (the made-up sample if the seed is missing), then the first.
+    driverId: drivers.some((d) => d.id === s.driverId) ? s.driverId
+      : (drivers.find((d) => d.brand === 'P.Audio' && d.model === '18BMA-2000S') ?? drivers.find((d) => d.model === 'SPL-15') ?? drivers[0])?.id ?? null
   })),
   setMaterials: (materials) => set({ materials }),
   setDamping: (damping) => set({ damping }),
   // The comparison curve survives a driver change on purpose: comparing drivers is what it is for.
   selectDriver: (driverId) => set({ driverId }),
+  upsertDriver: (d) => set((s) => ({ drivers: s.drivers.some((x) => x.id === d.id) ? s.drivers.map((x) => (x.id === d.id ? d : x)) : [...s.drivers, d] })),
+  removeDriver: (id) => set((s) => {
+    const drivers = s.drivers.filter((x) => x.id !== id);
+    // Never leave the lab pointing at a driver that is gone.
+    return { drivers, driverId: s.driverId === id ? (drivers[0]?.id ?? null) : s.driverId };
+  }),
   patchDesign: (p) => set((s) => ({ design: { ...s.design, ...p } })),
   setGen: (genHz) => set({ genHz }),
   setSlow: (slow) => set({ slow }),

@@ -38,6 +38,14 @@ dotnet test server/BassBuild.sln
 
 ต้องมี secret `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` · คีย์นี้ถูกล็อกไว้ใน `~/.ssh/authorized_keys` บนเซิร์ฟเวอร์ด้วย `rrsync -wo -munge` ให้เขียนได้เฉพาะ `public_html` ของโดเมนนี้ · ค่า cache และ header ความปลอดภัยอยู่ใน [apps/web/public/.htaccess](apps/web/public/.htaccess)
 
+## คลังลำโพง
+
+ลำโพงจริงอยู่ใน [data/seed/drivers.json](data/seed/drivers.json) (ค่า T/S จาก datasheet ของผู้ผลิต ทุกรุ่นมี `sourceUrl`) และลำโพงสมมติสำหรับทดสอบอยู่ใน `drivers.sample.json`
+
+- เพิ่มรุ่นใหม่: เก็บเป็น JSON รูปแบบเดียวกัน แล้วรัน `python data/seed/merge_drivers.py <ไฟล์.json>` สคริปต์ตรวจช่วงค่า หน่วย และความสอดคล้อง (Qts, Vas, Fs, Qes) ตัดรุ่นที่ค่าเพี้ยนเกิน 30 % และต่อท้ายไฟล์เดิม (ห้ามแทรกกลาง เพราะเว็บใช้ลำดับเป็นรหัส)
+- เซิร์ฟเวอร์ C# เพิ่มรุ่นที่ยังไม่มีให้ฐานข้อมูลเดิมเองเมื่อไฟล์ seed เปลี่ยน
+- ลำโพงที่ผู้ใช้เพิ่มเอง: บนเว็บเก็บในเบราว์เซอร์ (localStorage) ในแอปเครื่องเก็บใน SQLite
+
 ## โครงสร้าง
 
 | โฟลเดอร์ | หน้าที่ |

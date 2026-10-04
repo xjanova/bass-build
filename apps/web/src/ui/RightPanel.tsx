@@ -1,11 +1,12 @@
 import type { Driver } from '@bassbuild/physics';
 import { useEffect, useState } from 'react';
 import type { DriverDto } from '../data/types';
-import { isFill, RANGES, SUGGEST_FLAG_TEXT, suggestDesign, type Warning } from '../sim/model';
+import { isFill, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
 
+const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์'], ['pa', 'PA / รถแห่'], ['woofer', 'วูฟเฟอร์'], ['fullrange', 'ฟูลเรนจ์'], ['mid', 'เสียงกลาง'], ['other', 'อื่น ๆ'], ['sample', 'ตัวอย่าง (ไม่ใช่สินค้าจริง)']];
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
@@ -35,7 +36,7 @@ const thicknessFor = (options: number[], v: number) =>
 export function RightPanel({ dto, driver, warnings, driverError }: {
   dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null;
 }) {
-  const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast } = useApp();
+  const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast, setMode } = useApp();
   const [allWarnings, setAllWarnings] = useState(false);
   // Applying a suggestion overwrites the box, so it takes a second, explicit click.
   const [confirming, setConfirming] = useState(false);
@@ -70,9 +71,16 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
     <section className="right-panel glass" aria-label="ตั้งค่าตู้และผลลัพธ์">
       <div className="rp-scroll">
         <div className="field">
-          <div className="field-head"><label htmlFor="drv">ลำโพง</label><span className="muted">{dto?.sourceKind === 'sample' ? 'ลำโพงตัวอย่าง' : dto?.sourceKind}</span></div>
+          <div className="field-head">
+            <label htmlFor="drv">ลำโพง</label>
+            <button type="button" className="linkbtn" onClick={() => setMode('library')}>{dto?.sourceKind === 'sample' ? 'ลำโพงตัวอย่าง · ' : ''}เปิดคลัง ({drivers.length})</button>
+          </div>
           <select id="drv" value={driverId ?? ''} onChange={(e) => selectDriver(Number(e.target.value))}>
-            {drivers.map((x) => <option key={x.id} value={x.id}>{x.model} · {x.sizeIn}" · {x.kindTh ?? x.category}</option>)}
+            {GROUPS.map(([cat, label]) => {
+              const items = drivers.filter((x) => (cat === 'sample' ? x.sourceKind === 'sample' : x.sourceKind !== 'sample' && (cat === 'other' ? !GROUPS.some(([c]) => c === x.category) : x.category === cat)))
+                .sort((a, b) => a.brand.localeCompare(b.brand) || (a.sizeIn ?? 0) - (b.sizeIn ?? 0) || a.model.localeCompare(b.model));
+              return items.length ? <optgroup key={cat} label={label}>{items.map((x) => <option key={x.id} value={x.id}>{x.brand} {x.model} · {x.sizeIn ?? '?'}"</option>)}</optgroup> : null;
+            })}
           </select>
         </div>
         {dto && (
@@ -122,7 +130,10 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
           <div className="field">
             <div className="field-head">
               <label htmlFor="pw">กำลังขับ</label>
-              <button className={`pill${d.subsonic ? ' on' : ''}`} aria-pressed={d.subsonic} onClick={() => p({ subsonic: !d.subsonic })}>Subsonic {d.subsonicHz} Hz</button>
+              <button className={`pill${d.subsonic ? ' on' : ''}`} aria-pressed={d.subsonic} onClick={() => p({ subsonic: !d.subsonic })}>Subsonic</button>
+              <select className="mini" aria-label="ความถี่ Subsonic" value={d.subsonicHz} disabled={!d.subsonic} onChange={(e) => p({ subsonicHz: Number(e.target.value) })}>
+                {SUBSONIC_HZ.map((hz) => <option key={hz} value={hz}>{hz} Hz</option>)}
+              </select>
               <output htmlFor="pw" style={{ marginLeft: 'auto' }}>{d.watts} W</output>
             </div>
             <input id="pw" type="range" min={RANGES.watts[0]} max={RANGES.watts[1]} step={1} value={d.watts} onChange={(e) => p({ watts: Number(e.target.value) })} />

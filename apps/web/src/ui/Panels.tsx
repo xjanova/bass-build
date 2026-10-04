@@ -21,7 +21,7 @@ export function TopBar({ modelCode }: { modelCode: string }) {
         <button className="tab" aria-pressed={mode === 'lab'} onClick={() => setMode('lab')}>แล็บทดสอบ</button>
         <button className="tab soon" title="มาในเฟส 5 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('ai')}>AI สุ่มตู้</button>
         <button className="tab soon" title="มาในเฟส 3 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('blueprint')}>พิมพ์เขียว</button>
-        <button className="tab soon" title="มาในเฟส 1 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('library')}>คลังข้อมูล</button>
+        <button className="tab" aria-pressed={mode === 'library'} onClick={() => setMode('library')}>คลังข้อมูล</button>
       </nav>
       {b && <span className="chip backend" title={b.title}><span className="dot" style={{ background: b.color }} />{b.label}</span>}
     </header>

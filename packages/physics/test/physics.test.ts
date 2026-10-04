@@ -246,6 +246,35 @@ describe('suggested alignments', () => {
     expect(Math.max(...spl) - spl[i]).toBeLessThan(0.5);
   });
 
+  it('flags a low-Qts driver for sealed and returns the shortest port when none fits', () => {
+    const pa = completeDriver({ fs: 40, qts: 0.22, qms: 8, vas: 0.12, re: 5.3, sd: 0.12, le: 0 });
+    expect(run('sealed', pa).a.flags).toContain('qts-low-for-sealed');
+    // Every port that reaches the tuning is at least 2 cm long, so a 2 cm limit cannot be met.
+    const tight = suggestAlignment({ driver: ideal, type: 'vented', watts: 100, maxPortLength: 0.02 });
+    expect(tight.flags).toContain('port-too-long');
+    if (tight.box.type !== 'vented') throw new Error('expected a vented box');
+    const len = simulate({ driver: ideal, box: tight.box, drive }, { points: 40 }).info.ports[0].physicalLength;
+    expect(len).toBeLessThan(0.2); // the shortest that reaches the tuning, not the longest tried
+  });
+
+  it('keeps the box inside the allowed volume and retunes it for a flat response', () => {
+    const big = completeDriver({ fs: 22, qts: 0.57, qms: 6, vas: 0.156, re: 6.4, sd: 0.085, le: 0 });
+    // Above Qts 0.5 the QB3 fit runs away (≈470 L here); the box is held to 1.5 × Vas instead.
+    const free = suggestAlignment({ driver: big, type: 'vented', watts: 100 });
+    if (free.box.type !== 'vented') throw new Error('expected a vented box');
+    expect(free.box.vb).toBeCloseTo(1.5 * 0.156, 9);
+    const a = suggestAlignment({ driver: big, type: 'vented', watts: 100, maxVolume: 0.2 });
+    if (a.box.type !== 'vented') throw new Error('expected a vented box');
+    expect(a.flags).toContain('volume-capped');
+    expect(a.box.vb).toBeCloseTo(0.2, 9);
+    const res = simulate({ driver: big, box: a.box, drive }, { points: 200 });
+    expect(res.metrics.splMax - res.metrics.referenceSpl).toBeLessThan(1.5);
+    const raised = suggestAlignment({ driver: ideal, type: 'sealed', watts: 100, minVolume: 0.12 });
+    expect(raised.flags).toContain('volume-raised');
+    if (raised.box.type !== 'sealed') throw new Error('expected a sealed box');
+    expect(raised.box.vb).toBeCloseTo(0.12, 9);
+  });
+
   it('flags a high-Qts driver instead of pretending it suits every box', () => {
     const floppy = completeDriver({ fs: 30, qts: 0.7, qms: 6, vas: 0.1, re: 4, sd: 0.05, le: 0 });
     expect(run('sealed', floppy).a.flags).toContain('qts-high-for-sealed');

@@ -47,6 +47,7 @@ public sealed class MigrationTests : IDisposable
 
         using var materials = JsonDocument.Parse(File.ReadAllText(Path.Combine(TempDb.SeedDir, "materials.json")));
         using var drivers = JsonDocument.Parse(File.ReadAllText(Path.Combine(TempDb.SeedDir, "drivers.sample.json")));
+        using var datasheet = JsonDocument.Parse(File.ReadAllText(Path.Combine(TempDb.SeedDir, "drivers.json")));
         int FileCount(JsonDocument d, string prop) => d.RootElement.GetProperty(prop).GetArrayLength();
 
         using var c = db.Open();
@@ -55,8 +56,8 @@ public sealed class MigrationTests : IDisposable
         Assert.Equal(FileCount(materials, "panelMaterials"), Rows("panel_materials"));
         Assert.Equal(FileCount(materials, "dampingMaterials"), Rows("damping_materials"));
         Assert.Equal(FileCount(materials, "hardware"), Rows("hardware"));
-        Assert.Equal(FileCount(drivers, "drivers"), Rows("drivers"));
-        Assert.Equal((16L, 9L, 10L, 8L), (Rows("panel_materials"), Rows("damping_materials"), Rows("hardware"), Rows("drivers")));
+        Assert.Equal(FileCount(drivers, "drivers") + FileCount(datasheet, "drivers"), Rows("drivers"));
+        Assert.Equal((16L, 9L, 10L), (Rows("panel_materials"), Rows("damping_materials"), Rows("hardware")));
         Assert.Equal("[9,12,15,16,18,19,25]", c.ExecuteScalar<string>("SELECT thicknesses_mm FROM panel_materials WHERE key = 'mdf'"));
     }
 

@@ -19,6 +19,7 @@ export interface DriverDto {
   rms: number | null;
   sdCm2: number | null;
   xmaxMm: number | null;
+  xmechMm?: number | null;
   peW: number | null;
   splDb: number | null;
   zNom: number | null;

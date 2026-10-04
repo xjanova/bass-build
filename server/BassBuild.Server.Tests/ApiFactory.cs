@@ -18,7 +18,12 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// <summary>Set when the test owns the file's lifetime (e.g. two app instances on one database).</summary>
     public bool KeepDatabase { get; init; }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseSetting("BassBuild:DbPath", DbPath);
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseSetting("BassBuild:DbPath", DbPath);
+        // API tests search a fixed catalogue: the made-up samples, not the growing datasheet set.
+        builder.UseSetting("BassBuild:SeedDir", TempDb.SampleSeedDir);
+    }
 
     public SqliteConnection OpenDb()
     {
@@ -46,6 +51,18 @@ public static class TempDb
     }
 
     public static string SeedDir => Path.Combine(Db.FindRepoRoot(AppContext.BaseDirectory), "data", "seed");
+
+    /// <summary>A seed folder with the materials and only the 8 sample drivers (no datasheet drivers).</summary>
+    public static string SampleSeedDir => SampleSeed.Value;
+
+    static readonly Lazy<string> SampleSeed = new(() =>
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"bassbuild-seed-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        foreach (var f in new[] { "materials.json", "drivers.sample.json" })
+            File.Copy(Path.Combine(SeedDir, f), Path.Combine(dir, f));
+        return dir;
+    });
 }
 
 public static class Http

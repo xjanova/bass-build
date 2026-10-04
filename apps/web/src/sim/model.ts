@@ -187,11 +187,15 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
     const k = Math.cbrt(gross / (1.25 * 0.8));
     const dims = [1.25 * k, k, 0.8 * k];
     const fixed = [false, false, false];
-    for (let it = 0; it < 4; it++) {
+    for (let it = 0; it < 8; it++) {
       const slot = front ? front.area / dims[0] : 0;
-      const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), needD];
+      // A port too long to run straight folds up the back wall and takes that depth from the magnet.
+      const fold = front && portLen > dims[2] - slot - 0.03 && !bandpassType && d.boxType !== 'isobaric' ? slot + t : 0;
+      const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), needD + fold];
       let changed = false;
-      dims.forEach((v, j) => { if (!fixed[j] && v < mins[j]) { dims[j] = mins[j]; fixed[j] = true; changed = true; } });
+      // A side already held at its minimum is raised again if that minimum grew (the slot gets
+      // taller when the box gets narrower, and so on).
+      dims.forEach((v, j) => { if (v < mins[j] - 1e-6) { dims[j] = mins[j]; fixed[j] = true; changed = true; } });
       if (!changed) break;
       const free = [0, 1, 2].filter((j) => !fixed[j]);
       if (!free.length) break;
@@ -199,6 +203,9 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: SimResult | 
       free.forEach((j) => { dims[j] *= s; });
     }
     [wi, hi, di] = dims;
+    // The slot height follows the final width; make sure the baffle above it still fits the row.
+    const minH = tallest + 0.03 + (front ? front.area / wi + t : 0);
+    if (hi < minH) hi = minH;
     oversizeL = Math.max(0, (wi * hi * di - gross) * 1000);
     width = wi;
   }
@@ -319,6 +326,10 @@ export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-high-for-vented': 'Qts เกิน 0.5 อยู่นอกช่วงที่สูตรตู้เปิดใช้ได้ดี ช่วงทุ้มอาจโป่ง',
   'qts-low-for-vented': 'Qts ต่ำมาก ตู้เปิดจะเล็กและจูนสูง เบสน้อย ลองตู้ BP6',
   'port-velocity': 'ท่อที่ลมไม่เกิน 17 m/s ยาวเกินกว่าจะพับใส่ตู้นี้ได้ จึงใช้ท่อกว้างที่สุดที่ยังใส่ได้ ถ้าลมยังแรงไป ลดกำลังขับ ขยายตู้ หรือเปลี่ยนเป็น PR',
+  'port-too-long': 'แม้ท่อที่แคบที่สุดที่จูนได้ก็ยาวเกินกว่าจะใส่ตู้นี้ ความถี่จูนต่ำมากเทียบกับขนาดตู้ ลองตู้ PR (แผ่นเปล่าไม่ต้องมีท่อ) หรือจูนสูงขึ้น',
+  'qts-low-for-sealed': 'ลำโพงนี้ Qts ต่ำ (EBP สูง) ตู้ปิดแบบ Butterworth จะเล็กมากและเบสหายไปมาก ลำโพงแบบนี้ทำมาสำหรับตู้เปิด แบนด์พาส หรือฮอร์น',
+  'volume-capped': 'ตู้ตามสูตรใหญ่เกินช่วงที่ตั้งได้ จึงใช้ตู้ใหญ่สุดที่ตั้งได้ แล้วหาความถี่จูนที่ได้เบสลึกสุดโดยไม่โป่ง',
+  'volume-raised': 'ตู้ตามสูตรเล็กเกินกว่าจะใส่ลำโพง แม่เหล็ก และท่อได้ (หรือแคบจนลมในท่อแรง) จึงขยายตู้โดยคงความถี่จูนเดิม',
   clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง'
 };
 
@@ -344,9 +355,13 @@ function portRoom(netLitres: number, rearFraction: number): { front: number; rea
   };
 }
 
+/** Subsonic corners the UI offers. */
+export const SUBSONIC_HZ = [15, 18, 20, 22, 25, 28, 30, 32, 35, 38, 40, 45] as const;
+const nearestSubsonic = (hz: number) => SUBSONIC_HZ.reduce((a, b) => (Math.abs(b - hz) < Math.abs(a - hz) ? b : a));
+
 /** Range of every slider the suggestion writes to; RightPanel uses the same table. */
 export const RANGES = {
-  vbL: [2, 300], fbHz: [15, 90], portAreaCm2: [5, 1500], vfL: [2, 200], fb2Hz: [30, 150], port2AreaCm2: [5, 1500],
+  vbL: [2, 600], fbHz: [15, 90], portAreaCm2: [5, 1500], vfL: [2, 400], fb2Hz: [30, 150], port2AreaCm2: [5, 1500],
   prSdCm2: [30, 2000], prMassG: [5, 2000], watts: [1, 5000]
 } as const satisfies Partial<Record<keyof Design, readonly [number, number]>>;
 
@@ -354,49 +369,126 @@ export const RANGES = {
 export function suggestDesign(d: Design, driver: Driver, dto: DriverDto | undefined, damping: DampingMaterialDto[]): { patch: Partial<Design>; name: string; flags: SuggestFlag[] } {
   const n = d.boxType === 'isobaric' ? 2 : d.count;
   const flags: SuggestFlag[] = [];
+  // Volumes round up: a box rounded down could no longer hold what it was grown to hold.
+  const roundFor = (key: keyof typeof RANGES, v: number, step: number) => (key === 'vbL' || key === 'vfL' ? Math.ceil(v / step - 1e-9) : Math.round(v / step)) * step;
   const fit = (key: keyof typeof RANGES, v: number, step: number) => {
     const [lo, hi] = RANGES[key];
-    const r = Math.round(v / step) * step;
+    const r = roundFor(key, v, step);
     if (r < lo || r > hi) flags.push('clamped');
     return clamp(r, lo, hi);
   };
   const watts = dto?.peW ? fit('watts', dto.peW * n, 1) : d.watts;
   const withFill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr';
-  const base = { driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined, fill: withFill ? fillFor(d, damping) : undefined };
-  // First pass sizes the box; the second limits the port to what that box can hold.
-  const first = suggestAlignment({ ...base, type: d.boxType });
+  const base: Omit<Parameters<typeof suggestAlignment>[0], 'type'> = { driver, count: d.count, wiring: d.wiring, watts, highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 as const } : undefined, fill: withFill ? fillFor(d, damping) : undefined };
+  /** UI values for a suggested box; `fit` rounds and clamps to the slider ranges. */
+  const patchFor = (b: BoxDesign, fit: (key: keyof typeof RANGES, v: number, step: number) => number): Partial<Design> => {
+    switch (b.type) {
+      case 'sealed':
+      case 'isobaric':
+        return { vbL: fit('vbL', b.vb * 1000, 1) };
+      case 'vented':
+        return { vbL: fit('vbL', b.vb * 1000, 1), fbHz: fit('fbHz', b.fb, 0.5), portAreaCm2: fit('portAreaCm2', b.port.area * 1e4, 5) };
+      case 'pr':
+        return {
+          vbL: fit('vbL', b.vb * 1000, 1), prSdCm2: fit('prSdCm2', b.pr.sd * 1e4, 5), prMassG: fit('prMassG', b.pr.mmp * 1000, 5),
+          prCmsMmN: b.pr.cmp * 1000, prCount: b.pr.count ?? 1
+        };
+      case 'bp4':
+        return { vbL: fit('vbL', b.vr * 1000, 1), vfL: fit('vfL', b.vf * 1000, 1), fbHz: fit('fbHz', b.fb, 0.5), portAreaCm2: fit('portAreaCm2', b.port.area * 1e4, 5) };
+      case 'bp6':
+        return {
+          vbL: fit('vbL', b.vr * 1000, 1), fbHz: fit('fbHz', b.fbr, 0.5), portAreaCm2: fit('portAreaCm2', b.portR.area * 1e4, 5),
+          vfL: fit('vfL', b.vf * 1000, 1), fb2Hz: fit('fb2Hz', b.fbf, 0.5), port2AreaCm2: fit('port2AreaCm2', b.portF.area * 1e4, 5)
+        };
+      default:
+        return {};
+    }
+  };
+  const quiet = (key: keyof typeof RANGES, v: number, step: number) => clamp(roundFor(key, v, step), RANGES[key][0], RANGES[key][1]);
+  const mainVolume = (b: BoxDesign) => (b.type === 'bp4' || b.type === 'bp6' ? b.vr : 'vb' in b ? b.vb : 0);
+
+  // 1) size the box within the slider range; 2) limit the ports to what that box can hold;
+  // 3) when the box cannot hold the driver, magnet and ports, grow it until it can.
+  const limits = { maxVolume: RANGES.vbL[1] / 1000 };
+  const first = suggestAlignment({ ...base, ...limits, type: d.boxType });
   const fb = first.box;
+  // Ported boxes get a subsonic filter at about 0.8 × Fb (below tuning the box stops loading the
+  // cone); size the ports with that filter in place, or port speed and excursion are judged
+  // against a filter the design will not have.
+  const subsonicFor = (b: BoxDesign): number | null => {
+    const prTuning = b.type === 'pr'
+      ? (1 / (2 * Math.PI)) * Math.sqrt((b.pr.sd * b.pr.sd * (b.pr.count ?? 1) * 1.2041 * 343.24 ** 2 / b.vb + 1 / b.pr.cmp) / b.pr.mmp)
+      : null;
+    const tuning = b.type === 'vented' ? b.fb : b.type === 'bp4' ? b.fb * 0.75 : b.type === 'bp6' ? b.fbr : prTuning;
+    return tuning ? nearestSubsonic(0.8 * tuning) : null;
+  };
+  const hp = subsonicFor(fb);
+  if (hp) base.highpass = { fc: hp, order: 4 };
   const bp = fb.type === 'bp4' || fb.type === 'bp6';
-  const litres = 1000 * (bp ? fb.vr + fb.vf : 'vb' in fb ? fb.vb : 0);
+  const litres = 1000 * (bp ? fb.vr + fb.vf : mainVolume(fb));
   const room = portRoom(litres, bp ? fb.vr / (fb.vr + fb.vf) : 0);
-  const a = suggestAlignment({ ...base, type: d.boxType, maxPortLength: Math.min(1.2, room.front), maxRearPortLength: Math.min(1.2, room.rear) });
+  let ports = { maxPortLength: Math.min(1.2, room.front), maxRearPortLength: Math.min(1.2, room.rear) };
+  // Port room for a main chamber of `net` m³, keeping the band-pass front/rear split of the recipe.
+  const frontShare = fb.type === 'bp4' || fb.type === 'bp6' ? fb.vf / fb.vr : 0;
+  const portRoomFor = (net: number) => {
+    const r = portRoom(net * 1000 * (1 + frontShare), frontShare ? 1 / (1 + frontShare) : 0);
+    return { maxPortLength: Math.min(1.2, r.front), maxRearPortLength: Math.min(1.2, r.rear) };
+  };
+  let a = suggestAlignment({ ...base, ...limits, ...ports, type: d.boxType });
+  // Growing the box retunes it, which changes the port, which changes the box — a few rounds settle it.
+  for (let round = 0; round < 5; round++) {
+    const trial = { ...d, watts, ...patchFor(a.box, quiet) };
+    const geo = sizeBox(trial, dto, simulate(toSpec(trial, driver, damping), { fMin: 10, fMax: 300, points: 60 }), undefined);
+    if (geo.oversizeL <= 0.5) break;
+    a = suggestAlignment({ ...base, ...limits, ...ports, minVolume: mainVolume(a.box) + (geo.oversizeL * 1.5 + 2) / 1000, type: d.boxType });
+  }
+  // The port room above was an estimate; measure the box actually laid out and, if a port does
+  // not fit, size the ports again within that real room (keeping any volume already grown).
+  for (let round = 0; round < 3; round++) {
+    const t = { ...d, watts, ...patchFor(a.box, quiet) };
+    const g = sizeBox(t, dto, simulate(toSpec(t, driver, damping), { fMin: 10, fMax: 300, points: 60 }), undefined);
+    const frontBad = g.portFold === 'impossible' && g.portLength > 0;
+    const rearBad = !!g.rearPort && !g.rearPort.fits && g.rearPort.length > 0;
+    if (!frontBad && !rearBad) break;
+    ports = {
+      maxPortLength: Math.min(ports.maxPortLength, 0.95 * (g.frontDepth + g.hi - 0.06)),
+      maxRearPortLength: g.rearPort ? Math.min(ports.maxRearPortLength, 0.95 * (g.rearPort.room + g.hi - 2 * g.rearPort.radius - 0.06)) : ports.maxRearPortLength
+    };
+    a = suggestAlignment({ ...base, ...limits, ...ports, minVolume: mainVolume(a.box), type: d.boxType });
+  }
+  // Still too much air through the widest port that fits? A bigger box has room for a wider port
+  // (same tuning): try up to three steps of +30 %, keeping one only if the bass stays flat.
+  if (a.box.type === 'vented' || a.box.type === 'bp6') {
+    const speedOf = (x: typeof a) => {
+      const t = { ...d, watts, ...patchFor(x.box, quiet) };
+      return simulate(toSpec(t, driver, damping), { fMin: 10, fMax: 300, points: 90 }).metrics;
+    };
+    let m = speedOf(a);
+    for (let step = 0; step < 3 && m.portVelocityMax.ms > 30; step++) {
+      const vol = mainVolume(a.box) * 1.3;
+      if (vol * 1000 > RANGES.vbL[1]) break;
+      const bigger = suggestAlignment({ ...base, ...limits, ...ports, ...portRoomFor(vol), minVolume: vol, type: d.boxType });
+      const mb = speedOf(bigger);
+      if (mb.splMax - mb.referenceSpl > 1.5 || mb.portVelocityMax.ms >= m.portVelocityMax.ms) break;
+      a = bigger;
+      m = mb;
+    }
+  }
   flags.unshift(...a.flags);
   const b = a.box;
-  const patch: Partial<Design> = { watts };
-  switch (b.type) {
-    case 'sealed':
-    case 'isobaric':
-      patch.vbL = fit('vbL', b.vb * 1000, 1);
-      break;
-    case 'vented':
-      Object.assign(patch, { vbL: fit('vbL', b.vb * 1000, 1), fbHz: fit('fbHz', b.fb, 0.5), portAreaCm2: fit('portAreaCm2', b.port.area * 1e4, 5) });
-      break;
-    case 'pr':
-      Object.assign(patch, {
-        vbL: fit('vbL', b.vb * 1000, 1), prSdCm2: fit('prSdCm2', b.pr.sd * 1e4, 5), prMassG: fit('prMassG', b.pr.mmp * 1000, 5),
-        prCmsMmN: b.pr.cmp * 1000, prCount: b.pr.count ?? 1
-      });
-      break;
-    case 'bp4':
-      Object.assign(patch, { vbL: fit('vbL', b.vr * 1000, 1), vfL: fit('vfL', b.vf * 1000, 1), fbHz: fit('fbHz', b.fb, 0.5), portAreaCm2: fit('portAreaCm2', b.port.area * 1e4, 5) });
-      break;
-    case 'bp6':
-      Object.assign(patch, {
-        vbL: fit('vbL', b.vr * 1000, 1), fbHz: fit('fbHz', b.fbr, 0.5), portAreaCm2: fit('portAreaCm2', b.portR.area * 1e4, 5),
-        vfL: fit('vfL', b.vf * 1000, 1), fb2Hz: fit('fb2Hz', b.fbf, 0.5), port2AreaCm2: fit('port2AreaCm2', b.portF.area * 1e4, 5)
-      });
-      break;
+  const patch: Partial<Design> = { watts, ...patchFor(b, fit) };
+  // Last word on fit: with the tuning and port area now fixed, a bigger box only shortens the port,
+  // so topping up the main chamber by what is missing always converges.
+  for (let round = 0; round < 4; round++) {
+    const t = { ...d, ...patch };
+    const g = sizeBox(t, dto, simulate(toSpec(t, driver, damping), { fMin: 10, fMax: 300, points: 60 }), undefined);
+    if (g.oversizeL <= 0.5 || (patch.vbL ?? 0) >= RANGES.vbL[1]) break;
+    patch.vbL = fit('vbL', (patch.vbL ?? d.vbL) + g.oversizeL + 1, 1);
+    if (!flags.includes('volume-raised')) flags.push('volume-raised');
   }
+  // A closed box keeps loading the cone below fc, so it keeps whatever subsonic the user had.
+  const finalHp = subsonicFor(b);
+  if (finalHp) Object.assign(patch, { subsonic: true, subsonicHz: finalHp });
   return { patch, name: RECIPE_TH[a.recipe] + (a.qtc ? ` (Qtc ${a.qtc.toFixed(2)})` : ''), flags: [...new Set(flags)] };
 }
 

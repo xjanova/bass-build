@@ -1,4 +1,5 @@
 import sampleDrivers from '../../../../data/seed/drivers.sample.json';
+import { readLocalDrivers } from './library';
 import sampleMaterials from '../../../../data/seed/materials.json';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from './types';
 
@@ -18,8 +19,15 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
-const bundledDrivers = (): DriverDto[] =>
-  (sampleDrivers.drivers as unknown as Omit<DriverDto, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }));
+/**
+ * Datasheet drivers (data/seed/drivers.json, loaded as its own chunk) followed by the made-up
+ * samples. Ids follow file order, so keep both files append-only.
+ */
+async function bundledDrivers(): Promise<DriverDto[]> {
+  const real = ((await import('../../../../data/seed/drivers.json')).default.drivers ?? []) as unknown as Omit<DriverDto, 'id'>[];
+  const samples = sampleDrivers.drivers as unknown as Omit<DriverDto, 'id'>[];
+  return [...real, ...samples].map((d, i) => ({ ...d, id: i + 1 }));
+}
 
 const bundledPanels = (): PanelMaterialDto[] =>
   (sampleMaterials.panelMaterials as unknown as Omit<PanelMaterialDto, 'id'>[]).map((m, i) => ({ ...m, id: i + 1 }));
@@ -28,12 +36,12 @@ const bundledDamping = (): DampingMaterialDto[] =>
   (sampleMaterials.dampingMaterials as unknown as Omit<DampingMaterialDto, 'id'>[]).map((m, i) => ({ ...m, id: i + 1 }));
 
 export async function loadDrivers(signal?: AbortSignal): Promise<{ drivers: DriverDto[]; source: Source }> {
-  if (STATIC_SITE) return { drivers: bundledDrivers(), source: 'bundled' };
+  if (STATIC_SITE) return { drivers: [...(await bundledDrivers()), ...readLocalDrivers()], source: 'bundled' };
   try {
     return { drivers: await getJson<DriverDto[]>('/api/drivers', signal), source: 'server' };
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
-    return { drivers: bundledDrivers(), source: 'offline' };
+    return { drivers: [...(await bundledDrivers()), ...readLocalDrivers()], source: 'offline' };
   }
 }
 

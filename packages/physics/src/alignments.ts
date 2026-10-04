@@ -15,8 +15,16 @@ export type AlignmentFlag =
   | 'qts-high-for-vented'
   /** Qts < 0.2: a vented box this small and high-tuned gives little bass. */
   | 'qts-low-for-vented'
+  /** EBP > 100 (or Qts < 0.3): a Butterworth closed box is tiny and tuned high — not this driver's box. */
+  | 'qts-low-for-sealed'
   /** No port that fits keeps the air below the target speed. */
-  | 'port-velocity';
+  | 'port-velocity'
+  /** Even the narrowest port that reaches the tuning is longer than the box can hold. */
+  | 'port-too-long'
+  /** The recipe's box was bigger than allowed: the largest allowed box was used (vented boxes retuned). */
+  | 'volume-capped'
+  /** The recipe's box was too small to hold the hardware: it was enlarged (vented boxes retuned). */
+  | 'volume-raised';
 
 export interface AlignmentRequest {
   driver: Driver;
@@ -35,6 +43,9 @@ export interface AlignmentRequest {
   maxPortLength?: number;
   /** Same for the rear-chamber port of a 6th-order band-pass (default: maxPortLength). */
   maxRearPortLength?: number;
+  /** Net volume limits of the main (rear) chamber, m³ — e.g. the UI range, or what the driver needs to fit. */
+  minVolume?: number;
+  maxVolume?: number;
   air?: Air;
 }
 
@@ -82,6 +93,42 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
     driver: d, count: n, wiring: req.wiring, box, drive: { watts: req.watts }, highpass: req.highpass, air
   });
 
+  /** Keeps a net volume inside [minVolume, maxVolume] and says which way it had to move. */
+  const clampVolume = (net: number): { net: number; moved: 'capped' | 'raised' | null } => {
+    if (req.maxVolume && net > req.maxVolume) { flags.push('volume-capped'); return { net: req.maxVolume, moved: 'capped' }; }
+    if (req.minVolume && net < req.minVolume) { flags.push('volume-raised'); return { net: req.minVolume, moved: 'raised' }; }
+    return { net, moved: null };
+  };
+
+  /**
+   * Off-recipe vented box: scan Fb from 0.5 to 2.5 × Fs and keep the tuning with the lowest F3
+   * whose response does not rise more than 1 dB above the passband.
+   */
+  const bestTuning = (net: number): number => {
+    let best = { fb: 0.42 * d.fs * d.qts ** -0.9, f3: Infinity };
+    for (let i = 0; i <= 40; i++) {
+      const fb = d.fs * (0.5 + 0.05 * i);
+      const res = simulate(spec({ type: 'vented', vb: net, fb, port: { area: 0.15 * d.sd * n }, ...fill }), { fMin: 10, fMax: 300, points: 90 });
+      if (res.metrics.f3 === null || res.metrics.splMax - res.metrics.referenceSpl > 1) continue;
+      if (res.metrics.f3 < best.f3) best = { fb, f3: res.metrics.f3 };
+    }
+    return best.fb;
+  };
+
+  /**
+   * QB3 box and tuning, or the nearest allowed box retuned. vb is net volume. Above Qts 0.5 the
+   * QB3 fit runs away (a 15" car sub would get ~470 L at 16 Hz), so the box is held to 1.5 × Vas
+   * and retuned for a flat response instead.
+   */
+  const ventedBox = (): { vb: number; fb: number } => {
+    const k = keele();
+    const runaway = d.qts > 0.5 && k.vb > 1.5 * vas;
+    const c = clampVolume((runaway ? 1.5 * vas : k.vb) / gain);
+    // A smaller box than the recipe needs a new tuning; a bigger one (grown to hold the hardware
+    // or a wider port) keeps the recipe's Fb, so growing it does not move the port around.
+    return { vb: c.net, fb: c.moved === 'capped' || runaway ? bestTuning(c.net) : k.fb };
+  };
+
   /**
    * Port length grows with area while air speed falls, so walk the area up from small: the first
    * area that is slow enough wins; if the port outgrows `maxPortLength` first, keep the widest
@@ -94,16 +141,20 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
     const limit = (label: string) => (label === 'rear port' ? maxRear : maxLen);
     let area = Math.max(5e-4, 0.02 * d.sd * n);
     let fitting: BoxDesign | null = null;
+    let shortest: BoxDesign | null = null;
     for (let i = 0; i < 60; i++, area *= 1.12) {
       const box = make(area);
       const res = simulate(spec(box), { fMin: 10, fMax: 300, points: 90 });
       if (res.info.ports.some((p) => p.physicalLength < 0.02)) continue; // too narrow to reach this tuning at all
+      shortest ??= box;
       if (res.info.ports.some((p) => p.physicalLength > limit(p.label))) break;
       fitting = box;
       if (res.metrics.portVelocityMax.ms <= target) return box;
     }
-    flags.push('port-velocity');
-    return fitting ?? make(area);
+    if (fitting) { flags.push('port-velocity'); return fitting; }
+    // Port length grows with area, so the first port that reached the tuning is the shortest one.
+    flags.push('port-too-long');
+    return shortest ?? make(area);
   };
 
   switch (req.type) {
@@ -111,41 +162,44 @@ export function suggestAlignment(req: AlignmentRequest): Alignment {
     case 'isobaric': {
       let qtc = 0.707;
       if (d.qts >= 0.62) { qtc = d.qts * 1.15; flags.push('qts-high-for-sealed'); }
-      const vb = sealedVolume(qtc) / gain;
+      if (d.fs / d.qes > 100 || d.qts < 0.3) flags.push('qts-low-for-sealed');
+      const vb = clampVolume(sealedVolume(qtc) / gain).net;
       const box: BoxDesign = req.type === 'sealed'
         ? { type: 'sealed', vb, ...fill }
         : { type: 'isobaric', vb };
       return { box, recipe: 'butterworth', name: `Butterworth Qtc ${qtc.toFixed(2)}`, qtc, flags };
     }
     case 'vented': {
-      const { vb, fb } = keele();
-      const box = sizePorts((area) => ({ type: 'vented', vb: vb / gain, fb, port: { area }, ...fill }));
+      const { vb, fb } = ventedBox();
+      const box = sizePorts((area) => ({ type: 'vented', vb, fb, port: { area }, ...fill }));
       return { box, recipe: 'qb3', name: 'QB3 (Keele)', flags };
     }
     case 'pr': {
-      const { vb, fb } = keele();
+      const { vb, fb } = ventedBox();
       const count = 2;
       const sd = d.sd * n; // two radiators, each as large as all the drivers together
-      // Air spring each radiator feels; vb already includes the fill gain (net volume × gain).
-      const kBox = (rc2 * count * sd * sd) / vb;
+      // Air spring each radiator feels: the net volume times the fill gain.
+      const kBox = (rc2 * count * sd * sd) / (vb * gain);
       // A soft suspension (a quarter of the air spring) keeps the radiator's own resonance — and
       // the notch it puts in the response — well below Fb.
       const cmp = req.prCompliance ?? 1 / (0.25 * kBox);
       const mmp = (kBox + 1 / cmp) / (TAU * fb) ** 2;
-      const box: BoxDesign = { type: 'pr', vb: vb / gain, pr: { sd, mmp, cmp, count }, ...fill };
+      const box: BoxDesign = { type: 'pr', vb, pr: { sd, mmp, cmp, count }, ...fill };
       return { box, recipe: 'qb3-pr', name: 'QB3 (Keele) + 2 PR', flags };
     }
     case 'bp4': {
       const qbc = Math.max(0.707, d.qts * 1.15);
-      const vr = sealedVolume(qbc);
+      const vr = clampVolume(sealedVolume(qbc)).net;
       const vf = (2 * 0.7 * d.qts) ** 2 * vas;
       const fb = (qbc / d.qts) * d.fs;
       const box = sizePorts((area) => ({ type: 'bp4', vr, vf, fb, port: { area } }));
       return { box, recipe: 'geddes-bp4', name: 'Geddes S 0.7', flags };
     }
     case 'bp6': {
-      const { vb, fb } = keele();
-      const vr = vb;
+      const k = keele();
+      const fb = k.fb;
+      const vr = clampVolume(k.vb).net;
+      const vb = vr;
       const vf = 0.5 * vb;
       const fbf = 2 * fb;
       const box = sizePorts((area) => ({
