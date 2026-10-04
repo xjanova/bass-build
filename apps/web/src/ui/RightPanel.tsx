@@ -7,7 +7,7 @@ import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
 
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
-const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
+const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
 function Slider({ id, label, value, range, step = 1, fmt, onChange }: {
   id: string; label: string; value: number; range: readonly [number, number]; step?: number; fmt: (v: number) => string; onChange: (v: number) => void;

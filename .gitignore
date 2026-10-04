@@ -19,3 +19,6 @@ data/assets/
 
 .env
 .env.*
+
+# ChatGPT originals (~16 MB); the processed copies live in apps/web/public. See data/art/PROMPTS.md.
+data/art/src/

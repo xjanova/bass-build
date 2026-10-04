@@ -48,6 +48,8 @@ export const DEFAULT_DESIGN: Design = {
 export interface Ghost { curves: Curves; label: string }
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
 export type Backend = 'webgpu' | 'webgl' | 'none';
+/** Main tabs that are still on the roadmap; clicking one shows what it will do. */
+export type Teaser = 'ai' | 'blueprint' | 'library';
 
 interface State {
   mode: Mode;
@@ -66,6 +68,7 @@ interface State {
   tool: string;
   backend: Backend | null;
   toast: Toast | null;
+  teaser: Teaser | null;
   setMode: (m: Mode) => void;
   setDrivers: (d: DriverDto[], source: Source) => void;
   setMaterials: (m: PanelMaterialDto[]) => void;
@@ -82,6 +85,7 @@ interface State {
   setBackend: (b: Backend) => void;
   showToast: (text: string, action?: Toast['action']) => void;
   dismissToast: () => void;
+  setTeaser: (t: Teaser | null) => void;
 }
 
 let toastId = 0;
@@ -103,6 +107,7 @@ export const useApp = create<State>((set) => ({
   tool: 'select',
   backend: null,
   toast: null,
+  teaser: null,
   setMode: (mode) => set({ mode }),
   setDrivers: (drivers, source) => set((s) => ({
     drivers,
@@ -124,5 +129,6 @@ export const useApp = create<State>((set) => ({
   setTool: (tool) => set({ tool }),
   setBackend: (backend) => set({ backend }),
   showToast: (text, action) => set({ toast: { id: ++toastId, text, action } }),
-  dismissToast: () => set({ toast: null })
+  dismissToast: () => set({ toast: null }),
+  setTeaser: (teaser) => set({ teaser })
 }));

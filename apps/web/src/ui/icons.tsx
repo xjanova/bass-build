@@ -30,12 +30,7 @@ export function Icon({ name, size = 18, width = 1.7 }: { name: keyof typeof ICON
   );
 }
 
-export function Logo() {
-  return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" aria-hidden="true">
-      <circle cx="15" cy="15" r="13" stroke="#22d3ee" strokeWidth="1.6" />
-      <circle cx="15" cy="15" r="8.5" stroke="#22d3ee" strokeOpacity="0.55" strokeWidth="1.4" />
-      <circle cx="15" cy="15" r="3.4" fill="#22d3ee" />
-    </svg>
-  );
+/** App mark (generated with ChatGPT, see docs/ASSETS.md). */
+export function Logo({ size = 34 }: { size?: number }) {
+  return <img className="logo" src="/brand/logo-128.png" width={size} height={size} alt="" />;
 }

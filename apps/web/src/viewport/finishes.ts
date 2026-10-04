@@ -2,7 +2,21 @@ import * as THREE from 'three/webgpu';
 import { carbonTexture, speckleTexture, streakTexture, walnutTexture, woodTexture } from './textures';
 
 /** Decor of the outer panels. 'raw' shows the panel material itself. */
-export type Finish = 'walnut' | 'black' | 'raw';
+export type Finish = 'walnut' | 'oak' | 'teak' | 'black' | 'raw';
+
+/**
+ * Wood veneers. The photographic scans (ChatGPT-generated, public/tex/*.webp) replace the
+ * procedural grain once loaded; they are not seamless, so they tile mirrored (book-matched).
+ */
+export const VENEERS = {
+  walnut: { procedural: walnutTexture, roughness: 0.55 },
+  oak: { procedural: () => woodTexture(41, ['#b48a5a', '#a67c4e', '#bb9363'], 'rgba(70,45,20,', 'rgba(250,230,200,'), roughness: 0.6 },
+  teak: { procedural: () => woodTexture(43, ['#8f5f30', '#7f5227', '#986838'], 'rgba(45,25,8,', 'rgba(230,180,110,'), roughness: 0.5 }
+} as const;
+export type Veneer = keyof typeof VENEERS;
+export const isVeneer = (f: Finish): f is Veneer => f in VENEERS;
+/** Cache key of a loaded veneer scan. */
+export const scanKey = (v: Veneer) => `scan:${v}`;
 
 export interface Looks {
   /** Material for a side/top/bottom panel u × v metres in size. */
@@ -48,13 +62,13 @@ const RAW: Record<string, Raw> = {
 };
 
 /** Builds panel materials for a finish, reusing canvas textures through `cache`. */
-export function looksFor(finish: Finish, materialKey: string, cache: Map<string, THREE.CanvasTexture>): Looks {
-  const texture = (key: string, make: () => THREE.CanvasTexture) => {
+export function looksFor(finish: Finish, materialKey: string, cache: Map<string, THREE.Texture>): Looks {
+  const texture = (key: string, make: () => THREE.Texture) => {
     let t = cache.get(key);
     if (!t) { t = make(); cache.set(key, t); }
     return t;
   };
-  const tiled = (base: THREE.CanvasTexture, u: number, v: number, tile: number) => {
+  const tiled = (base: THREE.Texture, u: number, v: number, tile: number) => {
     const t = base.clone();
     t.needsUpdate = true;
     t.repeat.set(u / tile, v / tile);
@@ -62,9 +76,12 @@ export function looksFor(finish: Finish, materialKey: string, cache: Map<string,
   };
   const black = () => new THREE.MeshPhysicalMaterial({ color: 0x121418, roughness: 0.42, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.25 });
 
-  if (finish === 'walnut') {
-    const walnut = texture('walnut', walnutTexture);
-    return { side: (u, v) => new THREE.MeshStandardMaterial({ map: tiled(walnut, u, v, 0.9), roughness: 0.55, metalness: 0 }), front: black, seeThrough: false };
+  if (isVeneer(finish)) {
+    const scan = cache.get(scanKey(finish));
+    const grain = scan ?? texture(finish, VENEERS[finish].procedural);
+    // A scan covers about a 60 cm square of veneer; the procedural grain about 90 cm.
+    const tile = scan ? 0.6 : 0.9;
+    return { side: (u, v) => new THREE.MeshStandardMaterial({ map: tiled(grain, u, v, tile), roughness: VENEERS[finish].roughness, metalness: 0 }), front: black, seeThrough: false };
   }
   if (finish === 'black') {
     return { side: () => black(), front: black, seeThrough: false };

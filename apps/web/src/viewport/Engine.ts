@@ -7,7 +7,7 @@ import type { BoxGeometry } from '../sim/model';
 import type { BoxType, Mode, OverlayId } from '../state/store';
 import { Balloon, PanelVibe, PortArrows, Smoke, WavePlane } from './effects';
 import { buildEnclosure, type DriverParts, type Enclosure } from './enclosure';
-import { looksFor, type Finish } from './finishes';
+import { looksFor, scanKey, VENEERS, type Finish, type Veneer } from './finishes';
 import { buildRoom } from './room';
 import { iron, smokeTexture, tempToT } from './textures';
 
@@ -56,7 +56,7 @@ export class Engine {
   private readonly camera = new THREE.PerspectiveCamera(36, 1, 0.05, 60);
   private controls!: OrbitControls;
   private readonly labels = new CSS2DRenderer();
-  private readonly textures = new Map<string, THREE.CanvasTexture>();
+  private readonly textures = new Map<string, THREE.Texture>();
   private readonly smokeTex = smokeTexture();
   private seeThrough = false;
   private enc: Enclosure | null = null;
@@ -152,6 +152,23 @@ export class Engine {
     this.started = true;
     if (this.input) this.update(this.input);
     this.renderer.setAnimationLoop(this.frame);
+    this.loadVeneerScans();
+  }
+
+  /** Swaps the procedural veneers for the photographic scans as they arrive (missing files are fine). */
+  private loadVeneerScans(): void {
+    const loader = new THREE.TextureLoader();
+    for (const v of Object.keys(VENEERS) as Veneer[]) {
+      loader.load(`/tex/${v}.webp`, (tex) => {
+        if (this.disposed) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
+        tex.anisotropy = 8;
+        this.textures.set(scanKey(v), tex);
+        // Rebuild on the next update if this veneer is on screen now.
+        if (this.input?.finish === v) { this.key = ''; this.update(this.input); }
+      }, undefined, () => { /* no scan: keep the procedural grain */ });
+    }
   }
 
   update(input: EngineInput): void {

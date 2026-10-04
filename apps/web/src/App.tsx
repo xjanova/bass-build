@@ -6,6 +6,7 @@ import { useApp, type BoxType } from './state/store';
 import { ChartDock } from './ui/ChartDock';
 import { Hud, IrPanel, LeftPanel, OverlayBar, ToastHost, TopBar } from './ui/Panels';
 import { RightPanel } from './ui/RightPanel';
+import { Splash, TeaserDialog } from './ui/Showcase';
 import type { EngineInput, Osc } from './viewport/Engine';
 import { Viewport } from './viewport/Viewport';
 
@@ -131,6 +132,8 @@ export function App() {
       <OverlayBar geo={geo} />
       {res && <ChartDock res={res} geo={geo} xmax={dto?.xmaxMm ?? null} watts={d.watts} ghostLabel={`${dto?.model ?? ''} · ${TYPE_TH[d.boxType]} ${d.vbL} L · ${d.watts} W`} />}
       <ToastHost />
+      <TeaserDialog />
+      <Splash />
     </div>
   );
 }

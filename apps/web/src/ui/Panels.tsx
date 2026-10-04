@@ -10,7 +10,7 @@ const BACKEND = {
 } as const;
 
 export function TopBar({ modelCode }: { modelCode: string }) {
-  const { mode, setMode, backend } = useApp();
+  const { mode, setMode, backend, setTeaser } = useApp();
   const b = backend ? BACKEND[backend] : null;
   return (
     <header className="topbar">
@@ -19,9 +19,9 @@ export function TopBar({ modelCode }: { modelCode: string }) {
       <nav className="tabs" aria-label="โหมดหลัก">
         <button className="tab" aria-pressed={mode === 'design'} onClick={() => setMode('design')}>ออกแบบ</button>
         <button className="tab" aria-pressed={mode === 'lab'} onClick={() => setMode('lab')}>แล็บทดสอบ</button>
-        <button className="tab" disabled title="มาในเฟส 5">AI สุ่มตู้</button>
-        <button className="tab" disabled title="มาในเฟส 3">พิมพ์เขียว</button>
-        <button className="tab" disabled title="มาในเฟส 1">คลังข้อมูล</button>
+        <button className="tab soon" title="มาในเฟส 5 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('ai')}>AI สุ่มตู้</button>
+        <button className="tab soon" title="มาในเฟส 3 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('blueprint')}>พิมพ์เขียว</button>
+        <button className="tab soon" title="มาในเฟส 1 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('library')}>คลังข้อมูล</button>
       </nav>
       {b && <span className="chip backend" title={b.title}><span className="dot" style={{ background: b.color }} />{b.label}</span>}
     </header>
@@ -33,7 +33,7 @@ const TOOLS: [keyof typeof ICONS, string][] = [
   ['brace', 'โครงค้ำ'], ['fill', 'ยัดใย'], ['measure', 'วัดระยะ'], ['mic', 'ไมค์เสมือน'], ['smoke', 'ปล่อยควัน']
 ];
 
-const FINISH_TH = { walnut: 'วีเนียร์วอลนัท', black: 'ทำสีดำซาติน' } as const;
+const FINISH_TH = { walnut: 'วีเนียร์วอลนัท', oak: 'วีเนียร์โอ๊ก', teak: 'วีเนียร์สัก', black: 'ทำสีดำซาติน' } as const;
 
 export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCode: string }) {
   const { mode, tool, setTool, showToast, design: d, genHz, setGen, slow, setSlow, playing, togglePlay, materials, damping } = useApp();

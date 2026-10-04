@@ -53,6 +53,36 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .tabs { display: flex; gap: 4px; padding: 4px; margin: 0 auto; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--line); border-radius: 10px; }
 .tab { height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #cbd5e1; font-weight: 500; }
 .tab[aria-pressed='true'] { background: var(--cyan); color: #04121a; }
+.tab.soon { color: #8291a7; }
+.tab.soon:hover { color: #cbd5e1; background: rgba(148, 163, 184, 0.08); }
+.brand .logo { display: block; filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.35)); }
+
+/* Roadmap teaser for the tabs that are not built yet */
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(2, 4, 8, 0.72); backdrop-filter: blur(6px); }
+.teaser { width: min(760px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 0; display: flex; flex-direction: column; background: rgba(8, 12, 18, 0.96); }
+.teaser-art { position: relative; aspect-ratio: 16 / 7; background: #070b12 center / cover no-repeat; border-bottom: 1px solid var(--line); }
+.teaser-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(8, 12, 18, 0.95)); }
+.teaser-art .phase { position: absolute; left: 18px; top: 16px; z-index: 1; font: 600 12px var(--display); letter-spacing: 0.08em; color: #04121a; background: var(--lime); padding: 3px 10px; border-radius: 999px; }
+.teaser-body { padding: 4px 24px 22px; display: flex; flex-direction: column; gap: 10px; }
+.teaser-body h2 { margin: 0; font: 700 24px var(--display); letter-spacing: 0.04em; color: var(--text-strong); }
+.teaser-body p { margin: 0; color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+.teaser-body ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.teaser-body li::marker { color: var(--cyan); }
+.teaser-close { align-self: flex-start; margin-top: 4px; height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid rgba(34, 211, 238, 0.55); background: rgba(34, 211, 238, 0.14); color: var(--cyan-soft); font-weight: 500; }
+
+/* Splash while the 3D engine starts */
+.splash { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: #05070b; transition: opacity 0.6s ease; }
+.splash.out { opacity: 0; pointer-events: none; }
+.splash-art { position: absolute; inset: 0; background: url(/art/splash.webp) center / cover no-repeat; opacity: 0.85; }
+.splash-art::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(5, 7, 11, 0.35) 0%, rgba(5, 7, 11, 0.85) 70%); }
+.splash-mark { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 16px; }
+.splash-mark img { filter: drop-shadow(0 0 24px rgba(34, 211, 238, 0.45)); }
+.splash-mark h1 { margin: 6px 0 0; font: 700 34px var(--display); letter-spacing: 0.22em; color: var(--text-strong); }
+.splash-mark p { margin: 0; color: #a5b4c8; font-size: 14px; }
+.splash-bar { width: 220px; height: 3px; margin-top: 14px; border-radius: 2px; background: rgba(148, 163, 184, 0.18); overflow: hidden; }
+.splash-bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--lime)); animation: splash-run 1.2s ease-in-out infinite; }
+@keyframes splash-run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .splash-bar i { animation: none; width: 100%; } }
 
 /* side panels */
 .left-panel { position: absolute; left: 16px; top: 72px; bottom: 252px; width: 272px; padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; z-index: 4; }
