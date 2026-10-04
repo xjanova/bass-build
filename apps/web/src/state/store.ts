@@ -1,12 +1,13 @@
-import type { Curves } from '@bassbuild/physics';
+import type { CoilWiring } from '@bassbuild/physics';
 import { create } from 'zustand';
 import type { Source } from '../data/api';
+import { readSlots, writeSlots, type Slot, type SlotId } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Finish } from '../viewport/finishes';
 
 export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
-export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd';
+export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd' | 'max' | 'cmp';
 export type Mode = 'design' | 'lab' | 'library' | 'wizard';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
@@ -28,7 +29,19 @@ export interface Design {
   cldKey: string; // damping sheet on the walls, or 'none'
   count: number;
   wiring: 'parallel' | 'series';
+  /** How the two coils of each dual-voice-coil driver are wired (ignored for single-coil drivers). */
+  coilWiring: CoilWiring;
+  /** Signal level: amplifier output as power into the nominal load, W. */
   watts: number;
+  /** Model the amplifier (clip level, current limit, output impedance); off = ideal source. */
+  amp: boolean;
+  ampW: number; // rated RMS power …
+  ampOhms: number; // … into this load
+  ampMinOhms: number; // lowest load it is rated for (sets the current limit)
+  dampingFactor: number; // at ampOhms
+  /** Speaker cable: one-way length (0 = ignore) and gauge. */
+  wireM: number;
+  wireAwg: number;
   subsonic: boolean;
   subsonicHz: number;
   materialKey: string;
@@ -40,12 +53,12 @@ export const DEFAULT_DESIGN: Design = {
   boxType: 'vented', vbL: 100, fbHz: 32, portAreaCm2: 240,
   vfL: 40, fb2Hz: 60, port2AreaCm2: 180,
   prSdCm2: 855, prMassG: 400, prCmsMmN: 0.3, prCount: 1, // ≈30 Hz in 100 L
-  ql: 10, stuffing: 0, fillKey: 'polyfill', cldKey: 'none', count: 1, wiring: 'parallel',
-  watts: 1000, subsonic: true, subsonicHz: 25,
+  ql: 10, stuffing: 0, fillKey: 'polyfill', cldKey: 'none', count: 1, wiring: 'parallel', coilWiring: 'series',
+  watts: 1000, amp: false, ampW: 1000, ampOhms: 4, ampMinOhms: 2, dampingFactor: 200, wireM: 0, wireAwg: 12,
+  subsonic: true, subsonicHz: 25,
   materialKey: 'mdf', thicknessMm: 18, finish: 'walnut'
 };
 
-export interface Ghost { curves: Curves; label: string }
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
 export type Backend = 'webgpu' | 'webgl' | 'none';
 /** Main tabs that are still on the roadmap; clicking one shows what it will do. */
@@ -64,7 +77,11 @@ interface State {
   playing: boolean;
   overlays: Record<OverlayId, boolean>;
   chart: ChartId;
-  ghost: Ghost | null;
+  /** Saved designs drawn over the graphs (A/B/C), and which of them are shown. */
+  slots: Record<SlotId, Slot | null>;
+  slotShown: Record<SlotId, boolean>;
+  /** Formula notebook: open (optionally at one entry) or closed. */
+  notebook: { focus: string | null } | null;
   tool: string;
   backend: Backend | null;
   toast: Toast | null;
@@ -83,7 +100,11 @@ interface State {
   togglePlay: () => void;
   toggleOverlay: (id: OverlayId) => void;
   setChart: (c: ChartId) => void;
-  setGhost: (g: Ghost | null) => void;
+  saveSlot: (id: SlotId, slot: Slot) => void;
+  clearSlot: (id: SlotId) => void;
+  toggleSlot: (id: SlotId) => void;
+  openNotebook: (focus?: string | null) => void;
+  closeNotebook: () => void;
   setTool: (t: string) => void;
   setBackend: (b: Backend) => void;
   showToast: (text: string, action?: Toast['action']) => void;
@@ -106,7 +127,9 @@ export const useApp = create<State>((set) => ({
   playing: true,
   overlays: { wave: true, air: true, smoke: true, ir: false, vib: false, balloon: false, xray: false },
   chart: 'spl',
-  ghost: null,
+  slots: readSlots(),
+  slotShown: { A: true, B: true, C: true },
+  notebook: null,
   tool: 'select',
   backend: null,
   toast: null,
@@ -122,7 +145,7 @@ export const useApp = create<State>((set) => ({
   })),
   setMaterials: (materials) => set({ materials }),
   setDamping: (damping) => set({ damping }),
-  // The comparison curve survives a driver change on purpose: comparing drivers is what it is for.
+  // Saved comparisons survive a driver change on purpose: comparing drivers is what they are for.
   selectDriver: (driverId) => set({ driverId }),
   upsertDriver: (d) => set((s) => ({ drivers: s.drivers.some((x) => x.id === d.id) ? s.drivers.map((x) => (x.id === d.id ? d : x)) : [...s.drivers, d] })),
   removeDriver: (id) => set((s) => {
@@ -136,10 +159,17 @@ export const useApp = create<State>((set) => ({
   togglePlay: () => set((s) => ({ playing: !s.playing })),
   toggleOverlay: (id) => set((s) => ({ overlays: { ...s.overlays, [id]: !s.overlays[id] } })),
   setChart: (chart) => set({ chart }),
-  setGhost: (ghost) => set({ ghost }),
+  saveSlot: (id, slot) => set((s) => ({ slots: { ...s.slots, [id]: slot }, slotShown: { ...s.slotShown, [id]: true } })),
+  clearSlot: (id) => set((s) => ({ slots: { ...s.slots, [id]: null } })),
+  toggleSlot: (id) => set((s) => ({ slotShown: { ...s.slotShown, [id]: !s.slotShown[id] } })),
+  openNotebook: (focus = null) => set({ notebook: { focus } }),
+  closeNotebook: () => set({ notebook: null }),
   setTool: (tool) => set({ tool }),
   setBackend: (backend) => set({ backend }),
   showToast: (text, action) => set({ toast: { id: ++toastId, text, action } }),
   dismissToast: () => set({ toast: null }),
   setTeaser: (teaser) => set({ teaser })
 }));
+
+// Saved comparisons outlive a reload (this browser only).
+useApp.subscribe((s, prev) => { if (s.slots !== prev.slots) writeSlots(s.slots); });

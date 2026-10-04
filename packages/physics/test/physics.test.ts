@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  AIR_20C, abs, butterworthHighpass, checkConsistency, completeDriver, driverInputFromDto,
-  referenceEfficiency, simulate, solveAt, suggestAlignment, type Driver, type SystemSpec
+  AIR_20C, abs, butterworthHighpass, checkConsistency, completeDriver, driverInputFromDto, maxOutput,
+  referenceEfficiency, rewireCoils, simulate, solveAt, suggestAlignment, type Driver, type SystemSpec
 } from '../src';
 
 const rc2 = AIR_20C.rho * AIR_20C.c * AIR_20C.c;
@@ -302,5 +302,112 @@ describe('suggested alignments', () => {
     const flat = suggestAlignment({ driver: ideal, type: 'bp4', watts: 100 });
     expect((loud.box as { vf: number }).vf).toBeGreaterThan((flat.box as { vf: number }).vf);
     expect(loud.name).toBe('Geddes S 1.0');
+  });
+});
+
+describe('dual voice coils', () => {
+  // Dual 4 Ω measured with the coils in series (8 Ω), as most car-sub spec tables are.
+  const dvc = completeDriver({ fs: 28, qes: 0.5, qms: 6, vas: 0.06, re: 7, le: 0.004, sd: 0.05, zNom: 8 });
+
+  it('series and parallel share Qes; parallel has a quarter of Re and Le and half of Bl', () => {
+    const par = rewireCoils(dvc, 'series', 'parallel');
+    near(par.re, dvc.re / 4, 1e-12);
+    near(par.le, dvc.le / 4, 1e-12);
+    near(par.bl, dvc.bl / 2, 1e-12);
+    near(par.qes, dvc.qes, 1e-12);
+    near(par.qts, dvc.qts, 1e-12);
+    expect(par.zNom).toBeCloseTo(2, 12);
+    // Back again lands where it started.
+    near(rewireCoils(par, 'parallel', 'series').re, dvc.re, 1e-12);
+  });
+
+  it('one coil alone doubles Qes and keeps the mechanics', () => {
+    const one = rewireCoils(dvc, 'series', 'single');
+    near(one.qes, 2 * dvc.qes, 1e-12);
+    expect(one.qts).toBeGreaterThan(dvc.qts);
+    expect(one.zNom).toBeCloseTo(4, 12);
+    expect([one.fs, one.mms, one.cms, one.vas, one.qms]).toEqual([dvc.fs, dvc.mms, dvc.cms, dvc.vas, dvc.qms]);
+  });
+
+  it('gives the same acoustic output for the same power into the nominal load', () => {
+    const run = (d: Driver) => simulate({ driver: d, box: { type: 'sealed', vb: 0.04 }, drive: { watts: 100 } }, { fMin: 20, fMax: 200, points: 30 });
+    const s = run(dvc);
+    const p = run(rewireCoils(dvc, 'series', 'parallel'));
+    s.curves.spl.forEach((v, i) => expect(p.curves.spl[i]).toBeCloseTo(v, 6));
+    // Same power at a quarter of the impedance: twice the current.
+    near(p.curves.currentA[10], 2 * s.curves.currentA[10], 1e-6);
+  });
+});
+
+describe('amplifier and wire resistance', () => {
+  const box = { type: 'sealed' as const, vb: 0.05, ql: 1e9 };
+
+  it('acts exactly like extra coil resistance and leaves the terminal impedance alone', () => {
+    const rs = 0.8;
+    const withRs = simulate({ driver: ideal, box, drive: { volts: 2.83, seriesOhms: rs } }, { fMin: 10, fMax: 300, points: 80 });
+    const re = ideal.re + rs;
+    const qes = ideal.qes * re / ideal.re;
+    const fatter: Driver = { ...ideal, re, qes, qts: (qes * ideal.qms) / (qes + ideal.qms) };
+    const plain = simulate({ driver: ideal, box, drive: { volts: 2.83 } }, { fMin: 10, fMax: 300, points: 80 });
+    const asCoil = simulate({ driver: fatter, box, drive: { volts: 2.83 } }, { fMin: 10, fMax: 300, points: 80 });
+    withRs.curves.spl.forEach((v, i) => expect(v).toBeCloseTo(asCoil.curves.spl[i], 9));
+    withRs.curves.impedance.forEach((z, i) => expect(z).toBeCloseTo(plain.curves.impedance[i], 9));
+    // Closed-form Qtc follows the higher effective Qts.
+    near(withRs.info.qtc!, fatter.qts * Math.sqrt(1 + ideal.vas / 0.05), 1e-9);
+  });
+
+  it('is shared by parallel drivers: each sees n times as much', () => {
+    const two = simulate({ driver: ideal, count: 2, box, drive: { volts: 2.83, seriesOhms: 0.5 } }, { fMin: 20, fMax: 200, points: 20 });
+    const one = simulate({ driver: ideal, count: 2, box, drive: { volts: 2.83 } }, { fMin: 20, fMax: 200, points: 20 });
+    // The terminal impedance of the pair is still Re/2-ish, and the series loss costs output.
+    near(two.metrics.impedanceMin.ohms, one.metrics.impedanceMin.ohms, 1e-9);
+    expect(two.curves.spl[15]).toBeLessThan(one.curves.spl[15] - 0.5);
+  });
+});
+
+describe('maximum output', () => {
+  const spec: SystemSpec = { driver: { ...ideal, xmax: 0.01 }, box: { type: 'sealed', vb: 0.05, ql: 1e9 }, drive: { watts: 100 } };
+  const res = simulate(spec, { fMin: 10, fMax: 300, points: 120 });
+
+  it('an excursion-limited piston plays ω²ρ·Sd·x / 2πr whatever the box', () => {
+    const m = maxOutput(res, { xmaxMm: 10 });
+    for (let i = 0; i < res.curves.freqs.length; i += 10) {
+      const w = 2 * Math.PI * res.curves.freqs[i];
+      const p = (w * w * AIR_20C.rho * ideal.sd * (0.01 / Math.SQRT2)) / (2 * Math.PI);
+      expect(m.limitedBy[i]).toBe('excursion');
+      expect(m.maxSpl[i]).toBeCloseTo(20 * Math.log10(p / 2e-5), 6);
+    }
+  });
+
+  it('takes the tightest limit at each frequency', () => {
+    const m = maxOutput(res, { xmaxMm: 2, thermalVolts: Math.sqrt(100 * 4) });
+    const lo = res.curves.freqs.findIndex((f) => f > 12);
+    const hi = res.curves.freqs.findIndex((f) => f > 200);
+    expect(m.limitedBy[lo]).toBe('excursion');
+    expect(m.limitedBy[hi]).toBe('thermal');
+    // At the thermal limit the level is the 100 W level itself.
+    expect(m.maxSpl[hi]).toBeCloseTo(res.curves.spl[hi], 9);
+    expect(m.maxWatts[hi]).toBeCloseTo(100, 6);
+  });
+
+  it('an amplifier current limit caps voltage at Imax·|Z|', () => {
+    const m = maxOutput(res, { ampAmps: 1 });
+    const i = 60;
+    expect(m.limitedBy[i]).toBe('amp-current');
+    near(m.maxWatts[i], res.curves.impedance[i] ** 2 / res.info.nominalOhms, 1e-6);
+  });
+
+  it('lets a subsonic filter buy headroom below its corner', () => {
+    const filtered = simulate({ ...spec, highpass: { fc: 30, order: 4 } }, { fMin: 10, fMax: 300, points: 120 });
+    const m = maxOutput(filtered, { thermalVolts: 20 });
+    const i = filtered.curves.freqs.findIndex((f) => f > 12);
+    near(m.maxWatts[i], 400 / filtered.info.nominalOhms, 1e-6); // the amplifier output itself stays at 20 V
+    expect(m.maxSpl[i]).toBeGreaterThan(filtered.curves.spl[i] + 10);
+  });
+
+  it('reports nothing when no limit is known', () => {
+    const m = maxOutput(res, {});
+    expect(m.maxSpl.every(Number.isNaN)).toBe(true);
+    expect(m.limitedBy.every((x) => x === null)).toBe(true);
   });
 });

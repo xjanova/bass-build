@@ -24,6 +24,8 @@ export interface DriverDto {
   splDb: number | null;
   zNom: number | null;
   coil: string | null;
+  /** Coil wiring a dual-voice-coil driver's T/S were measured with; null when single-coil or not stated. */
+  coilWiring?: 'series' | 'parallel' | null;
   cutoutMm: number | null;
   outerMm: number | null;
   depthMm: number | null;

@@ -13,7 +13,7 @@ const post = (m: WizardReply) => (self as unknown as { postMessage: (m: WizardRe
 
 self.onmessage = (e: MessageEvent<WizardJob>) => {
   const { job, ...input } = e.data;
-  const drv = driverFromDto(input.dto);
+  const drv = driverFromDto(input.dto, input.design.coilWiring);
   if (!drv.ok) { post({ job, type: 'error', missing: drv.missing }); return; }
   try {
     const result = runWizard({ ...input, driver: drv.driver }, (done, total) => post({ job, type: 'progress', done, total }));

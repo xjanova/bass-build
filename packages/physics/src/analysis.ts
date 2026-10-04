@@ -30,6 +30,10 @@ export interface Curves {
   excursionMm: number[];
   /** Peak air velocity in the fastest port, m/s (0 when there is no port). */
   portVelocity: number[];
+  /** RMS current the amplifier delivers into the whole load, A. */
+  currentA: number[];
+  /** |H| of the high-pass (subsonic) filter in front of the amplifier; 1 without one. */
+  driveGain: number[];
 }
 
 export interface Metrics {
@@ -98,7 +102,7 @@ export function simulate(spec: SystemSpec, opts: SimOptions = {}): SimResult {
   const { net, info } = buildNetwork(spec);
   const freqs = logFrequencies(opts.fMin ?? 10, opts.fMax ?? 500, opts.points ?? 240);
   const wiring = spec.wiring ?? 'parallel';
-  const curves: Curves = { freqs, spl: [], phase: [], groupDelayMs: [], impedance: [], impedancePhase: [], excursionMm: [], portVelocity: [] };
+  const curves: Curves = { freqs, spl: [], phase: [], groupDelayMs: [], impedance: [], impedancePhase: [], excursionMm: [], portVelocity: [], currentA: [], driveGain: [] };
   const rawPhase: number[] = [];
 
   for (const f of freqs) {
@@ -113,6 +117,9 @@ export function simulate(spec: SystemSpec, opts: SimOptions = {}): SimResult {
     let v = 0;
     for (const ps of sol.passives) if (ps.area && ps.label.includes('port')) v = Math.max(v, (abs(ps.u) / ps.area) * Math.SQRT2);
     curves.portVelocity.push(v);
+    // Series: one current through every driver; parallel: the drivers' currents add.
+    curves.currentA.push(wiring === 'series' ? Math.max(...sol.drivers.map((d) => abs(d.i))) : abs(sol.drivers.reduce((a, d) => add(a, d.i), ZERO)));
+    curves.driveGain.push(net.sourceGain ? abs(net.sourceGain(TAU * f)) : 1);
   }
   // Unwrap phase and differentiate for group delay.
   for (let i = 1; i < rawPhase.length; i++) {
@@ -191,6 +198,60 @@ function computeMetrics(spec: SystemSpec, info: BuildInfo, c: Curves, opts: SimO
     impedanceMin: zMin,
     tuningDip
   };
+}
+
+// ---- maximum output ---------------------------------------------------------------------------
+
+/** What may stop the system getting louder. Every limit is optional; leave out what is unknown. */
+export interface OutputLimits {
+  /** One-way excursion the cone may reach (Xmax), mm peak. */
+  xmaxMm?: number | null;
+  /** Highest peak air speed allowed in the ports, m/s. */
+  portMs?: number | null;
+  /** Thermal rating as RMS volts across the whole load: √(Pe·n · Znom), for the signal after the filter. */
+  thermalVolts?: number | null;
+  /** Amplifier clip level (RMS output volts) and current limit (RMS amps). */
+  ampVolts?: number | null;
+  ampAmps?: number | null;
+}
+
+export type Limiter = 'excursion' | 'port' | 'thermal' | 'amp-voltage' | 'amp-current';
+
+export interface MaxOutput {
+  /** Loudest the system can play at each frequency within every limit, dB SPL (NaN when no limit is known). */
+  maxSpl: number[];
+  /** Amplifier output power that reaches it, into the nominal load, W (NaN when unlimited). */
+  maxWatts: number[];
+  /** Which limit sets the level at each frequency. */
+  limitedBy: (Limiter | null)[];
+}
+
+/**
+ * The response is linear, so each curve scales with the drive voltage: the most voltage the
+ * source may get at each frequency is the smallest of V0·Xmax/x, V0·vmax/v, V0·Imax/I, and the
+ * thermal and clip voltages divided by the filter gain (the filter cuts the signal before the
+ * amplifier, so a filtered frequency has headroom).
+ */
+export function maxOutput(res: SimResult, lim: OutputLimits): MaxOutput {
+  const c = res.curves;
+  const v0 = res.info.totalVolts;
+  const out: MaxOutput = { maxSpl: [], maxWatts: [], limitedBy: [] };
+  const ok = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+  for (let i = 0; i < c.freqs.length; i++) {
+    const g = c.driveGain[i] > 1e-12 ? c.driveGain[i] : 1e-12;
+    const options: [Limiter, number][] = [];
+    if (ok(lim.xmaxMm) && c.excursionMm[i] > 0) options.push(['excursion', (v0 * lim.xmaxMm) / c.excursionMm[i]]);
+    if (ok(lim.portMs) && c.portVelocity[i] > 0) options.push(['port', (v0 * lim.portMs) / c.portVelocity[i]]);
+    if (ok(lim.thermalVolts)) options.push(['thermal', lim.thermalVolts / g]);
+    if (ok(lim.ampVolts)) options.push(['amp-voltage', lim.ampVolts / g]);
+    if (ok(lim.ampAmps) && c.currentA[i] > 0) options.push(['amp-current', (v0 * lim.ampAmps) / c.currentA[i]]);
+    if (!options.length) { out.maxSpl.push(NaN); out.maxWatts.push(NaN); out.limitedBy.push(null); continue; }
+    const [by, v] = options.reduce((a, b) => (b[1] < a[1] ? b : a));
+    out.maxSpl.push(c.spl[i] + 20 * Math.log10(v / v0));
+    out.maxWatts.push(((v * g) ** 2) / res.info.nominalOhms);
+    out.limitedBy.push(by);
+  }
+  return out;
 }
 
 /** Complex state at one frequency, for animation (cone and port phase/amplitude). */

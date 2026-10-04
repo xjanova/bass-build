@@ -18,6 +18,8 @@ interface Props {
   thresholds?: { value: number; color: string }[];
   marker?: { f: number; label: string } | null;
   big?: boolean;
+  /** Text under the cursor at sample i; defaults to the first series' value. */
+  readout?: (i: number) => string;
 }
 
 const F_MIN = 10;
@@ -25,7 +27,7 @@ const F_MAX = 500;
 const X_TICKS = [10, 20, 50, 100, 200, 500];
 
 /** Log-frequency line chart drawn as SVG so it stays sharp at any size. */
-export function LineChart({ freqs, series, yMin, yMax, title, unit, thresholds = [], marker, big }: Props) {
+export function LineChart({ freqs, series, yMin, yMax, title, unit, thresholds = [], marker, big, readout }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 300, h: 150 });
   const [hover, setHover] = useState<number | null>(null);
@@ -44,10 +46,14 @@ export function LineChart({ freqs, series, yMin, yMax, title, unit, thresholds =
   const fy = (y: number) => h - ((Math.min(yMax, Math.max(yMin, y)) - yMin) / (yMax - yMin)) * h;
 
   const paths = useMemo(() => series.map((s) => {
+    // A value that is not a finite number (NaN) breaks the line: segments can be drawn separately.
     let d = '';
+    let pen = false;
     for (let i = 0; i < freqs.length; i++) {
-      if (freqs[i] < F_MIN || freqs[i] > F_MAX) continue;
-      d += `${d ? 'L' : 'M'}${fx(freqs[i]).toFixed(1)} ${fy(s.values[i]).toFixed(1)}`;
+      const v = s.values[i];
+      if (freqs[i] < F_MIN || freqs[i] > F_MAX || !Number.isFinite(v)) { pen = false; continue; }
+      d += `${pen ? 'L' : 'M'}${fx(freqs[i]).toFixed(1)} ${fy(v).toFixed(1)}`;
+      pen = true;
     }
     return d;
   }), [series, freqs, w, h, yMin, yMax]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,7 +103,7 @@ export function LineChart({ freqs, series, yMin, yMax, title, unit, thresholds =
       {X_TICKS.map((f) => <div key={f} className="xlab" style={{ left: 36 + fx(f), top: h + 3 }}>{f}</div>)}
       {marker && <div className="mark" style={{ left: 40 + fx(marker.f) }}>{marker.label}</div>}
       {hover !== null && main && (
-        <div className="readout">{freqs[hover].toFixed(freqs[hover] < 100 ? 1 : 0)} Hz · {main.values[hover].toFixed(1)} {unit}</div>
+        <div className="readout">{freqs[hover].toFixed(freqs[hover] < 100 ? 1 : 0)} Hz · {readout ? readout(hover) : Number.isFinite(main.values[hover]) ? `${main.values[hover].toFixed(1)} ${unit}` : '—'}</div>
       )}
     </div>
   );

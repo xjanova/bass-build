@@ -58,6 +58,11 @@ export interface DriveSpec {
   watts?: number;
   /** Nominal impedance of the whole load; defaults to driver zNom (or Re) with wiring applied. */
   nominalOhms?: number;
+  /**
+   * Resistance between the amplifier and the whole load: amplifier output impedance plus both
+   * speaker wires, Ω. It acts like extra coil resistance (raises Qes) and drops some voltage.
+   */
+  seriesOhms?: number;
 }
 
 export interface SystemSpec {
@@ -94,6 +99,8 @@ export interface BuildInfo {
   voltsPerDriver: number;
   totalVolts: number;
   nominalOhms: number;
+  /** Amplifier + wire resistance in the loop, Ω (0 when not given). */
+  seriesOhms: number;
 }
 
 /** Butterworth high-pass response H(jω). */
@@ -122,6 +129,13 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
   const nominalOhms = spec.drive.nominalOhms ?? (wiring === 'parallel' ? unitOhms / n : unitOhms * n);
   const totalVolts = spec.drive.volts ?? Math.sqrt((spec.drive.watts ?? 1) * nominalOhms);
   const voltsPerDriver = wiring === 'parallel' ? totalVolts : totalVolts / n;
+  // n identical drivers driven alike: in parallel each one carries 1/n of the current through the
+  // shared resistance, which looks like n·Rs in its own loop; in series each takes Rs/n.
+  const rs = Math.max(0, spec.drive.seriesOhms ?? 0);
+  const rsPerDriver = wiring === 'parallel' ? rs * n : rs / n;
+  // Total Q the box sees: the series resistance adds to Re in Qes = 2πFs·Mms·Re/Bl².
+  const qesEff = d.qes * (d.re + rsPerDriver) / d.re;
+  const qtsEff = (qesEff * d.qms) / (qesEff + d.qms);
 
   const elements: Element[] = [];
   let nodes = 1;
@@ -150,7 +164,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
     }
   };
   const addDriver = (label: string, front: NodeId, rear: NodeId, radiate: boolean): void => {
-    const e: DriverElement = { kind: 'driver', label, driver: d, front, rear, volts: voltsPerDriver };
+    const e: DriverElement = { kind: 'driver', label, driver: d, front, rear, volts: voltsPerDriver, rs: rsPerDriver };
     if (radiate && front === OUTSIDE) e.frontRadiator = { id: 'cone' };
     if (radiate && rear === OUTSIDE) e.rearRadiator = { id: 'cone-rear' };
     elements.push(e);
@@ -166,7 +180,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
   switch (box.type) {
     case 'free-air': {
       // Infinite baffle: rear radiation is assumed to go elsewhere, so only the front counts.
-      for (let i = 0; i < n; i++) elements.push({ kind: 'driver', label: `driver ${i + 1}`, driver: d, front: OUTSIDE, rear: OUTSIDE, volts: voltsPerDriver, frontRadiator: { id: 'cone' } });
+      for (let i = 0; i < n; i++) elements.push({ kind: 'driver', label: `driver ${i + 1}`, driver: d, front: OUTSIDE, rear: OUTSIDE, volts: voltsPerDriver, rs: rsPerDriver, frontRadiator: { id: 'cone' } });
       break;
     }
     case 'sealed': {
@@ -174,7 +188,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
       const c = filled(box);
       const alpha = (n * d.vas) / ((c * rc2));
       fc = d.fs * Math.sqrt(1 + alpha);
-      qtc = d.qts * Math.sqrt(1 + alpha);
+      qtc = qtsEff * Math.sqrt(1 + alpha);
       fChar = fc;
       for (let i = 0; i < n; i++) addDriver(`driver ${i + 1}`, OUTSIDE, b, true);
       addChamber('box', b, c, box.ql ?? qlDefault, fc, box.qa);
@@ -217,7 +231,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
       for (let i = 0; i < n; i++) addDriver(`driver ${i + 1}`, f, r, false);
       const alpha = (n * d.vas) / (cr * rc2);
       fc = d.fs * Math.sqrt(1 + alpha);
-      qtc = d.qts * Math.sqrt(1 + alpha);
+      qtc = qtsEff * Math.sqrt(1 + alpha);
       addChamber('rear chamber', r, cr, box.ql ?? qlDefault, fc);
       addChamber('front chamber', f, cf, box.ql ?? qlDefault, box.fb);
       addPort('port', f, cf, box.fb, box.port, box.qp ?? qpDefault, 'port');
@@ -255,7 +269,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
         fChar = Math.max(d.fs, box.vent.fb);
       } else {
         fc = d.fs * Math.sqrt(1 + alpha);
-        qtc = d.qts * Math.sqrt(1 + alpha);
+        qtc = qtsEff * Math.sqrt(1 + alpha);
         addChamber('box', b, c, box.ql ?? qlDefault, fc);
         fChar = fc;
       }
@@ -265,5 +279,5 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
 
   const net: Network = { nodeCount: nodes, elements };
   if (spec.highpass) net.sourceGain = butterworthHighpass(spec.highpass.fc, spec.highpass.order);
-  return { net, info: { fc, qtc, ports, fChar, bandpass, voltsPerDriver, totalVolts, nominalOhms } };
+  return { net, info: { fc, qtc, ports, fChar, bandpass, voltsPerDriver, totalVolts, nominalOhms, seriesOhms: rs } };
 }

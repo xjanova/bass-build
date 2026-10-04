@@ -12,7 +12,7 @@ export interface ImportResult {
 const EMPTY: DriverDraft = {
   brand: '', model: '', category: 'woofer', kindTh: null, sizeIn: null,
   fs: 0, qts: null, qes: null, qms: null, vasL: null, re: null, leMh: null, bl: null, mmsG: null,
-  cmsMmPerN: null, rms: null, sdCm2: null, xmaxMm: null, xmechMm: null, peW: null, splDb: null, zNom: null, coil: null,
+  cmsMmPerN: null, rms: null, sdCm2: null, xmaxMm: null, xmechMm: null, peW: null, splDb: null, zNom: null, coil: null, coilWiring: null,
   cutoutMm: null, outerMm: null, depthMm: null, displacementL: null,
   sourceKind: 'user', sourceUrl: null, verified: false, notes: null
 };
@@ -93,13 +93,14 @@ const ALIASES: Record<keyof DriverDraft, string[]> = {
   xmaxMm: ['xmax', 'xmaxmm', 'xmax(mm)'], xmechMm: ['xmech', 'xmechmm'], peW: ['pe', 'pew', 'power', 'rms power', 'กำลัง'],
   splDb: ['spl', 'sensitivity', 'splmm', 'ความไว'], zNom: ['z', 'znom', 'impedance', 'อิมพีแดนซ์'],
   coil: ['coil', 'vc', 'voicecoil'],
+  coilWiring: ['coilwiring', 'tswiring', 'การต่อคอยล์'],
   cutoutMm: ['cutout', 'cutoutmm', 'รูเจาะ'], outerMm: ['outer', 'outermm', 'diameter', 'ขอบนอก'],
   depthMm: ['depth', 'depthmm', 'mountingdepth', 'ความลึก'], displacementL: ['displacement', 'displacementl', 'ปริมาตรแทนที่'],
   sourceKind: ['sourcekind'], sourceUrl: ['url', 'source', 'sourceurl', 'ที่มา'], verified: [], notes: ['notes', 'note', 'comment', 'หมายเหตุ']
 };
 
 const CATEGORIES = ['sub', 'woofer', 'mid', 'fullrange', 'pa', 'tweeter'] as const;
-const TEXT_FIELDS = new Set<keyof DriverDraft>(['brand', 'model', 'category', 'kindTh', 'coil', 'sourceKind', 'sourceUrl', 'notes']);
+const TEXT_FIELDS = new Set<keyof DriverDraft>(['brand', 'model', 'category', 'kindTh', 'coil', 'coilWiring', 'sourceKind', 'sourceUrl', 'notes']);
 
 /** Splits one CSV line, honouring quotes; detects ; or tab separated files too. */
 function splitLine(line: string, sep: string): string[] {
@@ -143,6 +144,9 @@ export function parseCsv(text: string): ImportResult {
       if (TEXT_FIELDS.has(field)) (d as Record<string, unknown>)[field] = (/^'[=+\-@\t\r]/.test(raw) ? raw.slice(1) : raw) || null;
       else if (field !== 'verified') (d as Record<string, unknown>)[field] = parseNumber(raw);
     }
+    // Only the two values the app understands; anything else means "not stated".
+    const w = String(d.coilWiring ?? '').toLowerCase();
+    d.coilWiring = w === 'series' || w === 'อนุกรม' ? 'series' : w === 'parallel' || w === 'ขนาน' ? 'parallel' : null;
     const row = r + 2;
     if (!d.fs) { warnings.push(`แถว ${row}: ไม่มีค่า Fs ข้ามแถวนี้`); return; }
     d.brand = d.brand || 'ไม่ระบุยี่ห้อ';
@@ -161,7 +165,7 @@ export function parseCsv(text: string): ImportResult {
 
 const EXPORT_FIELDS: (keyof DriverDraft)[] = [
   'brand', 'model', 'category', 'sizeIn', 'fs', 'qts', 'qes', 'qms', 'vasL', 're', 'leMh', 'bl', 'mmsG', 'cmsMmPerN', 'rms',
-  'sdCm2', 'xmaxMm', 'xmechMm', 'peW', 'splDb', 'zNom', 'coil', 'cutoutMm', 'outerMm', 'depthMm', 'displacementL', 'sourceKind', 'sourceUrl', 'notes'
+  'sdCm2', 'xmaxMm', 'xmechMm', 'peW', 'splDb', 'zNom', 'coil', 'coilWiring', 'cutoutMm', 'outerMm', 'depthMm', 'displacementL', 'sourceKind', 'sourceUrl', 'notes'
 ];
 
 const cell = (v: unknown) => {

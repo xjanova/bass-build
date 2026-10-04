@@ -32,6 +32,8 @@ public class DriverInput
     public double? SplDb { get; set; }
     public double? ZNom { get; set; }
     public string? Coil { get; set; }
+    /// <summary>Coil wiring the T/S of a dual-voice-coil driver refer to: "series" or "parallel".</summary>
+    public string? CoilWiring { get; set; }
     public double? CutoutMm { get; set; }
     public double? OuterMm { get; set; }
     public double? DepthMm { get; set; }
@@ -52,6 +54,7 @@ public class DriverInput
         Category = Validation.Clean(Category);
         KindTh = Validation.Clean(KindTh);
         Coil = Validation.Clean(Coil);
+        CoilWiring = Validation.Clean(CoilWiring);
         SourceKind = Validation.Clean(SourceKind) ?? "user";
         SourceUrl = Validation.Clean(SourceUrl);
         Notes = Validation.Clean(Notes);
@@ -71,7 +74,7 @@ public static class DriverEndpoints
 {
     static readonly string[] Columns =
         ["brand", "model", "category", "kind_th", "size_in", "fs", "qts", "qes", "qms", "vas_l", "re", "le_mh", "bl",
-         "mms_g", "cms_mm_per_n", "rms", "sd_cm2", "xmax_mm", "xmech_mm", "pe_w", "spl_db", "z_nom", "coil",
+         "mms_g", "cms_mm_per_n", "rms", "sd_cm2", "xmax_mm", "xmech_mm", "pe_w", "spl_db", "z_nom", "coil", "coil_wiring",
          "cutout_mm", "outer_mm", "depth_mm", "displacement_l", "rth_vc", "tau_vc", "rth_mag", "tau_mag",
          "source_kind", "source_url", "verified", "notes"];
 

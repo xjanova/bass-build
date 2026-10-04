@@ -12,6 +12,7 @@ public static class Validation
 {
     public static readonly string[] Categories = ["sub", "woofer", "mid", "fullrange", "pa", "tweeter"];
     public static readonly string[] SourceKinds = ["datasheet", "measured", "user", "estimated", "sample"];
+    public static readonly string[] CoilWirings = ["series", "parallel"];
     public const int MaxProjectDataBytes = 2 * 1024 * 1024;
 
     // Label already carries its spacing so Thai and Latin labels both read naturally.
@@ -48,6 +49,7 @@ public static class Validation
             ?? OneOf(d.SourceKind, "sourceKind", "แหล่งที่มาของข้อมูล", SourceKinds)
             ?? MaxLength(d.KindTh, "kindTh", "ชื่อประเภท", 120)
             ?? MaxLength(d.Coil, "coil", "ชนิดวอยซ์คอยล์", 120)
+            ?? (d.CoilWiring is null ? null : OneOf(d.CoilWiring, "coilWiring", "การต่อคอยล์ตอนวัด T/S", CoilWirings))
             ?? MaxLength(d.SourceUrl, "sourceUrl", "ลิงก์ที่มา", 2000)
             ?? MaxLength(d.Notes, "notes", "หมายเหตุ", 2000);
         if (error is not null) return error;

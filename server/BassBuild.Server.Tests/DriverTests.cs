@@ -121,6 +121,15 @@ public sealed class DriverTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Coil_wiring_roundtrips_and_only_accepts_series_or_parallel()
+    {
+        var res = await _client.PostAsJsonAsync("/api/drivers", new { brand = "X", model = "DVC-1", category = "sub", fs = 30, coil = "DVC", coilWiring = "parallel" });
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        Assert.Equal("parallel", (await res.Json()).GetProperty("coilWiring").GetString());
+        await AssertValidation(await _client.PostAsJsonAsync("/api/drivers", new { brand = "X", model = "DVC-2", category = "sub", fs = 30, coil = "DVC", coilWiring = "both" }), "coilWiring");
+    }
+
+    [Fact]
     public async Task Non_json_content_type_is_415()
     {
         var res = await _client.PostAsync("/api/drivers", new StringContent("brand=x", Encoding.UTF8, "text/plain"));

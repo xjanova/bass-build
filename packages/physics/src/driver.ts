@@ -117,6 +117,35 @@ export function checkConsistency(p: DriverInput, air: Air = AIR_20C, tolerance =
   return out;
 }
 
+/** How the two coils of a dual-voice-coil driver are connected; 'single' drives one coil and leaves the other open. */
+export type CoilWiring = 'series' | 'parallel' | 'single';
+
+/**
+ * Re-expresses a dual-voice-coil driver whose T/S were measured with its coils wired `measured`
+ * for the wiring `use`. The two coils share one former, so they are treated as perfectly coupled:
+ * against both coils in parallel, series has 4× Re and Le and 2× Bl (the factors datasheets quote),
+ * one coil alone has 2× Re, the same Le and the same Bl — so its Qes doubles. Qes is the same for
+ * series and parallel (Re/Bl² does not change); the mechanical side (Fs, Mms, Cms, Rms, Vas, Qms)
+ * never depends on the wiring.
+ */
+export function rewireCoils(d: Driver, measured: 'series' | 'parallel', use: CoilWiring): Driver {
+  // Everything as "both coils in parallel" first, then out to the requested wiring.
+  const toPar = measured === 'parallel' ? { z: 1, bl: 1 } : { z: 1 / 4, bl: 1 / 2 };
+  const out = use === 'series' ? { re: 4, le: 4, bl: 2 } : use === 'single' ? { re: 2, le: 1, bl: 1 } : { re: 1, le: 1, bl: 1 };
+  const re = d.re * toPar.z * out.re;
+  const bl = d.bl * toPar.bl * out.bl;
+  const qes = (TAU * d.fs * d.mms * re) / (bl * bl);
+  return {
+    ...d,
+    re, bl, qes,
+    qts: (qes * d.qms) / (qes + d.qms),
+    le: d.le * toPar.z * out.le,
+    r2: d.r2 === undefined ? undefined : d.r2 * toPar.z * out.le,
+    l2: d.l2 === undefined ? undefined : d.l2 * toPar.z * out.le,
+    zNom: d.zNom === undefined ? undefined : d.zNom * toPar.z * out.re
+  };
+}
+
 /** Efficiency bandwidth product. Below ~50 suits sealed boxes, above ~100 vented/horn. */
 export const ebp = (d: Pick<Driver, 'fs' | 'qes'>): number => d.fs / d.qes;
 

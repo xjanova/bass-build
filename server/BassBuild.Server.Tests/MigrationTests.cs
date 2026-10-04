@@ -62,6 +62,28 @@ public sealed class MigrationTests : IDisposable
     }
 
     [Fact]
+    public void Seed_fills_a_new_seed_field_into_an_existing_database_but_not_over_a_user_value()
+    {
+        var db = new Db(_path);
+        db.Migrate();
+        db.Seed(TempDb.SeedDir);
+        using (var c = db.Open())
+        {
+            // As if the database predates the field: clear it, and set one by hand.
+            c.Execute("UPDATE drivers SET coil_wiring = NULL");
+            c.Execute("UPDATE drivers SET coil_wiring = 'parallel' WHERE model = 'P3D4-12'");
+            c.Execute("DELETE FROM settings WHERE key = 'seed.drivers'");
+        }
+        db.Seed(TempDb.SeedDir);
+        using var c2 = db.Open();
+        string? Wiring(string model) => c2.ExecuteScalar<string?>("SELECT coil_wiring FROM drivers WHERE model = @model", new { model });
+        Assert.Equal("series", Wiring("12W6v3-D4"));
+        Assert.Equal("parallel", Wiring("MP 300 D4.3"));
+        Assert.Equal("parallel", Wiring("P3D4-12")); // the user's value stays
+        Assert.Null(Wiring("8W7AE-3")); // single coil
+    }
+
+    [Fact]
     public async Task App_startup_twice_on_one_database_is_a_noop()
     {
         string Snapshot()

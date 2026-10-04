@@ -156,7 +156,17 @@ public sealed class Db
                     continue;
                 }
                 var exists = c.ExecuteScalar<long>("SELECT COUNT(*) FROM drivers WHERE brand = @Brand COLLATE NOCASE AND model = @Model COLLATE NOCASE", new { d.Brand, d.Model }, tx) > 0;
-                if (exists) continue;
+                if (exists)
+                {
+                    // Fields added to the seed after a database was made: fill them in where still empty,
+                    // never over a value the user set.
+                    if (d.CoilWiring is not null)
+                        c.Execute("""
+                            UPDATE drivers SET coil_wiring = @CoilWiring
+                            WHERE brand = @Brand COLLATE NOCASE AND model = @Model COLLATE NOCASE AND coil_wiring IS NULL
+                            """, new { d.Brand, d.Model, d.CoilWiring }, tx);
+                    continue;
+                }
                 DriverEndpoints.Insert(c, d, now, tx);
                 count++;
             }

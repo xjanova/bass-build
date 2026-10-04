@@ -1,7 +1,7 @@
 import type { Driver } from '@bassbuild/physics';
 import { useEffect, useState } from 'react';
 import type { DriverDto } from '../data/types';
-import { isFill, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, type Warning } from '../sim/model';
+import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
@@ -32,6 +32,40 @@ export function DriverOptions({ drivers }: { drivers: DriverDto[] }) {
 
 const WARN_COLOR = { bad: '#f0abfc', warn: '#fcd34d', info: '#67e8f9' } as const;
 
+/**
+ * A number typed freely and applied when it is a valid value in range (on every keystroke that
+ * makes it one), so a half-typed "1" on the way to "1500" never snaps back.
+ */
+function NumField({ id, label, value, min, max, unit, onChange }: { id: string; label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText((t) => (Number(t.replace(',', '.')) === value ? t : String(value))); }, [value]);
+  const v = Number(text.replace(',', '.'));
+  const ok = text.trim() !== '' && Number.isFinite(v) && v >= min && v <= max;
+  return (
+    <label className={`numfield${ok ? '' : ' bad'}`} htmlFor={id} title={ok ? undefined : `ใส่ ${min}–${max} ${unit}`}>
+      <input id={id} inputMode="decimal" aria-label={label} aria-invalid={!ok} value={text}
+        onChange={(e) => { setText(e.target.value); const n = Number(e.target.value.replace(',', '.')); if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onChange(n); }}
+        onBlur={() => { if (!ok) setText(String(value)); }} />
+      <span>{unit}</span>
+    </label>
+  );
+}
+
+const STD_OHMS = [0.5, 1, 2, 4, 8, 16];
+const DAMPING = [20, 50, 100, 200, 500, 1000];
+const AWG = Object.keys(AWG_MM2).map(Number).sort((a, b) => b - a);
+const COIL_TH = { series: 'อนุกรม', parallel: 'ขนาน', single: 'ใช้ขดเดียว' } as const;
+
+/**
+ * Every way n drivers (with one or two coils each) can be wired, and the load each gives — what
+ * car-audio people look up to match an amplifier.
+ */
+function loadOptions(unitOhms: (c: Design['coilWiring']) => number, n: number, dvc: boolean) {
+  const coils: Design['coilWiring'][] = dvc ? ['series', 'parallel'] : ['series'];
+  const wirings: Design['wiring'][] = n > 1 ? ['parallel', 'series'] : ['parallel'];
+  return coils.flatMap((coil) => wirings.map((wiring) => ({ coil, wiring, ohms: wiring === 'parallel' ? unitOhms(coil) / n : unitOhms(coil) * n })));
+}
+
 const closest = (options: number[], v: number) => options.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), options[0] ?? v);
 
 /**
@@ -45,7 +79,7 @@ const thicknessFor = (options: number[], v: number) =>
 export function RightPanel({ dto, driver, warnings, driverError }: {
   dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null;
 }) {
-  const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast, setMode } = useApp();
+  const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast, setMode, openNotebook } = useApp();
   const [allWarnings, setAllWarnings] = useState(false);
   // Applying a suggestion overwrites the box, so it takes a second, explicit click.
   const [confirming, setConfirming] = useState(false);
@@ -90,9 +124,9 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
         </div>
         {dto && (
           <div className="params">
-            <div><span>Fs</span><b>{dto.fs} Hz</b></div>
-            <div><span>Qts</span><b>{dto.qts?.toFixed(2) ?? '—'}</b></div>
-            <div><span>Vas</span><b>{dto.vasL?.toFixed(0) ?? '—'} L</b></div>
+            <button type="button" title="ดูสูตร Fs" onClick={() => openNotebook('fs')}><span>Fs</span><b>{dto.fs} Hz</b></button>
+            <button type="button" title="ดูสูตร Qts" onClick={() => openNotebook('qts')}><span>Qts</span><b>{dto.qts?.toFixed(2) ?? (driver ? driver.qts.toFixed(2) : '—')}</b></button>
+            <button type="button" title="ดูสูตร Vas" onClick={() => openNotebook('vas')}><span>Vas</span><b>{dto.vasL?.toFixed(0) ?? (driver ? (driver.vas * 1000).toFixed(0) : '—')} L</b></button>
             <div><span>Re</span><b>{dto.re ?? '—'} Ω</b></div>
             <div><span>Xmax</span><b>{dto.xmaxMm ?? '—'} มม.</b></div>
             <div><span>Pe</span><b>{dto.peW ?? '—'} W</b></div>
@@ -153,6 +187,71 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
               <select id="wire" aria-label="การต่อสาย" value={d.wiring} onChange={(e) => p({ wiring: e.target.value as Design['wiring'] })}><option value="parallel">ขนาน</option><option value="series">อนุกรม</option></select>
             </span>
           </div>
+          {dto && isDvc(dto) && (
+            <div className="field-head">
+              <label htmlFor="coilw" title={`ค่า T/S ในคลังวัดตอนต่อคอยล์${measuredWiring(dto).wiring === 'series' ? 'อนุกรม' : 'ขนาน'}${measuredWiring(dto).known ? '' : ' (เดา)'} ระบบแปลงให้ตามการต่อที่เลือก`}>ต่อคอยล์ในดอก (DVC)</label>
+              <select id="coilw" value={d.coilWiring} onChange={(e) => p({ coilWiring: e.target.value as Design['coilWiring'] })}>
+                {(Object.keys(COIL_TH) as Design['coilWiring'][]).map((k) => <option key={k} value={k}>{COIL_TH[k]}</option>)}
+              </select>
+            </div>
+          )}
+          {driver && (() => {
+            const n = d.boxType === 'isobaric' ? 2 : d.count;
+            const unit = driver.zNom ?? driver.re;
+            const total = d.wiring === 'parallel' ? unit / n : unit * n;
+            const dvc = !!dto && isDvc(dto);
+            // Per-driver nominal for another coil wiring: series is 4× parallel, one coil 2×.
+            const parUnit = unit / (d.coilWiring === 'series' ? 4 : d.coilWiring === 'single' ? 2 : 1);
+            const unitFor = (c: Design['coilWiring']) => (dvc ? parUnit * (c === 'series' ? 4 : c === 'single' ? 2 : 1) : unit);
+            const options = loadOptions(unitFor, n, dvc);
+            const amp = ampLimits(d);
+            return (
+              <div className="loadline">
+                <span>โหลดรวม <b>{fmtOhms(total)} Ω</b>{n > 1 || dvc ? <> · ต่อดอก {fmtOhms(unit)} Ω</> : null}{amp ? <> · แอมป์ให้ได้ ~{Math.round((amp.volts * amp.volts) / total)} W</> : null}</span>
+                {options.length > 1 && (
+                  <span className="loadopts" role="group" aria-label="ทางเลือกการต่อสาย">
+                    {options.map((o) => {
+                      const on = o.wiring === d.wiring && (!dvc || o.coil === d.coilWiring);
+                      return (
+                        <button key={`${o.coil}-${o.wiring}`} type="button" className={`pill${on ? ' on' : ''}`} aria-pressed={on}
+                          title={`${dvc ? `คอยล์${COIL_TH[o.coil]} · ` : ''}${n > 1 ? `ดอก${o.wiring === 'parallel' ? 'ขนาน' : 'อนุกรม'}` : ''}`}
+                          onClick={() => p(dvc ? { coilWiring: o.coil, wiring: o.wiring } : { wiring: o.wiring })}>{fmtOhms(o.ohms)} Ω</button>
+                      );
+                    })}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
+          <div className="section-title sub">แอมป์และสายลำโพง</div>
+          <div className="field-head">
+            <label htmlFor="ampw">แอมป์</label>
+            <button className={`pill${d.amp ? ' on' : ''}`} aria-pressed={d.amp} onClick={() => p({ amp: !d.amp })} title="จำลองแอมป์จริง: จุด clipping กระแสสูงสุด และอิมพีแดนซ์ขาออก">{d.amp ? 'จำลองแอมป์' : 'แอมป์อุดมคติ'}</button>
+            {d.amp && (
+              <span className="pair" style={{ marginLeft: 'auto' }}>
+                <NumField id="ampw" label="กำลังแอมป์" value={d.ampW} min={1} max={50000} unit="W" onChange={(v) => p({ ampW: v })} />
+                <select aria-label="ที่โหลด" className="mini" value={d.ampOhms} onChange={(e) => p({ ampOhms: Number(e.target.value) })}>{STD_OHMS.map((o) => <option key={o} value={o}>@ {o} Ω</option>)}</select>
+              </span>
+            )}
+          </div>
+          {d.amp && (
+            <div className="field-head">
+              <label htmlFor="ampmin">โหลดต่ำสุด · DF</label>
+              <span className="pair">
+                <select id="ampmin" className="mini" value={d.ampMinOhms} onChange={(e) => p({ ampMinOhms: Number(e.target.value) })}>{STD_OHMS.map((o) => <option key={o} value={o}>{o} Ω</option>)}</select>
+                <select aria-label="Damping factor" className="mini" value={d.dampingFactor} onChange={(e) => p({ dampingFactor: Number(e.target.value) })}>{DAMPING.map((v) => <option key={v} value={v}>DF {v}</option>)}</select>
+              </span>
+            </div>
+          )}
+          <div className="field-head">
+            <label htmlFor="wirem">สายลำโพง</label>
+            <span className="pair">
+              <NumField id="wirem" label="ความยาวสาย (ทางเดียว)" value={d.wireM} min={0} max={50} unit="ม." onChange={(v) => p({ wireM: v })} />
+              <select aria-label="ขนาดสาย" className="mini" value={d.wireAwg} onChange={(e) => p({ wireAwg: Number(e.target.value) })}>{AWG.map((g) => <option key={g} value={g}>{g} AWG ({AWG_MM2[g]} มม.²)</option>)}</select>
+            </span>
+          </div>
+          {d.wireM > 0 && <div className="loadline muted">สายไป-กลับ {wireOhms(d).toFixed(3)} Ω{d.amp ? ` · แอมป์ ${(d.ampOhms / d.dampingFactor).toFixed(3)} Ω` : ''}</div>}
 
           <div className="section-title sub">วัสดุ</div>
           <div className="field-head">

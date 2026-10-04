@@ -1,7 +1,9 @@
 import {
-  checkConsistency, completeDriver, driverInputFromDto, DriverError, simulate, solveAt, suggestAlignment,
-  type AlignmentFlag, type AlignmentRecipe, type AlignmentRequest, type BoxDesign, type Driver, type FillSpec, type SimResult, type Solution, type SystemSpec
+  checkConsistency, completeDriver, driverInputFromDto, DriverError, maxOutput, rewireCoils, simulate, solveAt, suggestAlignment,
+  type AlignmentFlag, type AlignmentRecipe, type AlignmentRequest, type BoxDesign, type CoilWiring, type Driver, type FillSpec,
+  type MaxOutput, type OutputLimits, type SimResult, type Solution, type SystemSpec
 } from '@bassbuild/physics';
+import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
 
@@ -83,22 +85,89 @@ export function toSpec(d: Design, driver: Driver, damping: DampingMaterialDto[] 
     count: d.count,
     wiring: d.wiring,
     box: toBox(d, fillFor(d, damping)),
-    drive: { watts: d.watts },
+    drive: { watts: d.watts, seriesOhms: seriesOhms(d) },
     highpass: d.subsonic ? { fc: d.subsonicHz, order: 4 } : undefined
   };
 }
 
 export type DriverResult = { ok: true; driver: Driver } | { ok: false; missing: string[] };
 
-export function driverFromDto(dto: DriverDto | undefined): DriverResult {
+export const isDvc = (dto: DriverDto | undefined) => dto?.coil === 'DVC';
+
+/**
+ * Coil wiring a dual-voice-coil driver's T/S refer to. Datasheets that do not say are guessed
+ * from the nominal impedance (dual 4 Ω subs quoting 8 Ω are in series, 2 Ω in parallel), and the
+ * UI marks that guess as an estimate.
+ */
+export function measuredWiring(dto: DriverDto): { wiring: 'series' | 'parallel'; known: boolean } {
+  if (dto.coilWiring === 'series' || dto.coilWiring === 'parallel') return { wiring: dto.coilWiring, known: true };
+  const z = dto.zNom ?? (dto.re ? dto.re * 1.15 : 4);
+  return { wiring: z >= 4 ? 'series' : 'parallel', known: false };
+}
+
+/** The driver as the physics needs it; a DVC driver is re-expressed for the coil wiring chosen. */
+export function driverFromDto(dto: DriverDto | undefined, coilWiring?: CoilWiring): DriverResult {
   if (!dto) return { ok: false, missing: ['driver'] };
   try {
-    return { ok: true, driver: completeDriver(driverInputFromDto(dto)) };
+    const base = completeDriver(driverInputFromDto(dto));
+    if (!coilWiring || !isDvc(dto)) return { ok: true, driver: base };
+    return { ok: true, driver: rewireCoils(base, measuredWiring(dto).wiring, coilWiring) };
   } catch (e) {
     if (e instanceof DriverError) return { ok: false, missing: e.missing };
     throw e;
   }
 }
+
+/** Pe of one driver as wired: with one coil of a DVC left open only half the coil does the work. */
+export const ratedWatts = (dto: DriverDto | undefined, d: Pick<Design, 'coilWiring'>): number | null =>
+  dto?.peW ? (isDvc(dto) && d.coilWiring === 'single' ? dto.peW / 2 : dto.peW) : null;
+
+// ---- amplifier and speaker cable --------------------------------------------------------------------
+
+/** American Wire Gauge → copper cross-section, mm². */
+export const AWG_MM2: Record<number, number> = { 18: 0.823, 16: 1.31, 14: 2.08, 12: 3.31, 10: 5.26, 8: 8.37, 6: 13.3, 4: 21.2, 2: 33.6, 0: 53.5 };
+/** Annealed copper at 20 °C, Ω·m (IEC 60028). */
+export const COPPER_RHO = 1.7241e-8;
+
+/** Both conductors of the cable (out and back), Ω. */
+export const wireOhms = (d: Pick<Design, 'wireM' | 'wireAwg'>): number =>
+  d.wireM > 0 ? (2 * d.wireM * COPPER_RHO) / ((AWG_MM2[d.wireAwg] ?? 3.31) * 1e-6) : 0;
+
+/** Amplifier output impedance from its damping factor, Ω (0 for an ideal source). */
+export const ampOutputOhms = (d: Pick<Design, 'amp' | 'ampOhms' | 'dampingFactor'>): number =>
+  d.amp && d.dampingFactor > 0 ? d.ampOhms / d.dampingFactor : 0;
+
+export const seriesOhms = (d: Design): number => ampOutputOhms(d) + wireOhms(d);
+
+/**
+ * A simple amplifier: it clips at the voltage that gives its rated power into the rated load,
+ * and it can supply that voltage into loads down to its minimum rated load — so the current limit
+ * is Vclip / Rmin (ideal power doubling down to Rmin).
+ */
+export function ampLimits(d: Pick<Design, 'amp' | 'ampW' | 'ampOhms' | 'ampMinOhms'>): { volts: number; amps: number } | null {
+  if (!d.amp || d.ampW <= 0 || d.ampOhms <= 0) return null;
+  const volts = Math.sqrt(d.ampW * d.ampOhms);
+  return { volts, amps: volts / Math.max(0.1, Math.min(d.ampMinOhms, d.ampOhms)) };
+}
+
+/** Peak port air speed the "loudest it can play" graph allows: past 30 m/s the port chuffs and compresses. */
+export const MAX_PORT_MS = 30;
+
+/** Every known limit on how loud the design can play. */
+export function outputLimitsFor(d: Design, dto: DriverDto | undefined, res: SimResult): OutputLimits {
+  const n = d.boxType === 'isobaric' ? 2 : d.count;
+  const pe = ratedWatts(dto, d);
+  const amp = ampLimits(d);
+  return {
+    xmaxMm: dto?.xmaxMm ?? null,
+    portMs: res.info.ports.length ? MAX_PORT_MS : null,
+    thermalVolts: pe ? Math.sqrt(pe * n * res.info.nominalOhms) : null,
+    ampVolts: amp?.volts ?? null,
+    ampAmps: amp?.amps ?? null
+  };
+}
+
+export const maxOutputFor = (d: Design, dto: DriverDto | undefined, res: SimResult): MaxOutput => maxOutput(res, outputLimitsFor(d, dto, res));
 
 // ---- enclosure sizing ---------------------------------------------------------------------
 
@@ -281,6 +350,8 @@ export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefi
 
 export interface Warning { level: 'info' | 'warn' | 'bad'; text: string }
 
+export const fmtOhms = (z: number) => (z >= 10 ? z.toFixed(0) : String(Number(z.toFixed(z < 2 ? 2 : 1))));
+
 const CHECK_TEXT: Record<string, string> = {
   qts: 'Qts ไม่ตรงกับที่คำนวณจาก Qes และ Qms',
   vas: 'Vas ไม่ตรงกับที่คำนวณจาก Sd และ Cms',
@@ -300,7 +371,21 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
   const xmax = dto?.xmaxMm ?? null;
   const pe = dto?.peW ?? null;
   const perDriver = d.watts / (d.boxType === 'isobaric' ? 2 : d.count);
-  if (pe && perDriver > pe) out.push({ level: 'bad', text: `กำลังต่อดอก ${Math.round(perDriver)} W เกินพิกัด ${pe} W วอยซ์คอยล์จะร้อนจัด` });
+  const peWired = ratedWatts(dto, d);
+  if (pe && peWired && perDriver > peWired) {
+    out.push({ level: 'bad', text: `กำลังต่อดอก ${Math.round(perDriver)} W เกินพิกัด ${Math.round(peWired)} W${peWired < pe ? ' (ใช้คอยล์ขดเดียว พิกัดเหลือครึ่งเดียว)' : ''} วอยซ์คอยล์จะร้อนจัด` });
+  }
+  const amp = ampLimits(d);
+  const zn = res.info.nominalOhms;
+  if (amp) {
+    const ampMax = (amp.volts * amp.volts) / zn;
+    if (d.watts > ampMax * 1.001) out.push({ level: 'bad', text: `แอมป์ ${d.ampW} W @ ${d.ampOhms} Ω ให้ได้ราว ${Math.round(ampMax)} W ที่โหลด ${fmtOhms(zn)} Ω ตั้งไว้ ${d.watts} W จึง clip (สัญญาณแตก) ลดกำลังหรือเปลี่ยนการต่อสาย` });
+    if (zn < d.ampMinOhms * 0.999) out.push({ level: 'bad', text: `โหลดรวม ${fmtOhms(zn)} Ω ต่ำกว่าที่แอมป์รับได้ (${d.ampMinOhms} Ω) แอมป์จะร้อนหรือตัดการทำงาน ลองต่อสายแบบอื่น` });
+    else if (res.metrics.impedanceMin.ohms < d.ampMinOhms * 0.8) out.push({ level: 'warn', text: `อิมพีแดนซ์จริงตกถึง ${res.metrics.impedanceMin.ohms.toFixed(1)} Ω ที่ ${res.metrics.impedanceMin.f.toFixed(0)} Hz ต่ำกว่าโหลดต่ำสุดของแอมป์ (${d.ampMinOhms} Ω) แอมป์อาจจำกัดกระแสช่วงนั้น` });
+  }
+  const rw = wireOhms(d);
+  if (rw > 0 && rw / zn > 0.05) out.push({ level: 'warn', text: `สายลำโพง ${d.wireM} ม. เบอร์ ${d.wireAwg} AWG มีความต้านทาน ${rw.toFixed(2)} Ω (${((rw / zn) * 100).toFixed(0)}% ของโหลด) เสียกำลังและเบสหลวม ควรใช้สายใหญ่ขึ้นหรือสั้นลง` });
+  if (dto && isDvc(dto) && !measuredWiring(dto).known) out.push({ level: 'info', text: `ลำโพงนี้ไม่ระบุว่าค่า T/S วัดตอนต่อคอยล์แบบไหน จึงเดาว่า${measuredWiring(dto).wiring === 'series' ? 'อนุกรม' : 'ขนาน'}จากอิมพีแดนซ์ แก้ได้ในคลังลำโพง` });
   if (m.portVelocityMax.ms > 60) out.push({ level: 'bad', text: `ท่อเล็กเกินไป ลมในท่อ ${m.portVelocityMax.ms.toFixed(0)} m/s เกินช่วงที่สูตรเชิงเส้นใช้ได้ ของจริงลมจะอั้น (port compression) เสียงหายและมีเสียงลมแรง ควรขยายท่อ` });
   else if (m.portVelocityMax.ms > 30) out.push({ level: 'bad', text: `ลมในท่อ ${m.portVelocityMax.ms.toFixed(1)} m/s เกิน 30 m/s เสียงลมจะชัด ควรขยายท่อ` });
   else if (m.portVelocityMax.ms > 17) out.push({ level: 'warn', text: `ลมในท่อ ${m.portVelocityMax.ms.toFixed(1)} m/s เกินเกณฑ์ 17 m/s อาจได้ยินเสียงลม` });
@@ -313,7 +398,8 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
   if (geo.oversizeL > 0.5) out.push({ level: 'bad', text: `ตู้ ${d.vbL} L เล็กเกินกว่าจะใส่ลำโพง ท่อ และแม่เหล็กได้ ตัวตู้ต้องโตขึ้นอีก ${geo.oversizeL.toFixed(0)} L แล้วเสริมไม้กินที่ให้เหลือปริมาตรเท่าที่ตั้ง หรือเพิ่มปริมาตร` });
   if (!geo.fits) out.push({ level: 'bad', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
   if (!geo.magnetClear) out.push({ level: 'warn', text: 'แม่เหล็กชิดผนังหลังหรือท่อเกินไป' });
-  if (m.impedanceMin.ohms < 2) out.push({ level: 'warn', text: `อิมพีแดนซ์ต่ำสุด ${m.impedanceMin.ohms.toFixed(1)} Ω แอมป์ต้องรับโหลดต่ำได้` });
+  // With the amplifier modelled, its own minimum-load check above replaces this general one.
+  if (!amp && m.impedanceMin.ohms < 2) out.push({ level: 'warn', text: `อิมพีแดนซ์ต่ำสุด ${m.impedanceMin.ohms.toFixed(1)} Ω แอมป์ต้องรับโหลดต่ำได้` });
   return out;
 }
 
@@ -498,6 +584,35 @@ export function suggestDesign(
   const finalHp = subsonicFor(b);
   if (finalHp) Object.assign(patch, { subsonic: true, subsonicHz: finalHp });
   return { patch, name: RECIPE_TH[a.recipe] + (a.qtc ? ` (Qtc ${a.qtc.toFixed(2)})` : ''), flags: [...new Set(flags)] };
+}
+
+// ---- comparison --------------------------------------------------------------------------------
+
+/** The numbers a saved comparison keeps (see data/compare.ts). */
+export function summarize(d: Design, dto: DriverDto | undefined, res: SimResult, geo: BoxGeometry | null, max: MaxOutput | null): SlotSummary {
+  const m = res.metrics;
+  const sealedLike = d.boxType === 'sealed' || d.boxType === 'isobaric';
+  const f = res.curves.freqs;
+  const reach = max ? f.map((_, i) => i).filter((i) => f[i] >= 30 && f[i] <= 80).map((i) => max.maxSpl[i]).filter(Number.isFinite) : [];
+  return {
+    boxType: d.boxType,
+    vbL: d.vbL,
+    vfL: d.boxType === 'bp4' || d.boxType === 'bp6' ? d.vfL : null,
+    tuning: sealedLike ? res.info.fc ?? null : m.tuningDip?.f ?? (d.boxType === 'pr' ? null : d.fbHz),
+    tuningKind: sealedLike ? 'fc' : 'fb',
+    qtc: sealedLike ? res.info.qtc ?? null : null,
+    f3: m.f3, f3High: m.f3High, f10: m.f10,
+    splMax: m.splMax,
+    excursionMm: m.excursionMax.mm,
+    xmaxMm: dto?.xmaxMm ?? null,
+    portMs: res.info.ports.length ? m.portVelocityMax.ms : null,
+    zMin: m.impedanceMin.ohms,
+    dims: geo ? [Math.round(geo.wx * 1000), Math.round(geo.hx * 1000), Math.round(geo.dx * 1000)] : null,
+    weightKg: geo ? geo.weightKg : null,
+    watts: d.watts,
+    drivers: d.boxType === 'isobaric' ? 2 : d.count,
+    loud: reach.length ? reach.reduce((a, b) => a + b, 0) / reach.length : null
+  };
 }
 
 export { simulate, solveAt, type Solution };

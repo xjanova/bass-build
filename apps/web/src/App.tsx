@@ -1,10 +1,14 @@
 import { abs, pressureAt, type Cx } from '@bassbuild/physics';
 import { useEffect, useMemo, useState } from 'react';
 import { loadDampingMaterials, loadDrivers, loadPanelMaterials } from './data/api';
-import { driverFromDto, panelModes, simulate, suggestDesign, sizeBox, solveAt, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
+import { sanitizeDesign, type Slot } from './data/compare';
+import { resultConfidence } from './sim/confidence';
+import type { NotebookCtx } from './sim/formulas';
+import { driverFromDto, fillFor, maxOutputFor, panelModes, ratedWatts, simulate, suggestDesign, sizeBox, solveAt, summarize, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
 import { LAB_GRID } from './sim/wizard';
 import { DEFAULT_DESIGN, useApp, type BoxType } from './state/store';
 import { ChartDock } from './ui/ChartDock';
+import { Notebook } from './ui/Notebook';
 import { Hud, IrPanel, LeftPanel, OverlayBar, ToastHost, TopBar } from './ui/Panels';
 import { RightPanel } from './ui/RightPanel';
 import { LibraryView } from './ui/Library';
@@ -32,7 +36,8 @@ export function App() {
   }, []);
 
   const dto = drivers.find((x) => x.id === driverId);
-  const drv = useMemo(() => driverFromDto(dto), [dto]);
+  // A dual-voice-coil driver is re-expressed for the coil wiring chosen in the design.
+  const drv = useMemo(() => driverFromDto(dto, d.coilWiring), [dto, d.coilWiring]);
   const spec = useMemo(() => (drv.ok ? toSpec(d, drv.driver, damping) : null), [d, drv, damping]);
 
   // First visit: size the starting box for the starting driver instead of showing a box made for
@@ -47,6 +52,8 @@ export function App() {
   const wall = useMemo(() => wallDamping(d, material, damping), [d, material, damping]);
   const geo = useMemo(() => (res ? sizeBox(d, dto, res, material, wall.massKgM2) : null), [d, dto, res, material, wall]);
   const warnings = useMemo(() => (res && geo ? warningsFor(d, dto, res, geo) : []), [d, dto, res, geo]);
+  const max = useMemo(() => (res ? maxOutputFor(d, dto, res) : null), [d, dto, res]);
+  const conf = useMemo(() => resultConfidence(d, dto, res, geo), [d, dto, res, geo]);
   const modes = geo ? panelModes(geo, material, wall.f11Factor) : { side: 0, back: 0 };
   const f11 = modes.side;
 
@@ -62,7 +69,8 @@ export function App() {
   }, [irOn]);
   // Each voice coil gets its share of the amplifier power; Pe is per driver.
   const nDrivers = d.boxType === 'isobaric' ? 2 : d.count;
-  const thermal = useMemo(() => ({ ...thermalAt(d.watts / nDrivers, dto?.peW, burn), seconds: burn }), [d.watts, nDrivers, dto?.peW, burn]);
+  const pe = ratedWatts(dto, d);
+  const thermal = useMemo(() => ({ ...thermalAt(d.watts / nDrivers, pe, burn), seconds: burn }), [d.watts, nDrivers, pe, burn]);
 
   const osc = useMemo<{ osc: Osc; spl: number; boxPa: Cx } | null>(() => {
     if (!spec || !drv.ok) return null;
@@ -104,6 +112,30 @@ export function App() {
     return { r, h, pk, amp, phase: (osc ? Math.atan2(osc.boxPa.im, osc.boxPa.re) : 0) - lag };
   }, [f11, genHz, wall.eta, osc]);
 
+  const label = `${dto?.model ?? ''} · ${TYPE_TH[d.boxType]} ${d.vbL} L · ${d.watts} W`;
+  const makeSlot = (): Slot => ({
+    label, design: d, driverId, driverName: dto ? `${dto.brand} ${dto.model}` : '—',
+    curves: res!.curves, maxSpl: max?.maxSpl ?? null, summary: summarize(d, dto, res!, geo, max), savedAt: Date.now()
+  });
+  const loadSlot = (slot: Slot) => {
+    const st = useApp.getState();
+    const before = { driverId: st.driverId, design: st.design };
+    if (slot.driverId !== null && !st.drivers.some((x) => x.id === slot.driverId)) {
+      st.showToast(`ลำโพงของตู้นี้ (${slot.driverName}) ไม่มีในคลังแล้ว จึงเปิดไม่ได้ ยังดูเส้นเทียบได้ตามเดิม`);
+      return;
+    }
+    if (slot.driverId !== null) st.selectDriver(slot.driverId);
+    // A slot saved by an older build may lack newer fields (or carry odd ones): start from the defaults.
+    st.patchDesign(sanitizeDesign(slot.design, DEFAULT_DESIGN));
+    st.showToast(`เปิด ${slot.label} ในแล็บแล้ว`, {
+      label: 'ย้อนกลับ',
+      run: () => { const now = useApp.getState(); if (before.driverId !== null) now.selectDriver(before.driverId); now.patchDesign(before.design); }
+    });
+  };
+  const nbCtx = useMemo<NotebookCtx | null>(() => (s.notebook ? {
+    d, dto, driver: drv.ok ? drv.driver : null, res, geo, material, wall, modes, max, fill: fillFor(d, damping), conf
+  } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const modelCode = `BB-${dto?.sizeIn ?? '??'}${TYPE_CODE[d.boxType]}-${d.boxType === 'sealed' || d.boxType === 'isobaric' ? Math.round(res?.info.fc ?? 0) : Math.round(d.fbHz)}`;
 
   const fill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr' ? d.stuffing : 0;
@@ -139,12 +171,13 @@ export function App() {
       {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : <>
         <LeftPanel geo={geo} modelCode={modelCode} />
         <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} />
-        <Hud modes={modes} wall={wall} vib={vib} />
-        {irOn && <IrPanel thermal={thermal} speedup={IR_SPEEDUP} />}
+        <Hud modes={modes} wall={wall} vib={vib} conf={conf} />
+        {irOn && <IrPanel thermal={thermal} speedup={IR_SPEEDUP} conf={conf.thermal} />}
         <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม</div>
         <OverlayBar geo={geo} />
-        {res && <ChartDock res={res} geo={geo} xmax={dto?.xmaxMm ?? null} watts={d.watts} ghostLabel={`${dto?.model ?? ''} · ${TYPE_TH[d.boxType]} ${d.vbL} L · ${d.watts} W`} />}
+        {res && max && <ChartDock res={res} max={max} geo={geo} xmax={dto?.xmaxMm ?? null} watts={d.watts} conf={conf} makeSlot={makeSlot} loadSlot={loadSlot} />}
       </>}
+      {nbCtx && <Notebook ctx={nbCtx} />}
       <ToastHost />
       <TeaserDialog />
       <Splash />

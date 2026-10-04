@@ -205,7 +205,7 @@ const GROUPS: [string, FieldDef[]][] = [
 ];
 
 const NUMERIC = new Set<string>(['sizeIn', 'zNom', ...GROUPS.flatMap(([, f]) => f.map(([k]) => k))]);
-const TEXT = ['brand', 'model', 'category', 'coil', 'sourceKind', 'sourceUrl', 'notes'];
+const TEXT = ['brand', 'model', 'category', 'coil', 'coilWiring', 'sourceKind', 'sourceUrl', 'notes'];
 
 function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing; others: DriverDto[]; onClose: () => void; onSaved: (d: DriverDto) => void }) {
   const { driversSource } = useApp();
@@ -224,6 +224,8 @@ function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing;
     const { id: _id, ...base } = editing.draft as DriverDraft & { id?: number };
     const d = { ...base } as Record<string, unknown>;
     for (const [k, v] of Object.entries(text)) d[k] = NUMERIC.has(k) ? parseNumber(v) : v;
+    // Only a dual-coil driver has a coil wiring, and only the two values the physics knows.
+    d.coilWiring = d.coil === 'DVC' && (text.coilWiring === 'series' || text.coilWiring === 'parallel') ? text.coilWiring : null;
     // A new category means the old Thai kind label no longer fits.
     if (d.category !== editing.draft.category || !d.kindTh) d.kindTh = CAT_TH[d.category as string] ?? null;
     return { ...(d as DriverDraft), fs: parseNumber(text.fs) ?? 0 };
@@ -273,6 +275,12 @@ function DriverEditor({ editing, others, onClose, onSaved }: { editing: Editing;
           {input('sizeIn', 'ขนาด', 'นิ้ว')}
           {input('zNom', 'อิมพีแดนซ์', 'Ω')}
           <label className="ed-field"><span>วอยซ์คอยล์</span><select value={text.coil || 'SVC'} onChange={set('coil')}><option value="SVC">ขดเดียว (SVC)</option><option value="DVC">ขดคู่ (DVC)</option></select></label>
+          {text.coil === 'DVC' && (
+            <label className="ed-field" title="ค่า Re, Le, Bl และอิมพีแดนซ์ในฟอร์มนี้เป็นของการต่อคอยล์แบบไหน (ดูใน datasheet)">
+              <span>ค่า T/S วัดตอนต่อคอยล์</span>
+              <select value={text.coilWiring || ''} onChange={set('coilWiring')}><option value="">ไม่ระบุ (เดาจากอิมพีแดนซ์)</option><option value="series">อนุกรม</option><option value="parallel">ขนาน</option></select>
+            </label>
+          )}
         </div>
         {GROUPS.map(([title, fields]) => (
           <fieldset key={title}><legend>{title}</legend><div className="ed-grid">{fields.map(([k, label, unit]) => input(k, label, unit))}</div></fieldset>

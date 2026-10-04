@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SUGGEST_FLAG_TEXT } from '../sim/model';
-import { GOALS, TYPE_TH, VEHICLES, type Candidate, type Goal, type Vehicle, type WizardResult } from '../sim/wizard';
+import { freeSlot } from '../data/compare';
+import { driverFromDto, maxOutputFor, simulate, sizeBox, summarize, SUGGEST_FLAG_TEXT, toSpec } from '../sim/model';
+import { GOALS, LAB_GRID, TYPE_TH, VEHICLES, type Candidate, type Goal, type Vehicle, type WizardResult } from '../sim/wizard';
 import type { WizardJob, WizardReply } from '../sim/wizard.worker';
 import { useApp } from '../state/store';
 import { Icon } from './icons';
@@ -34,7 +35,7 @@ let lastRun: { key: string; result: WizardResult; sel: string | null } | null = 
  * and ranked in a worker. Any one of them opens in the lab.
  */
 export function WizardView() {
-  const { drivers, driverId, damping, setMode, showToast, setGhost } = useApp();
+  const { drivers, driverId, damping, setMode, showToast, saveSlot, slots, materials } = useApp();
   const [drvId, setDrvId] = useState<number | null>(lastChoice?.drvId ?? driverId);
   const [count, setCount] = useState(() => lastChoice?.count ?? useApp.getState().design.count);
   const [goal, setGoal] = useState<Goal | null>(lastChoice?.goal ?? null);
@@ -70,7 +71,7 @@ export function WizardView() {
   // Everything a run depends on; the same key as last time reuses that run.
   const design = useApp((st) => st.design);
   const runKey = goal && dto ? JSON.stringify([goal, dto, count, limitL, veh, damping.length, design.wiring, design.fillKey, design.stuffing,
-    design.subsonic, design.subsonicHz, design.thicknessMm, design.ql]) : '';
+    design.subsonic, design.subsonicHz, design.thicknessMm, design.ql, design.coilWiring, design.amp, design.ampOhms, design.dampingFactor, design.wireM, design.wireAwg]) : '';
   useEffect(() => {
     if (!goal || !dto || !damping.length) return;
     if (lastRun?.key === runKey) { setResult(lastRun.result); setProgress(null); return; }
@@ -147,9 +148,21 @@ export function WizardView() {
       }
     });
   };
+  const slot = freeSlot(slots);
+  /** Keeps a candidate as comparison A, B or C: re-simulated free-field, exactly as the lab would. */
   const keepAsGhost = (c: Candidate) => {
-    setGhost({ curves: c.curves.lab, label: `${dto?.model ?? ''} · ${c.label} ${c.detail}` });
-    showToast(`เก็บ ${c.label} เป็นเส้นเทียบในแล็บแล้ว (เส้นประในกราฟ)`);
+    if (!dto || !slot) return;
+    const design = { ...useApp.getState().design, ...c.patch, count };
+    const drv = driverFromDto(dto, design.coilWiring);
+    if (!drv.ok) return;
+    const res = simulate(toSpec(design, drv.driver, damping), LAB_GRID);
+    const geo = sizeBox(design, dto, res, materials.find((m) => m.key === design.materialKey));
+    const max = maxOutputFor(design, dto, res);
+    saveSlot(slot, {
+      label: `${dto.model} · ${c.label} ${c.detail}`, design, driverId: dto.id, driverName: `${dto.brand} ${dto.model}`,
+      curves: res.curves, maxSpl: max.maxSpl, summary: summarize(design, dto, res, geo, max), savedAt: Date.now()
+    });
+    showToast(`เก็บ ${c.label} เป็น ${slot} แล้ว · เส้นประในกราฟของแล็บ และตารางที่แท็บ "เทียบ A/B/C"`);
   };
 
   return (
@@ -269,7 +282,7 @@ export function WizardView() {
                       )}
                     </ol>
                     <Detail c={current} band={result?.band ?? [0, 0]} goal={result?.goal ?? goal} xmax={dto?.xmaxMm ?? null}
-                      onApply={() => setConfirm(current)} onGhost={() => keepAsGhost(current)} busy={!fresh} />
+                      onApply={() => setConfirm(current)} onGhost={() => keepAsGhost(current)} slot={slot} busy={!fresh} />
                   </div>
                 )}
               </div>
@@ -294,8 +307,8 @@ export function WizardView() {
   );
 }
 
-function Detail({ c, band, goal, xmax, busy, onApply, onGhost }: {
-  c: Candidate; band: [number, number]; goal: Goal | null; xmax: number | null; busy: boolean; onApply: () => void; onGhost: () => void;
+function Detail({ c, band, goal, xmax, busy, onApply, onGhost, slot }: {
+  c: Candidate; band: [number, number]; goal: Goal | null; xmax: number | null; busy: boolean; onApply: () => void; onGhost: () => void; slot: string | null;
 }) {
   const m = c.m;
   const car = goal === 'car';
@@ -308,7 +321,7 @@ function Detail({ c, band, goal, xmax, busy, onApply, onGhost }: {
         </div>
         <div className="det-actions">
           <button className="primary" onClick={onApply} disabled={busy}>เปิดในแล็บ</button>
-          <button onClick={onGhost} disabled={busy} title="เก็บกราฟของแบบนี้ไว้เทียบกับตู้ในแล็บ">เก็บเป็นเส้นเทียบ</button>
+          <button onClick={onGhost} disabled={busy || !slot} title={slot ? `เก็บแบบนี้เป็น ${slot} ไว้เทียบกับตู้ในแล็บ` : 'ช่องเทียบ A, B, C เต็มแล้ว ลบช่องที่ไม่ใช้ในแท็บ "เทียบ A/B/C" ของแล็บก่อน'}>{slot ? `เก็บเทียบเป็น ${slot}` : 'ช่องเทียบเต็ม'}</button>
         </div>
       </div>
       <div className="det-grid">

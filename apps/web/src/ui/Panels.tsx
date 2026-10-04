@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
+import { OVERLAY_CONF, type Conf, type ResultKey } from '../sim/confidence';
 import type { BoxGeometry, WallDamping } from '../sim/model';
 import { useApp, type OverlayId } from '../state/store';
+import { ConfDot } from './Conf';
 import { Icon, Logo, ICONS } from './icons';
 
 const BACKEND = {
@@ -10,7 +12,7 @@ const BACKEND = {
 } as const;
 
 export function TopBar({ modelCode }: { modelCode: string }) {
-  const { mode, setMode, backend, setTeaser } = useApp();
+  const { mode, setMode, backend, setTeaser, openNotebook } = useApp();
   const b = backend ? BACKEND[backend] : null;
   return (
     <header className="topbar">
@@ -24,6 +26,7 @@ export function TopBar({ modelCode }: { modelCode: string }) {
         <button className="tab soon" title="มาในเฟส 3 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('blueprint')}>พิมพ์เขียว</button>
         <button className="tab" aria-pressed={mode === 'library'} onClick={() => setMode('library')}>คลังข้อมูล</button>
       </nav>
+      <button className="chip nbbtn" title="สมุดสูตร: ทุกตัวเลขพร้อมสูตร ค่าที่แทน และแหล่งอ้างอิง · เขียนสูตรเองได้" onClick={() => openNotebook()}>ƒ สมุดสูตร</button>
       {b && <span className="chip backend" title={b.title}><span className="dot" style={{ background: b.color }} />{b.label}</span>}
     </header>
   );
@@ -111,6 +114,7 @@ export function OverlayBar({ geo }: { geo: BoxGeometry | null }) {
           <button key={id} className="ovbtn" aria-pressed={on} aria-label={label} title={label} onClick={() => toggleOverlay(id)}
             style={on ? { borderColor: color, background: `${color}1f`, color, boxShadow: `0 0 18px ${color}40` } : undefined}>
             <Icon name={icon} /><span className="ovlabel">{label}</span>
+            {OVERLAY_CONF[id] && <span className="ov-conf"><ConfDot conf={OVERLAY_CONF[id]} size={5} /></span>}
           </button>
         );
       })}
@@ -118,7 +122,7 @@ export function OverlayBar({ geo }: { geo: BoxGeometry | null }) {
   );
 }
 
-export function Hud({ modes, wall, vib }: { modes: { side: number; back: number }; wall: WallDamping; vib: { r: number; h: number; pk: number } }) {
+export function Hud({ modes, wall, vib, conf }: { modes: { side: number; back: number }; wall: WallDamping; vib: { r: number; h: number; pk: number }; conf: Record<ResultKey, Conf> }) {
   const { mode, genHz, slow, design: d, overlays } = useApp();
   const lab = mode === 'lab';
   return (
@@ -137,7 +141,7 @@ export function Hud({ modes, wall, vib }: { modes: { side: number; back: number 
       )}
       {lab && overlays.vib && (
         <div className="legend"><span style={{ color: '#c4b5fd' }}>
-          ผนังข้าง (1,1) ≈ {modes.side.toFixed(0)} Hz · ผนังหลังซึ่งกว้างสุด ≈ {modes.back.toFixed(0)} Hz · ตอนนี้แรงดันในตู้ {vib.pk.toFixed(0)} Pa ที่ {genHz} Hz
+          <ConfDot conf={conf.panelModes} /> ผนังข้าง (1,1) ≈ {modes.side.toFixed(0)} Hz · ผนังหลังซึ่งกว้างสุด ≈ {modes.back.toFixed(0)} Hz · ตอนนี้แรงดันในตู้ {vib.pk.toFixed(0)} Pa ที่ {genHz} Hz
           {vib.r > 0.8 && vib.r < 1.25 ? ' ใกล้เรโซแนนซ์' : ''} · ขยาย ×{vib.h.toFixed(1)}
           {wall.ampFactor < 1 ? ` (แผ่นซับแรงสั่นกดยอดเรโซแนนซ์ลง ×${(1 / wall.ampFactor).toFixed(1)})` : ''} · ภาพขยายเกินจริง
         </span></div>
@@ -151,10 +155,10 @@ export function Hud({ modes, wall, vib }: { modes: { side: number; back: number 
   );
 }
 
-export function IrPanel({ thermal, speedup }: { thermal: { tvc: number; tmag: number; reRise: number; seconds: number }; speedup: number }) {
+export function IrPanel({ thermal, speedup, conf }: { thermal: { tvc: number; tmag: number; reRise: number; seconds: number }; speedup: number; conf: Conf }) {
   return (
     <div className="irbox irfloat">
-      <h4>ทดสอบความร้อน · จำลอง {(thermal.seconds / 60).toFixed(1)} นาที (เร่ง ×{speedup})</h4>
+      <h4><ConfDot conf={conf} /> ทดสอบความร้อน · จำลอง {(thermal.seconds / 60).toFixed(1)} นาที (เร่ง ×{speedup})</h4>
       <div className="grid">
         <span>วอยซ์คอยล์ {thermal.tvc.toFixed(0)} °C</span><span>แม่เหล็ก {thermal.tmag.toFixed(0)} °C</span>
         <span>Re ร้อน ×{thermal.reRise.toFixed(2)}</span><span>ดังลดลง {(20 * Math.log10(1 / thermal.reRise)).toFixed(1)} dB</span>

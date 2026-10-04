@@ -37,8 +37,10 @@ export interface DriverElement {
   /** Node the cone front faces, and the node behind it. */
   front: NodeId;
   rear: NodeId;
-  /** RMS drive voltage at this driver's terminals for a flat 1× source. */
+  /** RMS source voltage for this driver for a flat 1× source (at its terminals when `rs` is 0). */
   volts: number;
+  /** Resistance between the source and this driver's terminals (amplifier output + wire), Ω. */
+  rs?: number;
   frontRadiator?: Radiator;
   rearRadiator?: Radiator;
 }
@@ -93,7 +95,7 @@ export interface DriverState {
   label: string;
   /** Cone volume velocity, positive = moving forward (m³/s RMS). */
   u: Cx;
-  /** Electrical input impedance at the terminals (Ω). */
+  /** Electrical input impedance at the terminals (Ω), not counting the series resistance. */
   zin: Cx;
   /** Cone displacement (m RMS, complex). */
   x: Cx;
@@ -144,7 +146,8 @@ export function solve(net: Network, w: number): Solution {
   const drv = net.elements.filter((e): e is DriverElement => e.kind === 'driver').map((e) => {
     const d = e.driver;
     const k = d.bl / d.sd;
-    const zvc = voiceCoil(d, w);
+    // The series resistance sits in the electrical loop like extra coil resistance.
+    const zvc = add(voiceCoil(d, w), cx(e.rs ?? 0));
     const volts = scale(gain, e.volts);
     const zm = cx(d.rms / (d.sd * d.sd), w * d.mms / (d.sd * d.sd) - 1 / (w * d.cms * d.sd * d.sd));
     const zd = add(div(cx(k * k), zvc), zm);
@@ -163,7 +166,7 @@ export function solve(net: Network, w: number): Solution {
     const u = sub(is, div(sub(p[e.front], p[e.rear]), zd));
     const vel = scale(u, 1 / e.driver.sd);
     const i = div(sub(volts, scale(vel, e.driver.bl)), zvc);
-    return { label: e.label, u, zin: div(volts, i), x: div(vel, cx(0, w)), i, volts };
+    return { label: e.label, u, zin: sub(div(volts, i), cx(e.rs ?? 0)), x: div(vel, cx(0, w)), i, volts };
   });
   const passives: PassiveState[] = [];
   const radiators: RadiatorFlow[] = [];
