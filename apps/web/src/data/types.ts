@@ -45,3 +45,18 @@ export interface PanelMaterialDto {
   lossFactor: number | null;
   thicknessesMm: number[];
 }
+
+export interface DampingMaterialDto {
+  id: number;
+  key: string;
+  name: string;
+  nameTh: string | null;
+  /** fiber / foam / felt fill the air space; cld sheets damp the panels. */
+  kind: string | null;
+  densityKgM3: number | null;
+  flowResistivityMin: number | null;
+  flowResistivityMax: number | null;
+  fillGPerLMin: number | null;
+  fillGPerLMax: number | null;
+  porosity: number | null;
+}

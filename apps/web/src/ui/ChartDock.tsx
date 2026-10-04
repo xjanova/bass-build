@@ -1,14 +1,17 @@
 import type { SimResult } from '@bassbuild/physics';
 import { useApp, type ChartId } from '../state/store';
+import type { BoxGeometry } from '../sim/model';
 import { LineChart } from './LineChart';
+import { ResultTiles } from './ResultTiles';
 
 const TABS: [ChartId, string][] = [['spl', 'SPL'], ['imp', 'อิมพีแดนซ์'], ['exc', 'ระยะชัก'], ['vel', 'ความเร็วลม'], ['gd', 'Group delay']];
 
 const ceilTo = (v: number, s: number) => Math.ceil(v / s) * s;
 const maxIn = (arr: number[], freqs: number[], lo: number, hi: number) => arr.reduce((m, v, i) => (freqs[i] >= lo && freqs[i] <= hi && v > m ? v : m), 0);
 
-export function ChartDock({ res, xmax, watts }: { res: SimResult; xmax: number | null; watts: number }) {
-  const { chart, setChart, ghost, setGhost } = useApp();
+export function ChartDock({ res, geo, xmax, watts, ghostLabel }: { res: SimResult; geo: BoxGeometry | null; xmax: number | null; watts: number; ghostLabel: string }) {
+  const { chart, setChart, ghost: saved, setGhost } = useApp();
+  const ghost = saved?.curves;
   const c = res.curves;
   const m = res.metrics;
   const f = c.freqs;
@@ -35,11 +38,13 @@ export function ChartDock({ res, xmax, watts }: { res: SimResult; xmax: number |
           <button key={id} className="tabbtn" aria-pressed={chart === id} onClick={() => setChart(id)}>{label}</button>
         ))}
         <div className="right">
-          {ghost && <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 18, borderTop: '1.5px dashed #e2e8f0' }} />แบบ A</span>}
-          <button className="ghostbtn" onClick={() => setGhost(c)}>เก็บเป็นเส้นเทียบ A</button>
+          {saved && <span className="ghostlabel" title={saved.label}><span style={{ width: 18, flex: 'none', borderTop: '1.5px dashed #e2e8f0' }} />เส้นเทียบ: {saved.label}</span>}
+          <button className="ghostbtn" onClick={() => setGhost({ curves: c, label: ghostLabel })}>เก็บเป็นเส้นเทียบ</button>
           <button className="ghostbtn" style={{ background: 'transparent', color: 'var(--muted)' }} onClick={() => setGhost(null)} disabled={!ghost}>ล้าง</button>
         </div>
       </div>
+      <div className="dock-body">
+      <ResultTiles res={res} geo={geo} xmax={xmax} />
       <div className="charts">
         <LineChart big freqs={f} title={big.title} unit={big.unit} yMin={big.yMin} yMax={big.yMax} marker={big.marker} thresholds={big.thresholds}
           series={[{ values: big.values, color: big.color, fill: true, glow: true }, ...(big.g ? [{ values: big.g, color: '#e2e8f0', dashed: true }] : [])]} />
@@ -49,6 +54,7 @@ export function ChartDock({ res, xmax, watts }: { res: SimResult; xmax: number |
           ? <LineChart freqs={f} title="ลมในท่อ (m/s)" unit="m/s" yMin={0} yMax={velHi} thresholds={[{ value: 17, color: '#fbbf24' }, { value: 30, color: '#e879f9' }]}
               series={[{ values: c.portVelocity, color: '#a3e635', fill: true, glow: true }]} />
           : <LineChart freqs={f} title="อิมพีแดนซ์ (Ω)" unit="Ω" yMin={0} yMax={zHi} series={[{ values: c.impedance, color: '#fbbf24', fill: true, glow: true }]} />}
+      </div>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 import sampleDrivers from '../../../../data/seed/drivers.sample.json';
 import sampleMaterials from '../../../../data/seed/materials.json';
-import type { DriverDto, PanelMaterialDto } from './types';
+import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from './types';
 
 /**
  * The C# server owns the database. When it is not running (e.g. viewing the web build alone)
@@ -24,6 +24,9 @@ const bundledDrivers = (): DriverDto[] =>
 const bundledPanels = (): PanelMaterialDto[] =>
   (sampleMaterials.panelMaterials as unknown as Omit<PanelMaterialDto, 'id'>[]).map((m, i) => ({ ...m, id: i + 1 }));
 
+const bundledDamping = (): DampingMaterialDto[] =>
+  (sampleMaterials.dampingMaterials as unknown as Omit<DampingMaterialDto, 'id'>[]).map((m, i) => ({ ...m, id: i + 1 }));
+
 export async function loadDrivers(signal?: AbortSignal): Promise<{ drivers: DriverDto[]; source: Source }> {
   if (STATIC_SITE) return { drivers: bundledDrivers(), source: 'bundled' };
   try {
@@ -41,5 +44,15 @@ export async function loadPanelMaterials(signal?: AbortSignal): Promise<PanelMat
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
     return bundledPanels();
+  }
+}
+
+export async function loadDampingMaterials(signal?: AbortSignal): Promise<DampingMaterialDto[]> {
+  if (STATIC_SITE) return bundledDamping();
+  try {
+    return await getJson<DampingMaterialDto[]>('/api/materials/damping', signal);
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    return bundledDamping();
   }
 }

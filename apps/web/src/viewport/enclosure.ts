@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
+import type { Looks } from './finishes';
 
 export interface DriverParts {
   root: THREE.Group;
@@ -14,7 +15,7 @@ export interface DriverParts {
 
 export interface Enclosure {
   group: THREE.Group;
-  shell: THREE.Mesh[]; // outer panels (walnut + baffle)
+  shell: THREE.Mesh[]; // outer panels (decor + baffle)
   baffle: THREE.Mesh;
   internals: THREE.Group; // port panels, brace, stuffing, inner drivers — shown in x-ray
   edges: THREE.LineSegments;
@@ -27,19 +28,7 @@ export interface Enclosure {
   dispose: () => void;
 }
 
-export interface Looks {
-  walnut: THREE.Texture;
-}
-
-const baffleMat = () => new THREE.MeshPhysicalMaterial({ color: 0x121418, roughness: 0.42, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.25 });
 const portMat = () => new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.95 });
-
-function walnutMat(tex: THREE.Texture, u: number, v: number): THREE.MeshStandardMaterial {
-  const t = tex.clone();
-  t.needsUpdate = true;
-  t.repeat.set(u / 0.9, v / 0.9);
-  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0 });
-}
 
 /** One loudspeaker (or passive radiator) facing +z, outer radius R, centred at the origin. */
 function buildDriver(R: number, depth: number, passive: boolean): DriverParts {
@@ -95,12 +84,12 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     return m;
   };
 
-  // Shell: bottom/top/sides in walnut, back in black. Sides run full depth; top/bottom full footprint.
-  shell.push(slab(wx, t, dx, walnutMat(looks.walnut, wx, dx), 0, t / 2, 0));
-  shell.push(slab(wx, t, dx, walnutMat(looks.walnut, wx, dx), 0, hx - t / 2, 0));
-  shell.push(slab(t, hx - 2 * t, dx, walnutMat(looks.walnut, dx, hx), -wx / 2 + t / 2, hx / 2, 0));
-  shell.push(slab(t, hx - 2 * t, dx, walnutMat(looks.walnut, dx, hx), wx / 2 - t / 2, hx / 2, 0));
-  shell.push(slab(wi, hx - 2 * t, t, baffleMat(), 0, hx / 2, -dx / 2 + t / 2));
+  // Shell: bottom/top/sides in the decor, back like the baffle. Sides run full depth; top/bottom full footprint.
+  shell.push(slab(wx, t, dx, looks.side(wx, dx), 0, t / 2, 0));
+  shell.push(slab(wx, t, dx, looks.side(wx, dx), 0, hx - t / 2, 0));
+  shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), -wx / 2 + t / 2, hx / 2, 0));
+  shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), wx / 2 - t / 2, hx / 2, 0));
+  shell.push(slab(wi, hx - 2 * t, t, looks.front(), 0, hx / 2, -dx / 2 + t / 2));
 
   // Front baffle with real holes (drivers, passive radiators), sitting above the slot port.
   const bottomOfBaffle = hasFrontPort ? t + slotH + t : t;
@@ -120,7 +109,7 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     shape.holes.push(hole);
   }
   const baffleGeo = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 });
-  const baffle = new THREE.Mesh(baffleGeo, baffleMat());
+  const baffle = new THREE.Mesh(baffleGeo, looks.front());
   baffle.position.set(0, bottomOfBaffle, dx / 2 - t);
   g.add(baffle);
   shell.push(baffle);

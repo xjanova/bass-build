@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useApp } from '../state/store';
 import { Engine, type EngineInput } from './Engine';
 
 /** Hosts the Three.js engine; React only pushes new inputs, the engine owns the render loop. */
@@ -13,8 +14,12 @@ export function Viewport({ input }: { input: EngineInput | null }) {
     const e = new Engine(el);
     engine.current = e;
     let alive = true;
-    e.start().catch((err: unknown) => {
-      if (alive) setFailed(err instanceof Error ? err.message : String(err));
+    e.start().then(() => {
+      if (alive) useApp.getState().setBackend(e.backend);
+    }).catch((err: unknown) => {
+      if (!alive) return;
+      setFailed(err instanceof Error ? err.message : String(err));
+      useApp.getState().setBackend('none');
     });
     return () => { alive = false; e.dispose(); engine.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

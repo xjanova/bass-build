@@ -28,12 +28,25 @@ export interface PassiveRadiatorSpec {
   count?: number;
 }
 
+/** Damping material in the main chamber. */
+export interface FillSpec {
+  /** How full the box is, 0..1. */
+  stuffing?: number;
+  /** Apparent volume gain of a completely filled box (isothermal effect). Default 0.4. */
+  stuffingGain?: number;
+  /**
+   * Absorption Q of the filled chamber. It becomes a resistor Qa/(ωC) to the outside that
+   * dissipates instead of radiating, so it lowers the box Q without adding output.
+   */
+  qa?: number;
+}
+
 /** All volumes are NET air volumes in m³; frequencies in Hz. */
 export type BoxDesign =
   | { type: 'free-air' }
-  | { type: 'sealed'; vb: number; ql?: number; stuffing?: number }
-  | { type: 'vented'; vb: number; fb: number; port: PortSpec; ql?: number; qp?: number; stuffing?: number }
-  | { type: 'pr'; vb: number; pr: PassiveRadiatorSpec; ql?: number; stuffing?: number }
+  | ({ type: 'sealed'; vb: number; ql?: number } & FillSpec)
+  | ({ type: 'vented'; vb: number; fb: number; port: PortSpec; ql?: number; qp?: number } & FillSpec)
+  | ({ type: 'pr'; vb: number; pr: PassiveRadiatorSpec; ql?: number } & FillSpec)
   | { type: 'bp4'; vr: number; vf: number; fb: number; port: PortSpec; ql?: number; qp?: number }
   | { type: 'bp6'; vr: number; fbr: number; portR: PortSpec; vf: number; fbf: number; portF: PortSpec; ql?: number; qp?: number }
   | { type: 'isobaric'; vb: number; coupling?: number; ql?: number; vent?: { fb: number; port: PortSpec; qp?: number } };
@@ -114,11 +127,13 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
   let nodes = 1;
   const node = (): NodeId => nodes++;
   const ports: PortInfo[] = [];
-  const cab = (v: number, stuffing = 0) => (v / rc2) * (1 + 0.4 * Math.min(1, Math.max(0, stuffing)));
+  const cab = (v: number) => v / rc2;
+  const filled = (b: FillSpec & { vb: number }) => cab(b.vb) * (1 + (b.stuffingGain ?? 0.4) * Math.min(1, Math.max(0, b.stuffing ?? 0)));
 
-  const addChamber = (label: string, nd: NodeId, c: number, ql: number, fRef: number) => {
+  const addChamber = (label: string, nd: NodeId, c: number, ql: number, fRef: number, qa?: number) => {
     elements.push(compliance(label, nd, OUTSIDE, c));
     elements.push({ ...resistance(`${label} leak`, nd, OUTSIDE, ql / (TAU * fRef * c)), radiator: { id: 'leak' } });
+    if (qa && qa > 0) elements.push(resistance(`${label} absorption`, nd, OUTSIDE, qa / (TAU * fRef * c)));
   };
   const addPort = (label: string, nd: NodeId, c: number, fb: number, port: PortSpec, qp: number, radiatorId: string) => {
     const count = Math.max(1, Math.round(port.count ?? 1));
@@ -156,27 +171,27 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
     }
     case 'sealed': {
       const b = node();
-      const c = cab(box.vb, box.stuffing);
+      const c = filled(box);
       const alpha = (n * d.vas) / ((c * rc2));
       fc = d.fs * Math.sqrt(1 + alpha);
       qtc = d.qts * Math.sqrt(1 + alpha);
       fChar = fc;
       for (let i = 0; i < n; i++) addDriver(`driver ${i + 1}`, OUTSIDE, b, true);
-      addChamber('box', b, c, box.ql ?? qlDefault, fc);
+      addChamber('box', b, c, box.ql ?? qlDefault, fc, box.qa);
       break;
     }
     case 'vented': {
       const b = node();
-      const c = cab(box.vb, box.stuffing);
+      const c = filled(box);
       for (let i = 0; i < n; i++) addDriver(`driver ${i + 1}`, OUTSIDE, b, true);
-      addChamber('box', b, c, box.ql ?? qlDefault, box.fb);
+      addChamber('box', b, c, box.ql ?? qlDefault, box.fb, box.qa);
       addPort('port', b, c, box.fb, box.port, box.qp ?? qpDefault, 'port');
       fChar = Math.max(d.fs, box.fb);
       break;
     }
     case 'pr': {
       const b = node();
-      const c = cab(box.vb, box.stuffing);
+      const c = filled(box);
       for (let i = 0; i < n; i++) addDriver(`driver ${i + 1}`, OUTSIDE, b, true);
       const pr = box.pr;
       const count = Math.max(1, Math.round(pr.count ?? 1));
@@ -190,7 +205,7 @@ export function buildNetwork(spec: SystemSpec): { net: Network; info: BuildInfo 
       }
       // Box + PR tuning ≈ frequency where the PR mass resonates with the parallel stiffness.
       const fbApprox = (1 / TAU) * Math.sqrt((1 / c + 1 / (pr.cmp * sp2 * count)) / (pr.mmp / sp2 / count));
-      addChamber('box', b, c, box.ql ?? qlDefault, fbApprox);
+      addChamber('box', b, c, box.ql ?? qlDefault, fbApprox, box.qa);
       fChar = Math.max(d.fs, fbApprox);
       break;
     }

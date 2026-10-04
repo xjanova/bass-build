@@ -7,8 +7,9 @@ import type { BoxGeometry } from '../sim/model';
 import type { BoxType, Mode, OverlayId } from '../state/store';
 import { Balloon, PanelVibe, PortArrows, Smoke, WavePlane } from './effects';
 import { buildEnclosure, type DriverParts, type Enclosure } from './enclosure';
+import { looksFor, type Finish } from './finishes';
 import { buildRoom } from './room';
-import { iron, smokeTexture, tempToT, walnutTexture } from './textures';
+import { iron, smokeTexture, tempToT } from './textures';
 
 /** Oscillation state at the generator frequency, from the lumped model. */
 export interface Osc {
@@ -23,6 +24,9 @@ export interface EngineInput {
   geo: BoxGeometry;
   geoKey: string;
   boxType: BoxType;
+  finish: Finish;
+  /** Panel material key; drives the look of the 'raw' finish. */
+  material: string;
   count: number;
   prCount: number;
   driverDepth: number;
@@ -36,6 +40,8 @@ export interface EngineInput {
   splAtGen: number;
   thermal: { tvc: number; tmag: number } | null;
   f11: number;
+  /** Relative wall vibration amplitude (1 = bare panel; damping sheets make it smaller). */
+  vibAmp: number;
 }
 
 const re = (z: Cx, wt: number) => z.re * Math.cos(wt) - z.im * Math.sin(wt);
@@ -46,8 +52,9 @@ export class Engine {
   private readonly camera = new THREE.PerspectiveCamera(36, 1, 0.05, 60);
   private controls!: OrbitControls;
   private readonly labels = new CSS2DRenderer();
-  private readonly walnut = walnutTexture();
+  private readonly textures = new Map<string, THREE.CanvasTexture>();
   private readonly smokeTex = smokeTexture();
+  private seeThrough = false;
   private enc: Enclosure | null = null;
   private key = '';
   private input: EngineInput | null = null;
@@ -159,6 +166,7 @@ export class Engine {
     this.vibe.mesh.visible = lab && ov.vib;
     this.dims.visible = !lab;
     this.airLabel.visible = lab && ov.air && !!enc.portMouth && input.portPeak > 0.2;
+    this.mic.visible = lab;
     this.micLabel.visible = lab; // CSS2DRenderer drives display from .visible
     (this.micLabel.element as HTMLElement).textContent = `ไมค์ 1 ม. · ${input.splAtGen.toFixed(1)} dB @ ${input.genHz} Hz`;
 
@@ -193,7 +201,9 @@ export class Engine {
       this.enc.dispose();
       this.originals.clear();
     }
-    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, { walnut: this.walnut });
+    const looks = looksFor(input.finish, input.material, this.textures);
+    this.seeThrough = looks.seeThrough;
+    this.enc = buildEnclosure(input.geo, input.boxType, input.count, input.prCount, input.driverDepth, looks);
     this.scene.add(this.enc.group);
     this.buildDims(input.geo);
   }
@@ -232,7 +242,7 @@ export class Engine {
     };
     for (const m of enc.shell) swap(m, xray ? this.ghost : ir ? this.irShell : null);
     enc.edges.visible = xray;
-    enc.internals.visible = xray;
+    enc.internals.visible = xray || (this.seeThrough && !ir);
     const parts = (d: DriverParts) => [
       [d.cone, this.irParts.cone], [d.cap, this.irParts.cap], [d.surround, this.irParts.surround], [d.frame, this.irParts.frame], [d.magnet, this.irParts.magnet]
     ] as [THREE.Mesh, THREE.Material][];
@@ -269,7 +279,7 @@ export class Engine {
       }
       if (this.vibe.mesh.visible) {
         const side: -1 | 1 = this.camera.position.x < 0 ? -1 : 1;
-        this.vibe.update(inp.geo, side, 2 * Math.PI * inp.f11 * this.tPhys);
+        this.vibe.update(inp.geo, side, 2 * Math.PI * inp.f11 * this.tPhys, inp.vibAmp);
       }
       this.irClock += dt;
       if (inp.thermal && this.irClock > 0.25) {
@@ -300,7 +310,7 @@ export class Engine {
       const mat = m.material as THREE.Material | THREE.Material[] | undefined;
       (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach((x) => x.dispose());
     });
-    [this.walnut, this.smokeTex].forEach((t) => t.dispose());
+    [...this.textures.values(), this.smokeTex].forEach((t) => t.dispose());
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();

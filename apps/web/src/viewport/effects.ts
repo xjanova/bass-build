@@ -188,7 +188,7 @@ export class PanelVibe {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array((this.N + 1) * (this.N + 1) * 3), 3));
     this.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false }));
   }
-  update(geo: BoxGeometry, side: -1 | 1, phase: number): void {
+  update(geo: BoxGeometry, side: -1 | 1, phase: number, amp = 1): void {
     const g = this.mesh.geometry as THREE.PlaneGeometry;
     const pos = g.getAttribute('position') as THREE.BufferAttribute;
     const col = g.getAttribute('color') as THREE.BufferAttribute;
@@ -196,7 +196,7 @@ export class PanelVibe {
     for (let j = 0; j <= this.N; j++) for (let i = 0; i <= this.N; i++) {
       const idx = j * (this.N + 1) + i;
       const u = i / this.N, v = j / this.N;
-      const w = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * Math.sin(phase);
+      const w = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * Math.sin(phase) * amp;
       pos.setXYZ(idx, side * (geo.wx / 2 + 0.003 + A * w), v * geo.hx, (u - 0.5) * geo.dx);
       const k = Math.abs(w);
       if (w >= 0) col.setXYZ(idx, 0.65 * k + 0.1, 0.55 * k + 0.05, 0.98 * k + 0.15);

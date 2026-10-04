@@ -1,7 +1,8 @@
 import type { Curves } from '@bassbuild/physics';
 import { create } from 'zustand';
 import type { Source } from '../data/api';
-import type { DriverDto, PanelMaterialDto } from '../data/types';
+import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
+import type { Finish } from '../viewport/finishes';
 
 export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
@@ -23,6 +24,8 @@ export interface Design {
   prCount: number;
   ql: number;
   stuffing: number; // 0..1
+  fillKey: string; // damping material in the box (damping_materials.key)
+  cldKey: string; // damping sheet on the walls, or 'none'
   count: number;
   wiring: 'parallel' | 'series';
   watts: number;
@@ -30,22 +33,28 @@ export interface Design {
   subsonicHz: number;
   materialKey: string;
   thicknessMm: number;
+  finish: Finish;
 }
 
 export const DEFAULT_DESIGN: Design = {
   boxType: 'vented', vbL: 100, fbHz: 32, portAreaCm2: 240,
   vfL: 40, fb2Hz: 60, port2AreaCm2: 180,
   prSdCm2: 855, prMassG: 400, prCmsMmN: 0.3, prCount: 1, // ≈30 Hz in 100 L
-  ql: 10, stuffing: 0, count: 1, wiring: 'parallel',
+  ql: 10, stuffing: 0, fillKey: 'polyfill', cldKey: 'none', count: 1, wiring: 'parallel',
   watts: 1000, subsonic: true, subsonicHz: 25,
-  materialKey: 'mdf', thicknessMm: 18
+  materialKey: 'mdf', thicknessMm: 18, finish: 'walnut'
 };
+
+export interface Ghost { curves: Curves; label: string }
+export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
+export type Backend = 'webgpu' | 'webgl' | 'none';
 
 interface State {
   mode: Mode;
   drivers: DriverDto[];
   driversSource: Source | 'loading';
   materials: PanelMaterialDto[];
+  damping: DampingMaterialDto[];
   driverId: number | null;
   design: Design;
   genHz: number;
@@ -53,11 +62,14 @@ interface State {
   playing: boolean;
   overlays: Record<OverlayId, boolean>;
   chart: ChartId;
-  ghost: Curves | null;
+  ghost: Ghost | null;
   tool: string;
+  backend: Backend | null;
+  toast: Toast | null;
   setMode: (m: Mode) => void;
   setDrivers: (d: DriverDto[], source: Source) => void;
   setMaterials: (m: PanelMaterialDto[]) => void;
+  setDamping: (m: DampingMaterialDto[]) => void;
   selectDriver: (id: number) => void;
   patchDesign: (p: Partial<Design>) => void;
   setGen: (hz: number) => void;
@@ -65,15 +77,21 @@ interface State {
   togglePlay: () => void;
   toggleOverlay: (id: OverlayId) => void;
   setChart: (c: ChartId) => void;
-  setGhost: (c: Curves | null) => void;
+  setGhost: (g: Ghost | null) => void;
   setTool: (t: string) => void;
+  setBackend: (b: Backend) => void;
+  showToast: (text: string, action?: Toast['action']) => void;
+  dismissToast: () => void;
 }
+
+let toastId = 0;
 
 export const useApp = create<State>((set) => ({
   mode: 'lab',
   drivers: [],
   driversSource: 'loading',
   materials: [],
+  damping: [],
   driverId: null,
   design: DEFAULT_DESIGN,
   genHz: 40,
@@ -83,6 +101,8 @@ export const useApp = create<State>((set) => ({
   chart: 'spl',
   ghost: null,
   tool: 'select',
+  backend: null,
+  toast: null,
   setMode: (mode) => set({ mode }),
   setDrivers: (drivers, source) => set((s) => ({
     drivers,
@@ -91,7 +111,9 @@ export const useApp = create<State>((set) => ({
     driverId: drivers.some((d) => d.id === s.driverId) ? s.driverId : (drivers.find((d) => d.model === 'SPL-15') ?? drivers[0])?.id ?? null
   })),
   setMaterials: (materials) => set({ materials }),
-  selectDriver: (driverId) => set({ driverId, ghost: null }),
+  setDamping: (damping) => set({ damping }),
+  // The comparison curve survives a driver change on purpose: comparing drivers is what it is for.
+  selectDriver: (driverId) => set({ driverId }),
   patchDesign: (p) => set((s) => ({ design: { ...s.design, ...p } })),
   setGen: (genHz) => set({ genHz }),
   setSlow: (slow) => set({ slow }),
@@ -99,5 +121,8 @@ export const useApp = create<State>((set) => ({
   toggleOverlay: (id) => set((s) => ({ overlays: { ...s.overlays, [id]: !s.overlays[id] } })),
   setChart: (chart) => set({ chart }),
   setGhost: (ghost) => set({ ghost }),
-  setTool: (tool) => set({ tool })
+  setTool: (tool) => set({ tool }),
+  setBackend: (backend) => set({ backend }),
+  showToast: (text, action) => set({ toast: { id: ++toastId, text, action } }),
+  dismissToast: () => set({ toast: null })
 }));

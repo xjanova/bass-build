@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   AIR_20C, abs, butterworthHighpass, checkConsistency, completeDriver, driverInputFromDto,
-  referenceEfficiency, simulate, solveAt, type Driver, type SystemSpec
+  referenceEfficiency, simulate, solveAt, suggestAlignment, type Driver, type SystemSpec
 } from '../src';
 
 const rc2 = AIR_20C.rho * AIR_20C.c * AIR_20C.c;
@@ -170,5 +170,68 @@ describe('subsonic filter', () => {
       const h = butterworthHighpass(25, order)(2 * Math.PI * 25);
       expect(20 * Math.log10(abs(h))).toBeCloseTo(-3.01, 1);
     }
+  });
+});
+
+describe('box filling', () => {
+  const sealed = (extra: object) => simulate({ driver: ideal, box: { type: 'sealed', vb: 0.05, ...extra }, drive: { volts: 2.83 } }, { fMin: 10, fMax: 500, points: 400 });
+
+  it('lowers fc as the fill makes the box look bigger', () => {
+    const res = sealed({ stuffing: 1, stuffingGain: 0.25 });
+    // α = Vas / (Vb · 1.25)
+    near(res.info.fc!, ideal.fs * Math.sqrt(1 + ideal.vas / (0.05 * 1.25)), 1e-9);
+    expect(res.info.fc!).toBeLessThan(sealed({}).info.fc!);
+  });
+
+  it('absorption lowers the impedance peak without adding output', () => {
+    const plain = sealed({});
+    const damped = sealed({ qa: 4 });
+    expect(Math.max(...damped.curves.impedance)).toBeLessThan(Math.max(...plain.curves.impedance) - 1);
+    // Well above fc the box no longer matters, and the absorber must not radiate.
+    const hi = plain.curves.freqs.findIndex((f) => f > 300);
+    expect(Math.abs(damped.curves.spl[hi] - plain.curves.spl[hi])).toBeLessThan(0.1);
+  });
+});
+
+describe('suggested alignments', () => {
+  const drive = { watts: 100 };
+  const run = (type: Parameters<typeof suggestAlignment>[0]['type'], driver: Driver = ideal) => {
+    const a = suggestAlignment({ driver, type, ...drive });
+    return { a, res: simulate({ driver, box: a.box, drive }, { fMin: 10, fMax: 500, points: 400 }) };
+  };
+
+  it('sealed lands on Qtc 0.707', () => {
+    const { res } = run('sealed');
+    near(res.info.qtc!, 0.707, 0.005);
+  });
+
+  it('vented follows Keele and keeps the port air below the target', () => {
+    const { a, res } = run('vented');
+    if (a.box.type !== 'vented') throw new Error('expected a vented box');
+    near(a.box.vb, 15 * ideal.qts ** 2.87 * ideal.vas, 1e-9);
+    near(a.box.fb, 0.42 * ideal.fs * ideal.qts ** -0.9, 1e-9);
+    expect(res.metrics.portVelocityMax.ms).toBeLessThanOrEqual(17);
+    expect(a.flags).toEqual([]);
+  });
+
+  it('passive radiators tune near the vented Fb and reach a similar F3', () => {
+    const pr = run('pr');
+    const vented = run('vented');
+    if (vented.a.box.type !== 'vented') throw new Error('expected a vented box');
+    near(pr.res.metrics.tuningDip!.f, vented.a.box.fb, 0.12);
+    near(pr.res.metrics.f3!, vented.res.metrics.f3!, 0.12);
+  });
+
+  it('4th-order band-pass is flat between two corners', () => {
+    const { res } = run('bp4');
+    expect(res.metrics.f3).not.toBeNull();
+    expect(res.metrics.f3High!).toBeGreaterThan(res.metrics.f3! * 2);
+    expect(res.metrics.splMax - res.metrics.referenceSpl).toBeLessThan(1);
+  });
+
+  it('flags a high-Qts driver instead of pretending it suits every box', () => {
+    const floppy = completeDriver({ fs: 30, qts: 0.7, qms: 6, vas: 0.1, re: 4, sd: 0.05, le: 0 });
+    expect(run('sealed', floppy).a.flags).toContain('qts-high-for-sealed');
+    expect(run('vented', floppy).a.flags).toContain('qts-high-for-vented');
   });
 });
