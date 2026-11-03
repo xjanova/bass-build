@@ -1,5 +1,6 @@
 import { abs, clamp, cos, float, fract, length, max, mix, positionWorld, sin, smoothstep, step, uniform, vec3 } from 'three/tsl';
 import * as THREE from 'three/webgpu';
+import { bays } from '../sim/layout';
 import type { BoxGeometry } from '../sim/model';
 
 /**
@@ -187,7 +188,8 @@ export class Balloon {
 /** First bending mode (1,1) of the side panel, displacement greatly exaggerated. */
 export class PanelVibe {
   readonly mesh: THREE.Mesh;
-  private readonly N = 14;
+  // Fine enough for one hump in each bay between up to three braces.
+  private readonly N = 32;
   constructor() {
     const geo = new THREE.PlaneGeometry(1, 1, this.N, this.N);
     geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array((this.N + 1) * (this.N + 1) * 3), 3));
@@ -198,14 +200,27 @@ export class PanelVibe {
     const pos = g.getAttribute('position') as THREE.BufferAttribute;
     const col = g.getAttribute('color') as THREE.BufferAttribute;
     const A = 0.02;
-    for (let j = 0; j <= this.N; j++) for (let i = 0; i <= this.N; i++) {
-      const idx = j * (this.N + 1) + i;
-      const u = i / this.N, v = j / this.N;
-      const w = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * Math.sin(phase) * amp;
-      pos.setXYZ(idx, side * (geo.wx / 2 + 0.003 + A * w), v * geo.hx, (u - 0.5) * geo.dx);
-      const k = Math.abs(w);
-      if (w >= 0) col.setXYZ(idx, 0.65 * k + 0.1, 0.55 * k + 0.05, 0.98 * k + 0.15);
-      else col.setXYZ(idx, 0.18 * k + 0.05, 0.83 * k + 0.08, 0.75 * k + 0.1);
+    const t = geo.t;
+    const held = geo.braces?.sideHeld ?? [];
+    for (let j = 0; j <= this.N; j++) {
+      const v = j / this.N;
+      // Braces hold the panel along lines: each bay between them bends on its own, neighbours in
+      // opposite phase (as the first mode of a plate over several supports does).
+      const outer = geo.dx + (geo.dxTop - geo.dx) * v;
+      const row = bays(held, outer - 2 * t);
+      for (let i = 0; i <= this.N; i++) {
+        const idx = j * (this.N + 1) + i;
+        const u = i / this.N;
+        const z = u * outer - t;
+        const bay = row.findIndex(([a, b]) => z >= a && z <= b);
+        const along = bay >= 0 ? Math.sin((Math.PI * (z - row[bay][0])) / Math.max(1e-6, row[bay][1] - row[bay][0])) * (bay % 2 ? -1 : 1) : 0;
+        const w = along * Math.sin(Math.PI * v) * Math.sin(phase) * amp;
+        // Spread over the side panel at each height (a wedge's side narrows towards the top).
+        pos.setXYZ(idx, side * (geo.wx / 2 + 0.003 + A * w), v * geo.hx, geo.dx / 2 - u * (geo.dx + (geo.dxTop - geo.dx) * v));
+        const k = Math.abs(w);
+        if (w >= 0) col.setXYZ(idx, 0.65 * k + 0.1, 0.55 * k + 0.05, 0.98 * k + 0.15);
+        else col.setXYZ(idx, 0.18 * k + 0.05, 0.83 * k + 0.08, 0.75 * k + 0.1);
+      }
     }
     pos.needsUpdate = true;
     col.needsUpdate = true;

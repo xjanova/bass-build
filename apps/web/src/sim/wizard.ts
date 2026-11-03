@@ -247,7 +247,7 @@ function evaluate(input: WizardInput, r: Recipe): Omit<Candidate, 'score' | 'str
     id: r.id, type: r.type, label, detail, patch: { ...s.patch, boxType: r.type }, flags: s.flags,
     curves: { freqs: f, spl, maxSpl, lab: c },
     m: {
-      netL, outerL: geo.wx * geo.hx * geo.dx * 1000,
+      netL, outerL: geo.outerL,
       dimsCm: [geo.wx * 100, geo.hx * 100, geo.dx * 100].map((v) => Math.round(v)) as [number, number, number],
       f3, f10, qtc: d.boxType === 'sealed' || d.boxType === 'isobaric' ? qtc : null, uneven, loud, peak, limitedBy, gdCycles,
       portMs: res.metrics.portVelocityMax.ms, watts: d.watts, drivers: d.boxType === 'isobaric' ? 2 : d.count

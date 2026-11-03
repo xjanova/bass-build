@@ -135,3 +135,37 @@ export function nearestBuildable(d: Design, ctx: BuildCtx): { field: LimitedFiel
 export function buildableChoices<K extends keyof Design>(d: Design, ctx: BuildCtx, key: K, values: Design[K][]): Map<Design[K], BuildProblem[]> {
   return new Map(values.map((v) => [v, problemsFor({ ...d, [key]: v }, ctx)]));
 }
+
+/**
+ * When bracing is all that stops a design: the fewest braces to take out so it builds (fewer
+ * planes, else none). The volume and tuning stay as they are, so the sound does not change only
+ * to make room for a brace. null when something else is wrong too, or nothing helps.
+ */
+export function fitBraces(d: Design, ctx: BuildCtx): Partial<Design> | null {
+  const now = problemsFor(d, ctx);
+  if (!now.length || now.some((p) => p.code !== 'brace') || d.braceKind === 'none') return null;
+  const tries: Partial<Design>[] = [
+    ...Array.from({ length: Math.max(0, Math.round(d.braceCount) - 1) }, (_, i) => ({ braceCount: Math.round(d.braceCount) - 1 - i })),
+    { braceKind: 'none' }
+  ];
+  return tries.find((p) => !problemsFor({ ...d, ...p }, ctx).length) ?? null;
+}
+
+/**
+ * When only the hardware stops a design (no room for the terminal or the handles): the smallest
+ * change of hardware that builds — binding posts for a cup, bar handles for recessed ones, else no
+ * handles — keeping the box and its sound. null when something else is wrong too, or nothing helps.
+ */
+export function fitHardware(d: Design, ctx: BuildCtx): Partial<Design> | null {
+  const now = problemsFor(d, ctx);
+  if (!now.length || now.some((p) => p.code !== 'terminal' && p.code !== 'handles')) return null;
+  const term: Partial<Design>[] = now.some((p) => p.code === 'terminal') && d.terminal !== 'posts' ? [{ terminal: 'posts' }] : [{}];
+  const hand: Partial<Design>[] = now.some((p) => p.code === 'handles')
+    ? (d.handles === 'recessed' ? [{ handles: 'surface' }, { handles: 'none' }] : [{ handles: 'none' }])
+    : [{}];
+  for (const a of term) for (const b of hand) {
+    const p = { ...a, ...b };
+    if (Object.keys(p).length && !problemsFor({ ...d, ...p }, ctx).length) return p;
+  }
+  return null;
+}

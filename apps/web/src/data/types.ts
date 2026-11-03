@@ -64,6 +64,10 @@ export interface PanelMaterialDto {
   poisson: number | null;
   lossFactor: number | null;
   thicknessesMm: number[];
+  /** Stock sheet size and price, when known. */
+  sheetWMm?: number | null;
+  sheetHMm?: number | null;
+  pricePerSheetThb?: number | null;
 }
 
 export interface DampingMaterialDto {

@@ -3,9 +3,10 @@ import type { DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
 import type { Conf, ResultKey } from './confidence';
 import {
-  ampLimits, ampOutputOhms, AWG_MM2, COPPER_RHO, isDvc, MAX_PORT_MS, measuredWiring, ratedWatts, thermalAt, wireOhms,
+  ampLimits, ampOutputOhms, AWG_MM2, BRACE_BARS_TH, BRACE_TH, COPPER_RHO, isDvc, MAX_PORT_MS, measuredWiring, ratedWatts, thermalAt, wireOhms,
   type BoxGeometry, type WallDamping
 } from './model';
+import { DOWEL_D, freeSpan } from './layout';
 
 /**
  * The formula notebook: every headline number with the formula behind it, the values put in,
@@ -37,7 +38,7 @@ export interface NotebookCtx {
   geo: BoxGeometry | null;
   material: PanelMaterialDto | undefined;
   wall: WallDamping;
-  modes: { side: number; back: number };
+  modes: { side: number; back: number; top: number };
   max: MaxOutput | null;
   fill: FillSpec;
   conf: Record<ResultKey, Conf>;
@@ -215,13 +216,36 @@ export function buildEntries(ctx: NotebookCtx): Entry[] {
     const rho = material?.densityKgM3 ?? 750;
     const nu = material?.poisson ?? 0.25;
     const D = (e * geo.t ** 3) / (12 * (1 - nu * nu));
+    // The side's free span along the depth: the whole (mean) depth, or the longest bay between braces.
+    const br = geo.braces;
+    const depth = (geo.di + geo.diTop) / 2;
+    const a = freeSpan(br.sideHeld, depth);
+    const mmN = (m: number) => num(m * 1000, 3);
+    // Inside boards (a band-pass divider, an isobaric inner baffle) are not counted as supports.
+    const inner = d.boxType === 'isobaric' ? 'แผงยึดลำโพงตัวใน' : d.boxType === 'bp4' || d.boxType === 'bp6' ? 'แผ่นกั้นห้อง' : null;
+    const held = br.sideHeld.length
+      ? `${BRACE_TH[br.kind]} ${br.zs.length} ชุด ยึดผนังข้างเป็นเส้น แบ่งความลึก ${mmN(depth)} มม. ช่วงยาวสุด a = ${mmN(a)} มม. (วางห่างเท่ากัน ≈ ความลึก/(n+1) = ${mmN(depth / (br.zs.length + 1))} มม. ถ้าไม่ต้องหลบของในตู้)`
+      : br.zs.length && br.barsOnly
+        ? `${BRACE_BARS_TH} ${br.zs.length} ชุด ยึดฝาบน ไม่ยึดผนังข้าง (ผนังข้างมี PR) a = ความลึกทั้งหมด ${mmN(depth)} มม.`
+        : `ไม่มีโครงค้ำ a = ความลึกทั้งหมด ${mmN(depth)} มม.`;
+    const heldNote = inner ? ` · ${inner}ไม่นับเป็นขอบยึด (ประมาณทางต่ำไว้ก่อน)` : '';
     add({
       id: 'panelSide', group: g4, title: 'โหมดแรกของผนังข้าง f(1,1)',
-      formula: 'f11 = (π/2) · √(D / (ρ·h)) · (1/a² + 1/b²) ,  D = E·h³ / (12·(1 − ν²))',
-      subst: `D = ${num(e)} × ${num(geo.t)}³ / (12 × (1 − ${num(nu)}²)) = ${num(D)} N·m · f11 = ${num(modes.side)} Hz${wall.f11Factor < 1 ? ` (แผ่นซับแรงสั่นถ่วง ×${num(wall.f11Factor, 3)})` : ''}`,
-      value: modes.side, unit: 'Hz', ref: REF.leissa, note: `ผนังหลังซึ่งกว้างสุด ≈ ${num(modes.back)} Hz · ${material?.nameTh ?? material?.name ?? 'MDF'} E ${num(e / 1e9)} GPa ρ ${rho} kg/m³`, conf: conf.panelModes
+      formula: 'f11 = (π/2) · √(D / (ρ·h)) · (1/a² + 1/b²) ,  D = E·h³ / (12·(1 − ν²)) ,  a = ช่วงว่างตามความลึก (ระหว่างโครงค้ำ) ,  b = สูงภายใน',
+      subst: `D = ${num(e)} × ${num(geo.t)}³ / (12 × (1 − ${num(nu)}²)) = ${num(D)} N·m · ${held}${heldNote} · b = ${mmN(geo.hi)} มม. · f11 = ${num(modes.side)} Hz${wall.f11Factor < 1 ? ` (แผ่นซับแรงสั่นถ่วง ×${num(wall.f11Factor, 3)})` : ''}`,
+      value: modes.side, unit: 'Hz', ref: REF.leissa,
+      note: `โครงค้ำแต่ละชุดติดกาวกับผนัง จึงเหมือนขอบยึดเพิ่ม ผนังยิ่งสั้นยิ่งแข็ง${br.kind === 'dowel' ? ' · เดือยยึดเป็นจุด คิดเหมือนเส้นยึด ของจริงต่ำกว่านี้ได้ และเดือยวิ่งข้างถึงข้าง ไม่ช่วยฝาบน' : ''} · ฝาบน ≈ ${num(modes.top)} Hz · ผนังหลังซึ่งกว้างสุด ≈ ${num(modes.back)} Hz (โครงค้ำขนานผนังหลัง จึงไม่ช่วยผนังหลัง) · ${material?.nameTh ?? material?.name ?? 'MDF'} E ${num(e / 1e9)} GPa ρ ${rho} kg/m³`,
+      conf: conf.panelModes
     });
-    add({ id: 'weight', group: g4, title: 'น้ำหนักตู้เปล่า', formula: 'm = Aแผ่นรวม · t · ρ (+ แผ่นซับแรงสั่น)', subst: `= ${num(geo.panelAreaM2)} × ${num(geo.t)} × ${rho}${wall.massKgM2 ? ` + ${num(geo.panelAreaM2 * 0.8)} × ${num(wall.massKgM2)}` : ''} = ${num(geo.weightKg)} กก.`, value: geo.weightKg, unit: 'กก.', ref: 'พื้นที่แผ่น = ผนัง 6 ด้าน + แผ่นท่อ + โครงค้ำราวครึ่งแผ่น + แผ่นกั้นภายใน', conf: conf.size });
+    const vol = geo.volume;
+    const less = ([[vol.driversL, 'ลำโพง'], [vol.portsL, 'ท่อ'], [vol.boardsL, 'แผ่นกั้น'], [vol.tunnelL, 'อุโมงค์'], [vol.bracesL, br.kind === 'dowel' ? 'เดือยค้ำ' : 'โครงค้ำ'], [vol.terminalL, 'ขั้วต่อ'], [vol.handlesL, 'มือจับฝัง'], [vol.extraL, 'บล็อก']] as [number, string][]).filter(([x]) => x >= 0.05);
+    add({
+      id: 'netVolume', group: g4, title: 'ปริมาตรสุทธิจากขนาดตู้',
+      formula: geo.shape === 'wedge' ? 'Vสุทธิ = Wi · Hi · (Dล่าง + Dบน)/2 − Vลำโพง − Vท่อ − Vโครงค้ำ − …' : 'Vสุทธิ = Wi · Hi · Di − Vลำโพง − Vท่อ − Vโครงค้ำ − …',
+      subst: `= ${num(geo.wi)} × ${num(geo.hi)} × ${geo.shape === 'wedge' ? `(${num(geo.di)} + ${num(geo.diTop)})/2` : num(geo.di)} ม.³ = ${num(vol.shellL)} L${less.map(([x, k]) => ` − ${num(x)} (${k})`).join('')}${geo.shortL >= 0.05 ? ` + ${num(geo.shortL)} (ขาด)` : ''} = ${num(vol.netL)} L`,
+      value: vol.netL, unit: 'L', ref: `ขนาดภายใน = ภายนอก − ความหนาแผ่น 2 ด้าน · ${br.kind === 'window' ? `${br.barsOnly ? BRACE_BARS_TH : BRACE_TH.window} ${br.count} ชุด${br.window ? ` ขอบกว้าง ${num(br.window.bar * 1000, 2)} มม.` : ''}` : br.kind === 'dowel' ? `เดือย Ø ${num(DOWEL_D * 1000, 2)} มม. ${br.count} ชุด ชุดละ ${br.dowelYs.length} ท่อน` : 'ไม่มีโครงค้ำ'} · ท่อคิดทั้งอากาศในท่อและแผ่นที่ทำท่อ${vol.terminalL >= 0.05 || vol.handlesL >= 0.05 ? ' · ขั้วต่อและมือจับฝังคิดจากขนาดทั่วไป (ประมาณ) ส่วนที่ลึกเกินความหนาแผง' : ''}`, conf: conf.size
+    });
+    add({ id: 'weight', group: g4, title: 'น้ำหนักตู้เปล่า', formula: 'm = Aแผ่นรวม · t · ρ (+ แผ่นซับแรงสั่น)', subst: `= ${num(geo.panelAreaM2)} × ${num(geo.t)} × ${rho}${wall.massKgM2 ? ` + ${num(geo.panelAreaM2 * 0.8)} × ${num(wall.massKgM2)}` : ''} = ${num(geo.weightKg)} กก.`, value: geo.weightKg, unit: 'กก.', ref: `พื้นที่แผ่น = ผนัง 6 ด้าน + แผ่นท่อ${br.kind === 'window' ? (br.barsOnly ? ` + คานค้ำ 2 คาน × ${br.count} ชุด` : ` + โครงค้ำชุดละราวครึ่งแผ่น × ${br.count}`) : ''} + แผ่นกั้นภายใน${br.kind === 'dowel' ? ' (+ เดือยไม้เนื้อแข็ง ความหนาแน่นประมาณ 650 kg/m³)' : ''}`, conf: conf.size });
   }
   if (dr && dto?.peW) {
     const per = d.watts / n;

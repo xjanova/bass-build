@@ -5,6 +5,7 @@ import { sanitizeDesign, type Slot } from './data/compare';
 import { resultConfidence } from './sim/confidence';
 import type { NotebookCtx } from './sim/formulas';
 import { driverFromDto, fillFor, maxOutputFor, mountOf, panelModes, ratedWatts, simulate, suggestDesign, sizeBox, solveAt, summarize, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
+import { rowRange } from './sim/layout';
 import { LAB_GRID } from './sim/wizard';
 import { DEFAULT_DESIGN, useApp, type BoxType } from './state/store';
 import { ChartDock } from './ui/ChartDock';
@@ -14,6 +15,7 @@ import { Hud, IrPanel, LeftPanel, OverlayBar, ToastHost, TopBar } from './ui/Pan
 import { RightPanel } from './ui/RightPanel';
 import { LibraryView } from './ui/Library';
 import { WizardView } from './ui/Wizard';
+import { BlueprintView } from './ui/Blueprint';
 import { Splash, TeaserDialog } from './ui/Showcase';
 import type { EngineInput, Osc } from './viewport/Engine';
 import { Viewport } from './viewport/Viewport';
@@ -46,8 +48,24 @@ export function App() {
   useEffect(() => {
     const st = useApp.getState();
     if (st.design !== DEFAULT_DESIGN || !drv.ok || !dto) return;
-    st.patchDesign(suggestDesign(st.design, drv.driver, dto, st.damping).patch);
+    // Not an undo step: undoing it would bring back the default box, which is then sized again.
+    st.patchDesign(suggestDesign(st.design, drv.driver, dto, st.damping).patch, { history: false });
   }, [drv, dto]);
+
+  // Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) step through the design's history.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      // Typing in a text box keeps the browser's own undo.
+      if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && (el as HTMLInputElement).type !== 'range') || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); useApp.getState().undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); useApp.getState().redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const res = useMemo(() => (spec ? simulate(spec, LAB_GRID) : null), [spec]);
   const material = materials.find((m) => m.key === d.materialKey);
   const wall = useMemo(() => wallDamping(d, material, damping), [d, material, damping]);
@@ -55,7 +73,7 @@ export function App() {
   const warnings = useMemo(() => (res && geo ? warningsFor(d, dto, res, geo) : []), [d, dto, res, geo]);
   const max = useMemo(() => (res ? maxOutputFor(d, dto, res) : null), [d, dto, res]);
   const conf = useMemo(() => resultConfidence(d, dto, res, geo), [d, dto, res, geo]);
-  const modes = geo ? panelModes(geo, material, wall.f11Factor) : { side: 0, back: 0 };
+  const modes = geo ? panelModes(geo, material, wall.f11Factor) : { side: 0, back: 0, top: 0 };
   const f11 = modes.side;
 
   // Burn-in clock for the infrared view: runs only while IR is on, restarts when it is switched back
@@ -135,7 +153,7 @@ export function App() {
   };
   const nbCtx = useMemo<NotebookCtx | null>(() => (s.notebook ? {
     d, dto, driver: drv.ok ? drv.driver : null, res, geo, material, wall, modes, max, fill: fillFor(d, damping), conf
-  } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
+  } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, modes.top, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The selected driver as measured and photographed (generic proportions where it was not).
   const driverLook = useDriverLook(dto);
@@ -147,10 +165,10 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, geo.braces.kind, geo.braces.zs.join(','), geo.braces.dowelYs.join(','), geo.terminal.kind, geo.terminal.panel, geo.terminal.x, geo.terminal.y, geo.terminal.z, geo.handles?.kind ?? 'none', geo.handles?.z ?? 0, geo.handles?.y ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
-      mode: mode === 'library' || mode === 'wizard' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
+      mode: mode === 'library' || mode === 'wizard' || mode === 'blueprint' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
       osc: osc?.osc ?? null,
       portPeak: res?.metrics.portVelocityMax.ms ?? 0,
       splAtGen: osc?.spl ?? 0,
@@ -164,21 +182,25 @@ export function App() {
         fromPort: d.boxType === 'bp4' || d.boxType === 'bp6'
       },
       fill,
-      driverLook: driverLook.look
+      driverLook: driverLook.look,
+      editRow: mode === 'design' && s.tool === 'select' && d.boxType !== 'bp4' && d.boxType !== 'bp6',
+      rowRange: rowRange(geo, d.boxType, d.count)
     };
-  }, [geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib, driverLook]);
+  }, [s.tool, geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib, driverLook]);
 
   return (
     <div className="app">
       <Viewport input={input} />
       <TopBar modelCode={modelCode} />
       {s.driversSource === 'offline' && <div className="offline">ไม่ได้เชื่อมเซิร์ฟเวอร์ C# · ใช้ข้อมูลตัวอย่างในเครื่อง</div>}
-      {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : <>
+      {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : mode === 'blueprint' ? (
+        <BlueprintView d={d} geo={geo} dto={dto} material={material} damping={damping} modelCode={modelCode} warnings={warnings} />
+      ) : <>
         <LeftPanel geo={geo} modelCode={modelCode} />
-        <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} />
+        <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} geo={geo} />
         <Hud modes={modes} wall={wall} vib={vib} conf={conf} />
         {irOn && <IrPanel thermal={thermal} speedup={IR_SPEEDUP} conf={conf.thermal} />}
-        <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม</div>
+        <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม{mode === 'design' && d.boxType !== 'bp4' && d.boxType !== 'bp6' ? ' · ลากลำโพงเพื่อย้ายตำแหน่ง' : ''}</div>
         <OverlayBar geo={geo} />
         {res && max && <ChartDock res={res} max={max} geo={geo} xmax={dto?.xmaxMm ?? null} watts={d.watts} conf={conf} makeSlot={makeSlot} loadSlot={loadSlot} />}
       </>}

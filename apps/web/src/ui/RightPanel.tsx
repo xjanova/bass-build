@@ -1,14 +1,33 @@
 import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
-import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
-import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type Warning } from '../sim/model';
-import { useApp, type BoxType, type Design } from '../state/store';
+import { buildableChoices, fitBraces, fitHardware, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
+import { braceCountOf, DOWEL_D, HANDLE_SPEC, MAX_BRACES, rowProblem, rowRange, TERMINAL_SPEC } from '../sim/layout';
+import { TUBES, tubeOf } from '../data/hardware';
+import { ampLimits, AWG_MM2, BRACE_TH, HANDLE_TH, TERMINAL_TH, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wallDamping, wireOhms, panelModes, type BoxGeometry, type Warning } from '../sim/model';
+import { useApp, type BoxType, type BraceKind, type Design, type HandleKind, type TerminalKind } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
+import { NumField } from './NumField';
+import { ShapeSection } from './ShapeSection';
 
 const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์'], ['pa', 'PA / รถแห่'], ['woofer', 'วูฟเฟอร์'], ['fullrange', 'ฟูลเรนจ์'], ['mid', 'เสียงกลาง'], ['other', 'อื่น ๆ'], ['sample', 'ตัวอย่าง (ไม่ใช่สินค้าจริง)']];
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
+const BRACES: [BraceKind, string, string][] = [
+  ['none', 'ไม่มี', 'ไม่มีโครงค้ำ ผนังข้างสั่นได้ทั้งแผ่น'],
+  ['window', 'แบบหน้าต่าง', 'แผ่นเจาะช่องกลาง ขอบ 5 ซม. ยึดผนังข้างทั้งสองและฝาบน (ตู้ที่มี PR ข้างตู้ใช้คานบน-ล่างแทน ยึดเฉพาะฝาบน)'],
+  ['dowel', 'เดือย', `ไม้กลม Ø ${DOWEL_D * 1000} มม. ข้างถึงข้าง ยึดเฉพาะผนังข้าง ใช้ที่น้อยกว่า`]
+];
+const mmS = (m: number) => Math.round(m * 1000);
+const TERMINALS: [TerminalKind, string, string][] = [
+  ['cup', 'แบบถ้วย', `ขั้วต่อลำโพงแบบถ้วย 2 ทาง เจาะช่องประมาณ ${mmS(TERMINAL_SPEC.cup.hole![0])} × ${mmS(TERMINAL_SPEC.cup.hole![1])} มม.`],
+  ['posts', 'หลักคู่', `binding post 2 ตัว รู Ø ${mmS(TERMINAL_SPEC.posts.postD)} มม. ห่างกัน ${mmS(TERMINAL_SPEC.posts.pitch)} มม. เล็กกว่าแบบถ้วย`]
+];
+const HANDLES: [HandleKind, string, string][] = [
+  ['none', 'ไม่มี', 'ไม่ติดมือจับ'],
+  ['surface', 'ติดผิว', `มือจับบาร์ยาวราว ${mmS(HANDLE_SPEC.surface.plate[0])} มม. ยึดสกรูข้างละชิ้น ไม่ต้องเจาะช่อง`],
+  ['recessed', 'ฝัง', `ถ้วยมือจับฝังผนังข้าง เจาะช่องราว ${mmS(HANDLE_SPEC.recessed.hole[0])} × ${mmS(HANDLE_SPEC.recessed.hole[1])} มม. กินที่ในตู้`]
+];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
 /** The parts of a slider's range outside its buildable stretches. */
@@ -89,25 +108,6 @@ export function DriverOptions({ drivers }: { drivers: DriverDto[] }) {
 
 const WARN_COLOR = { bad: '#f0abfc', warn: '#fcd34d', info: '#67e8f9' } as const;
 
-/**
- * A number typed freely and applied when it is a valid value in range (on every keystroke that
- * makes it one), so a half-typed "1" on the way to "1500" never snaps back.
- */
-function NumField({ id, label, value, min, max, unit, onChange }: { id: string; label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => { setText((t) => (Number(t.replace(',', '.')) === value ? t : String(value))); }, [value]);
-  const v = Number(text.replace(',', '.'));
-  const ok = text.trim() !== '' && Number.isFinite(v) && v >= min && v <= max;
-  return (
-    <label className={`numfield${ok ? '' : ' bad'}`} htmlFor={id} title={ok ? undefined : `ใส่ ${min}–${max} ${unit}`}>
-      <input id={id} inputMode="decimal" aria-label={label} aria-invalid={!ok} value={text}
-        onChange={(e) => { setText(e.target.value); const n = Number(e.target.value.replace(',', '.')); if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onChange(n); }}
-        onBlur={() => { if (!ok) setText(String(value)); }} />
-      <span>{unit}</span>
-    </label>
-  );
-}
-
 const STD_OHMS = [0.5, 1, 2, 4, 8, 16];
 const DAMPING = [20, 50, 100, 200, 500, 1000];
 const AWG = Object.keys(AWG_MM2).map(Number).sort((a, b) => b - a);
@@ -133,8 +133,8 @@ const closest = (options: number[], v: number) => options.reduce((a, b) => (Math
 const thicknessFor = (options: number[], v: number) =>
   options.length && v >= Math.min(...options) && v <= Math.max(...options) ? closest(options, v) : closest(options, 18);
 
-export function RightPanel({ dto, driver, warnings, driverError }: {
-  dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null;
+export function RightPanel({ dto, driver, warnings, driverError, geo }: {
+  dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null; geo: BoxGeometry | null;
 }) {
   const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast, setMode, openNotebook } = useApp();
   const [allWarnings, setAllWarnings] = useState(false);
@@ -149,6 +149,8 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
   const L = (v: number) => `${v} L`;
   const Hz = (v: number) => `${v} Hz`;
   const material = materials.find((x) => x.key === d.materialKey);
+  // Lowest panel modes as the bracing leaves them (the same numbers as the vibration view).
+  const modes = useMemo(() => (geo ? panelModes(geo, material, wallDamping(d, material, damping).f11Factor) : null), [geo, material, d, damping]);
   const fills = damping.filter(isFill);
   const sheets = damping.filter((x) => !isFill(x));
   const hasFill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr';
@@ -177,20 +179,66 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
   // Select choices that would collide are disabled, but only while the box can be built at all.
   const choices = useMemo(() => {
     if (!ctx || !buildable) return null;
-    const why = <K extends 'count' | 'thicknessMm' | 'prCount'>(k: K, vs: number[]) => {
+    const why = <K extends 'count' | 'thicknessMm' | 'prCount' | 'portAreaCm2' | 'port2AreaCm2' | 'braceCount'>(k: K, vs: number[]) => {
       const m = buildableChoices(deferred, ctx, k, vs as Design[K][]);
       return new Map(vs.map((v) => [v, m.get(v as Design[K])?.[0]?.text ?? null] as [number, string | null]));
     };
     return {
       count: why('count', [1, 2, 3, 4]),
       thickness: why('thicknessMm', material?.thicknessesMm ?? [deferred.thicknessMm]),
-      prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null
+      prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null,
+      braceCount: deferred.braceKind !== 'none' ? why('braceCount', Array.from({ length: MAX_BRACES }, (_, i) => i + 1)) : null,
+      braceKind: new Map([...buildableChoices(deferred, ctx, 'braceKind', BRACES.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [BraceKind, string | null])),
+      terminal: new Map([...buildableChoices(deferred, ctx, 'terminal', TERMINALS.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [TerminalKind, string | null])),
+      handles: new Map([...buildableChoices(deferred, ctx, 'handles', HANDLES.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [HandleKind, string | null])),
+      // Each tube count as the front port area it stands for.
+      tubes: (() => {
+        const tb = roundTubes(deferred);
+        if (!tb) return null;
+        const per = tb.area * 1e4;
+        const m = why(frontAreaKey(deferred), Array.from({ length: MAX_TUBES }, (_, i) => (i + 1) * per));
+        return new Map(Array.from({ length: MAX_TUBES }, (_, i) => [i + 1, m.get((i + 1) * per) ?? null] as [number, string | null]));
+      })()
     };
   }, [deferred, ctx, buildable, material]);
+  // Brace kinds that cannot be built here, with why: a disabled button shows no tooltip on touch and
+  // cannot take focus, so the reason is also written out under the buttons.
+  const braceBlocked = BRACES.flatMap(([k, label]) => {
+    const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
+    return why ? [[label, why] as const] : [];
+  });
+  // The same for the hardware choices.
+  const hardwareBlocked = [
+    ...TERMINALS.flatMap(([k, label]) => { const why = k !== d.terminal ? choices?.terminal.get(k) : null; return why ? [[`ขั้วต่อ${label}`, why] as const] : []; }),
+    ...HANDLES.flatMap(([k, label]) => { const why = k !== d.handles ? choices?.handles.get(k) : null; return why ? [[`มือจับ${label}`, why] as const] : []; })
+  ];
   const lim = (f: LimitedField) => (buildable ? limits[f] ?? null : limits[f] ? { ...limits[f]!, around: null } : null);
   const fix = () => {
     if (!ctx) return;
     const before = useApp.getState().design;
+    // A row placed off the baffle goes back to the nearest spot inside it.
+    const place = geo && before.rowMode === 'manual' ? rowProblem(geo, before.boxType, before.count) : null;
+    if (place && geo) {
+      const range = rowRange(geo, before.boxType, before.count);
+      const clampMm = (v: number, r: [number, number]) => Math.min(Math.floor(r[1] * 1000), Math.max(Math.ceil(r[0] * 1000), v));
+      patchDesign(range ? { rowXMm: clampMm(before.rowXMm, range.x), rowYMm: clampMm(before.rowYMm, range.y) } : { rowMode: 'auto' });
+      showToast(range ? 'ย้ายลำโพงกลับเข้ามาในแผงหน้าแล้ว' : 'แผงหน้าเล็กเกินจะวางเอง จึงจัดลำโพงกลับกึ่งกลาง', { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
+    // Only the bracing in the way: take braces out rather than resize the box (that would change the sound).
+    const braces = fitBraces(before, ctx);
+    if (braces) {
+      patchDesign(braces);
+      showToast(braces.braceKind === 'none' ? 'ไม่มีที่วางโครงค้ำ จึงไม่ใส่โครงค้ำ ตู้สร้างได้แล้ว' : `ลดโครงค้ำเหลือ ${braces.braceCount} ชุด ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
+    // Only the terminal or the handles in the way: smaller hardware, same box.
+    const hw = fitHardware(before, ctx);
+    if (hw) {
+      patchDesign(hw);
+      showToast(`เปลี่ยนเป็น${[hw.terminal ? TERMINAL_TH[hw.terminal] : null, hw.handles ? HANDLE_TH[hw.handles] : null].filter(Boolean).join(' และ ')} ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
     const n = nearestBuildable(before, ctx);
     if (!n) {
       showToast('ปรับค่าเดียวแล้วยังสร้างไม่ได้ ลองกด "จัดตู้แนะนำสำหรับลำโพงนี้" เพื่อให้ระบบจัดทั้งตู้ใหม่');
@@ -199,6 +247,57 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
     }
     patchDesign({ [n.field]: n.value });
     showToast(`ปรับ${FIELD_TH[n.field]}จาก ${before[n.field]} เป็น ${n.value} ${FIELD_UNIT[n.field]} ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+  };
+
+  /**
+   * The front port: a slot sized by its area, or round tubes (type, measured bore, how many).
+   * Tubes keep the area setting at count × bore area, so every limit and suggestion still applies.
+   */
+  const frontPort = (id: string, label: string) => {
+    const key = frontAreaKey(d);
+    const tb = roundTubes(d);
+    const tube = tubeOf(d.tubeKey);
+    const setTubes = (patch: Partial<Design>, count = tb?.count ?? 1) => {
+      const next = { ...d, ...patch };
+      p({ ...patch, [key]: Math.round(count * Math.PI * (next.tubeIdMm / 20) ** 2 * 10) / 10 });
+    };
+    return <>
+      <div className="seg" role="group" aria-label="ชนิดท่อหน้า">
+        <button aria-pressed={!tb} onClick={() => p({ portStyle: 'slot' })}>ท่อสลอต</button>
+        <button aria-pressed={!!tb} onClick={() => {
+          // As many tubes as the slot's area calls for, fewer when that many would not fit the box.
+          const per = Math.PI * (d.tubeIdMm / 20) ** 2;
+          const want = Math.min(MAX_TUBES, Math.max(1, Math.round(d[key] / per)));
+          const counts = Array.from({ length: want }, (_, i) => want - i);
+          const fits = ctx ? buildableChoices({ ...d, portStyle: 'round' }, ctx, key, counts.map((n) => Math.round(n * per * 10) / 10)) : null;
+          const n = fits ? counts.find((c) => !fits.get(Math.round(c * per * 10) / 10)?.length) ?? want : want;
+          setTubes({ portStyle: 'round' }, n);
+        }}>ท่อกลม (PVC)</button>
+      </div>
+      {!tb ? <Slider id={id} label={label} value={d[key]} range={RANGES[key]} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ [key]: v })} limit={lim(key)} /> : <>
+        <div className="field-head">
+          <label htmlFor={`${id}-tube`}>ท่อ · ไส้ใน</label>
+          <span className="pair">
+            <select id={`${id}-tube`} className="mini" value={d.tubeKey} onChange={(e) => { const t = tubeOf(e.target.value); setTubes({ tubeKey: e.target.value, tubeIdMm: t?.idMm ?? d.tubeIdMm }); }}>
+              {TUBES.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
+            </select>
+            <NumField id={`${id}-id`} label="ไส้ในที่วัดได้" value={d.tubeIdMm} min={20} max={300} unit="มม." onChange={(v) => setTubes({ tubeIdMm: v })} />
+          </span>
+        </div>
+        <div className="field-head">
+          <label htmlFor={`${id}-n`}>จำนวนท่อ</label>
+          <span className="pair">
+            <select id={`${id}-n`} className="mini" value={tb.count} onChange={(e) => setTubes({}, Number(e.target.value))}>
+              {Array.from({ length: MAX_TUBES }, (_, i) => i + 1).map((n) => { const why = choices?.tubes?.get(n); return <option key={n} value={n} disabled={!!why} title={why ?? undefined}>{n} ท่อ{why ? ' · สร้างไม่ได้' : ''}</option>; })}
+            </select>
+          </span>
+        </div>
+        <div className="loadline muted">
+          <span>พื้นที่รวม <b>{(tb.count * tb.area * 1e4).toFixed(0)} ซม.²</b>{geo?.tubes ? <> · ยาวท่อละ <b>{(geo.portLength * 100).toFixed(1)} ซม.</b></> : null}</span>
+          {tube?.known === 'od' && <span>ไส้ในเป็นค่าประมาณ วัดท่อจริงแล้วแก้</span>}
+        </div>
+      </>}
+    </>;
   };
 
   return (
@@ -253,12 +352,14 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
           <Slider id="vb" label={d.boxType.startsWith('bp') ? 'ห้องหลัง Vr' : 'ปริมาตรสุทธิ Vb'} value={d.vbL} range={RANGES.vbL} fmt={L} onChange={(v) => p({ vbL: v })} limit={lim('vbL')} />
           {(d.boxType === 'vented' || d.boxType === 'bp4' || d.boxType === 'bp6') && <>
             <Slider id="fb" label={d.boxType === 'bp6' ? 'จูนท่อหลัง' : 'ความถี่จูนท่อ Fb'} value={d.fbHz} range={RANGES.fbHz} step={0.5} fmt={Hz} onChange={(v) => p({ fbHz: v })} limit={lim('fbHz')} />
-            <Slider id="pa" label={d.boxType === 'bp6' ? 'พื้นที่ท่อหลัง' : 'พื้นที่ท่อ'} value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} limit={lim('portAreaCm2')} />
+            {d.boxType === 'bp6'
+              ? <Slider id="pa" label="พื้นที่ท่อหลัง" value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} limit={lim('portAreaCm2')} />
+              : frontPort('pa', 'พื้นที่ท่อ')}
           </>}
           {(d.boxType === 'bp4' || d.boxType === 'bp6') && <Slider id="vf" label="ห้องหน้า Vf" value={d.vfL} range={RANGES.vfL} fmt={L} onChange={(v) => p({ vfL: v })} limit={lim('vfL')} />}
           {d.boxType === 'bp6' && <>
             <Slider id="fb2" label="จูนท่อหน้า" value={d.fb2Hz} range={RANGES.fb2Hz} step={0.5} fmt={Hz} onChange={(v) => p({ fb2Hz: v })} limit={lim('fb2Hz')} />
-            <Slider id="pa2" label="พื้นที่ท่อหน้า" value={d.port2AreaCm2} range={RANGES.port2AreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ port2AreaCm2: v })} limit={lim('port2AreaCm2')} />
+            {frontPort('pa2', 'พื้นที่ท่อหน้า')}
           </>}
           {d.boxType === 'pr' && <>
             <Slider id="prs" label="ขนาด PR (Sd ต่อตัว)" value={d.prSdCm2} range={RANGES.prSdCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ prSdCm2: v })} limit={lim('prSdCm2')} />
@@ -354,6 +455,8 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
           </div>
           {d.wireM > 0 && <div className="loadline muted">สายไป-กลับ {wireOhms(d).toFixed(3)} Ω{d.amp ? ` · แอมป์ ${(d.ampOhms / d.dampingFactor).toFixed(3)} Ω` : ''}</div>}
 
+          <ShapeSection geo={geo} />
+
           <div className="section-title sub">วัสดุ</div>
           <div className="field-head">
             <label htmlFor="mat">ผนังตู้</label>
@@ -389,6 +492,69 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
               {sheets.map((x) => <option key={x.key} value={x.key}>{x.nameTh ?? x.name}</option>)}
             </select>
           </div>
+
+          <div className="section-title sub" id="braces">โครงค้ำ</div>
+          <div className="seg" role="group" aria-label="แบบโครงค้ำ" aria-describedby={braceBlocked.length ? 'brace-why' : undefined}>
+            {BRACES.map(([k, label, tip]) => {
+              const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
+              return <button key={k} aria-pressed={d.braceKind === k} disabled={!!why} title={why ?? tip} onClick={() => p({ braceKind: k })}>{label}</button>;
+            })}
+          </div>
+          {braceBlocked.length > 0 && (
+            <div className="loadline muted" id="brace-why">
+              {braceBlocked.map(([label, why]) => <span key={label}>{label}: สร้างไม่ได้ · {why}</span>)}
+            </div>
+          )}
+          {d.braceKind !== 'none' && (
+            <div className="field-head">
+              <label htmlFor="brn">จำนวนชุด (เรียงตามความลึก)</label>
+              <select id="brn" className="mini" value={braceCountOf(d.braceCount)} onChange={(e) => p({ braceCount: Number(e.target.value) })}>
+                {Array.from({ length: MAX_BRACES }, (_, i) => i + 1).map((n) => { const why = choices?.braceCount?.get(n); return <option key={n} value={n} disabled={!!why} title={why ?? undefined}>{n} ชุด{why ? ' · สร้างไม่ได้' : ''}</option>; })}
+              </select>
+            </div>
+          )}
+          {modes && (
+            <div className="loadline muted">
+              <span>ผนังข้าง ≈ <b>{modes.side.toFixed(0)} Hz</b> · ฝาบน ≈ <b>{modes.top.toFixed(0)} Hz</b> · ผนังหลัง ≈ <b>{modes.back.toFixed(0)} Hz</b> (ประมาณ)</span>
+              {d.braceKind === 'dowel' && <span>เดือย Ø {DOWEL_D * 1000} มม. เป็นขนาดทั่วไป ไม่ใช่ค่าที่ยืนยัน · ไม่ช่วยฝาบน</span>}
+              {d.braceKind !== 'none' && <span>โครงค้ำขนานผนังหลัง จึงไม่ช่วยผนังหลัง</span>}
+            </div>
+          )}
+
+          <div className="section-title sub" id="hardware">ขั้วต่อและมือจับ</div>
+          <div className="field-head ref-row">
+            <span id="term-l">ขั้วต่อลำโพง</span>
+            <div className="seg" role="group" aria-labelledby="term-l">
+              {TERMINALS.map(([k, label, tip]) => {
+                const why = k !== d.terminal ? choices?.terminal.get(k) : null;
+                return <button key={k} aria-pressed={d.terminal === k} disabled={!!why} title={why ?? tip} onClick={() => p({ terminal: k })}>{label}</button>;
+              })}
+            </div>
+          </div>
+          <div className="field-head ref-row">
+            <span id="hand-l">มือจับ</span>
+            <div className="seg" role="group" aria-labelledby="hand-l">
+              {HANDLES.map(([k, label, tip]) => {
+                const why = k !== d.handles ? choices?.handles.get(k) : null;
+                return <button key={k} aria-pressed={d.handles === k} disabled={!!why} title={why ?? tip} onClick={() => p({ handles: k })}>{label}</button>;
+              })}
+            </div>
+          </div>
+          {hardwareBlocked.length > 0 && (
+            <div className="loadline muted">
+              {hardwareBlocked.map(([label, why]) => <span key={label}>{label}: สร้างไม่ได้ · {why}</span>)}
+            </div>
+          )}
+          {geo && (
+            <div className="loadline muted">
+              <span>{TERMINAL_TH[geo.terminal.kind]} · {geo.terminal.panel === 'side'
+                ? <>ผนังข้างซ้ายด้านล่าง (ท่อสลอตพับขึ้นเต็มผนังหลัง)</>
+                : <>ผนังหลัง{Math.abs(geo.terminal.x) > 1e-4 ? ` เยื้องกลาง ${mmS(Math.abs(geo.terminal.x))} มม.` : ' กึ่งกลาง'} สูงจากพื้น {mmS(geo.terminal.y)} มม.</>}
+                {geo.volume.terminalL >= 0.05 ? <> · กินที่ <b>{geo.volume.terminalL.toFixed(2)} L</b></> : null}</span>
+              {geo.handles && <span>{HANDLE_TH[geo.handles.kind]} 2 ข้าง ใกล้ขอบบน{geo.handles.hole ? <> · กินที่ <b>{geo.volume.handlesL.toFixed(1)} L</b></> : ` · ยื่นออกราว ${mmS(geo.handles.standOff)} มม.`}</span>}
+              <span>ขนาดขั้วต่อและมือจับเป็นค่าประมาณ ตรวจกับสินค้าจริงก่อนเจาะ</span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { OVERLAY_CONF, type Conf, type ResultKey } from '../sim/confidence';
-import type { BoxGeometry, WallDamping } from '../sim/model';
+import { BRACE_BARS_TH, BRACE_TH, HANDLE_TH, TERMINAL_TH, type BoxGeometry, type WallDamping } from '../sim/model';
 import { useApp, type OverlayId } from '../state/store';
 import { ConfDot } from './Conf';
 import { Icon, Logo, ICONS } from './icons';
@@ -12,18 +12,23 @@ const BACKEND = {
 } as const;
 
 export function TopBar({ modelCode }: { modelCode: string }) {
-  const { mode, setMode, backend, setTeaser, openNotebook } = useApp();
+  const { mode, setMode, backend, setTeaser, openNotebook, undo, redo, past, future } = useApp();
   const b = backend ? BACKEND[backend] : null;
   return (
     <header className="topbar">
-      <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span></div>
-      <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span></div>
+      <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span><span className="ver mono" title={`เวอร์ชัน ${__APP_VERSION__} · บิลด์ ${__BUILD_DATE__}`}>v{__APP_VERSION__}</span></div>
+      <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span>
+        <span className="history" role="group" aria-label="ประวัติการแก้">
+          <button type="button" onClick={undo} disabled={!past.length} aria-label="ย้อนกลับ" title={`ย้อนกลับ (Ctrl+Z)${past.length ? ` · ${past.length} ขั้น` : ''}`}>↶</button>
+          <button type="button" onClick={redo} disabled={!future.length} aria-label="ทำซ้ำ" title="ทำซ้ำ (Ctrl+Shift+Z)">↷</button>
+        </span>
+      </div>
       <nav className="tabs" aria-label="โหมดหลัก">
         <button className="tab" aria-pressed={mode === 'wizard'} onClick={() => setMode('wizard')}>ออกแบบด่วน</button>
         <button className="tab" aria-pressed={mode === 'design'} onClick={() => setMode('design')}>ออกแบบ</button>
         <button className="tab" aria-pressed={mode === 'lab'} onClick={() => setMode('lab')}>แล็บทดสอบ</button>
         <button className="tab soon" title="มาในเฟส 5 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('ai')}>AI สุ่มตู้</button>
-        <button className="tab soon" title="มาในเฟส 3 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('blueprint')}>พิมพ์เขียว</button>
+        <button className="tab" aria-pressed={mode === 'blueprint'} onClick={() => setMode('blueprint')}>พิมพ์เขียว</button>
         <button className="tab" aria-pressed={mode === 'library'} onClick={() => setMode('library')}>คลังข้อมูล</button>
       </nav>
       <button className="chip nbbtn" title="สมุดสูตร: ทุกตัวเลขพร้อมสูตร ค่าที่แทน และแหล่งอ้างอิง · เขียนสูตรเองได้" onClick={() => openNotebook()}>ƒ สมุดสูตร</button>
@@ -37,6 +42,10 @@ const TOOLS: [keyof typeof ICONS, string][] = [
   ['brace', 'โครงค้ำ'], ['fill', 'ยัดใย'], ['measure', 'วัดระยะ'], ['mic', 'ไมค์เสมือน'], ['smoke', 'ปล่อยควัน']
 ];
 
+/** Tools that open a section of the right panel (its element id). */
+const SECTION: Record<string, string> = { box: 'dims', drill: 'hardware', brace: 'braces' };
+const TOOL_TIP: Record<string, string> = { box: 'ทรงตู้ · ทรงลิ่ม ล็อกขนาดแต่ละด้าน', drill: 'เจาะรู · ขั้วต่อลำโพงและมือจับ', brace: 'โครงค้ำ · แบบและจำนวนชุด' };
+
 const FINISH_TH = { walnut: 'วีเนียร์วอลนัท', oak: 'วีเนียร์โอ๊ก', teak: 'วีเนียร์สัก', black: 'ทำสีดำซาติน' } as const;
 
 export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCode: string }) {
@@ -47,28 +56,37 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
   const cld = damping.find((m) => m.key === d.cldKey);
   const outer = d.finish === 'raw' ? `${matName} ผิวเดิม` : FINISH_TH[d.finish];
   const pick = (icon: string, label: string) => {
-    // Only "select" works today; the shape-editing tools arrive in phase 2. Say so instead of
-    // lighting up a button that does nothing.
     if (icon === 'select') { setTool(icon); return; }
-    showToast(`เครื่องมือ "${label}" มาในเฟส 2 (แก้รูปทรงตู้ เจาะรู วางท่อเอง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
+    // The box, drill and brace tools open their settings in the right panel.
+    const section = SECTION[icon];
+    if (section) {
+      setTool(icon);
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // The other shape-editing tools are still to come. Say so instead of lighting up a button that does nothing.
+    showToast(`เครื่องมือ "${label}" ยังไม่พร้อม (วางท่อ แผ่นกั้นแบบลากวาง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
   };
+  const ready = (icon: string) => icon === 'select' || !!SECTION[icon];
   return (
     <section className="left-panel glass" aria-label="เครื่องมือและโครงสร้างงาน">
       <div className="section-title">เครื่องมือ</div>
       <div className="toolgrid">
         {TOOLS.map(([icon, label]) => (
-          <button key={icon} aria-label={label} title={icon === 'select' ? label : `${label} · มาในเฟส 2`} aria-pressed={tool === icon}
-            className={icon === 'select' ? undefined : 'soon'} onClick={() => pick(icon, label)}><Icon name={icon} size={20} width={1.6} /></button>
+          <button key={icon} aria-label={label} title={TOOL_TIP[icon] ?? (ready(icon) ? label : `${label} · ยังไม่พร้อม`)} aria-pressed={tool === icon}
+            className={ready(icon) ? undefined : 'soon'} onClick={() => pick(icon, label)}><Icon name={icon} size={20} width={1.6} /></button>
         ))}
       </div>
       <div className="section-title" style={{ marginTop: 4 }}>โครงสร้างงาน</div>
       <div className="tree">
-        <div className="root"><span className="sw" style={{ background: 'var(--cyan)' }} /><span style={{ flex: 1 }}>ตู้ {modelCode}</span><span className="mono" style={{ fontSize: 11, color: 'var(--cyan-soft)' }}>{d.vbL} L</span></div>
+        <div className="root"><span className="sw" style={{ background: 'var(--cyan)' }} /><span style={{ flex: 1 }}>ตู้ {modelCode}{geo?.shape === 'wedge' ? ' · ทรงลิ่ม' : ''}</span><span className="mono" style={{ fontSize: 11, color: 'var(--cyan-soft)' }}>{d.vbL} L</span></div>
         <div><span className="sw" style={{ background: '#334155' }} />แผงหน้า · {matName} {d.finish === 'raw' ? 'ผิวเดิม' : 'ทำสีดำ'} {d.thicknessMm} มม.</div>
         <div><span className="sw" style={{ background: '#7c4a2a' }} />ผนัง · {matName} {d.thicknessMm} มม. · {outer}</div>
         <div><span className="sw" style={{ background: '#94a3b8', borderRadius: '50%' }} />ลำโพง × {d.boxType === 'isobaric' ? 2 : d.count}</div>
-        <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
-        <div><span className="sw" style={{ background: '#64748b' }} />โครงค้ำแบบหน้าต่าง</div>
+        <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo?.tubes ? `ท่อกลม ${geo.tubes.count} ท่อ · ใน Ø ${Math.round(geo.tubes.id * 1000)} มม.` : geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
+        <div><span className="sw" style={{ background: '#64748b' }} />{geo?.braces.barsOnly ? BRACE_BARS_TH : BRACE_TH[d.braceKind]}{d.braceKind !== 'none' && geo ? ` × ${geo.braces.zs.length}` : ''}</div>
+        <div><span className="sw" style={{ background: '#b91c1c' }} />{TERMINAL_TH[d.terminal] ?? 'ขั้วต่อลำโพง'} · {geo?.terminal.panel === 'side' ? 'ผนังข้างซ้าย' : 'ผนังหลัง'}{geo && !geo.terminal.fits ? ' · ไม่มีที่ติด' : ''}</div>
+        <div><span className="sw" style={{ background: '#9aa4b2' }} />{HANDLE_TH[d.handles] ?? HANDLE_TH.none}{d.handles !== 'none' ? ` × 2${geo?.handles && !geo.handles.fits ? ' · ไม่มีที่ติด' : ''}` : ''}</div>
         <div><span className="sw" style={{ background: '#e2e8f0', borderRadius: '50%' }} />{d.stuffing > 0 ? `${fill?.nameTh ?? fill?.name ?? 'ใยซับเสียง'} ${Math.round(d.stuffing * 100)}%` : 'ไม่ใส่ใยซับเสียง'}</div>
         {cld && <div><span className="sw" style={{ background: '#a78bfa' }} />{cld.nameTh ?? cld.name} ทุกผนัง</div>}
         <div><span className="sw" style={{ background: '#f472b6', borderRadius: '50%' }} />ไมค์เสมือน · ระยะ 1 ม.</div>
@@ -122,7 +140,7 @@ export function OverlayBar({ geo }: { geo: BoxGeometry | null }) {
   );
 }
 
-export function Hud({ modes, wall, vib, conf }: { modes: { side: number; back: number }; wall: WallDamping; vib: { r: number; h: number; pk: number }; conf: Record<ResultKey, Conf> }) {
+export function Hud({ modes, wall, vib, conf }: { modes: { side: number; back: number; top: number }; wall: WallDamping; vib: { r: number; h: number; pk: number }; conf: Record<ResultKey, Conf> }) {
   const { mode, genHz, slow, design: d, overlays } = useApp();
   const lab = mode === 'lab';
   return (
@@ -141,7 +159,7 @@ export function Hud({ modes, wall, vib, conf }: { modes: { side: number; back: n
       )}
       {lab && overlays.vib && (
         <div className="legend"><span style={{ color: '#c4b5fd' }}>
-          <ConfDot conf={conf.panelModes} /> ผนังข้าง (1,1) ≈ {modes.side.toFixed(0)} Hz · ผนังหลังซึ่งกว้างสุด ≈ {modes.back.toFixed(0)} Hz · ตอนนี้แรงดันในตู้ {vib.pk.toFixed(0)} Pa ที่ {genHz} Hz
+          <ConfDot conf={conf.panelModes} /> ผนังข้าง (1,1) ≈ {modes.side.toFixed(0)} Hz · ฝาบน ≈ {modes.top.toFixed(0)} Hz · ผนังหลังซึ่งกว้างสุด ≈ {modes.back.toFixed(0)} Hz · ตอนนี้แรงดันในตู้ {vib.pk.toFixed(0)} Pa ที่ {genHz} Hz
           {vib.r > 0.8 && vib.r < 1.25 ? ' ใกล้เรโซแนนซ์' : ''} · ขยาย ×{vib.h.toFixed(1)}
           {wall.ampFactor < 1 ? ` (แผ่นซับแรงสั่นกดยอดเรโซแนนซ์ลง ×${(1 / wall.ampFactor).toFixed(1)})` : ''} · ภาพขยายเกินจริง
         </span></div>
