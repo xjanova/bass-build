@@ -13,7 +13,7 @@ export interface RowItem { x: number; /** Frame radius. */ r: number; /** Hole r
 export const ROW_GAP = 0.03;
 
 /** Height where the front baffle starts: above the slot port and its ceiling board, or on the floor. */
-export const baffleBottom = (geo: BoxGeometry) => (geo.slotH > 0 ? geo.t + geo.slotH + geo.t : geo.t);
+export const baffleBottom = (geo: Pick<BoxGeometry, 't' | 'slotH'>) => (geo.slotH > 0 ? geo.t + geo.slotH + geo.t : geo.t);
 
 /** Drivers (and an odd passive radiator) across the front baffle as one row, centred on the box or where it was placed. */
 export function frontRow(geo: BoxGeometry, boxType: BoxType, count: number): RowItem[] {
@@ -83,8 +83,15 @@ export function rowRange(geo: BoxGeometry, boxType: BoxType, count: number): { x
   return x[0] <= x[1] + 1e-9 && y[0] <= y[1] + 1e-9 ? { x, y } : null;
 }
 
+/** What `braceBottom` needs to know: the panel, the slot height and the row of round tubes. */
+export type BraceBase = Pick<BoxGeometry, 't' | 'slotH'> & { tubes: { y: number; od: number } | null };
 /** Where the braces start: on the slot ceiling, above the row of tubes, or on the floor (m). */
-export const braceBottom = (geo: BoxGeometry) => (geo.tubes ? geo.tubes.y + geo.tubes.od / 2 + EDGE_WOOD : baffleBottom(geo));
+export const braceBottom = (geo: BraceBase) => (geo.tubes ? geo.tubes.y + geo.tubes.od / 2 + EDGE_WOOD : baffleBottom(geo));
+/**
+ * Height a brace plane spans, from `braceBottom` up to the underside of the top, m. The volume
+ * breakdown and the layout both count dowel rows and size window bars from this one number.
+ */
+export const braceSpan = (geo: BraceBase & { hi: number }) => geo.hi + geo.t - braceBottom(geo);
 
 /** Slot port boards: the ceiling run along the floor and the riser folded up the back (0 when none). */
 export function slotBoards(geo: BoxGeometry): { run: number; riser: number } {
@@ -99,6 +106,28 @@ export function slotBoards(geo: BoxGeometry): { run: number; riser: number } {
 
 /** Width of the bars round a window brace, m (each frame is one panel thick). */
 export const BRACE_BAR = 0.05;
+/** Smallest window a frame keeps open (each way), m: less and the frame would seal off the drivers' pocket. */
+export const BRACE_WINDOW_MIN = 0.04;
+/** Narrowest bar a frame may shrink to in a small box, m (a thinner strip is not worth gluing in). */
+export const BRACE_BAR_MIN = 0.02;
+/**
+ * Bar width of a window frame in a box `wi` wide whose planes span `span`: 50 mm, narrowed in a
+ * small box so a window of at least BRACE_WINDOW_MIN stays open; null when even the narrowest bars
+ * would leave less. A frame is never laid out as a solid board: glued all round, a solid board
+ * splits the box into two sealed chambers and the driver would load only the small one in front.
+ */
+export const braceBar = (wi: number, span: number): number | null => {
+  const bar = Math.min(BRACE_BAR, (Math.min(wi, span) - BRACE_WINDOW_MIN) / 2);
+  return bar >= BRACE_BAR_MIN - 1e-9 ? bar : null;
+};
+/**
+ * With passive radiators in the side panels a frame's side bars would run over their holes, so
+ * each window plane is built as two cross bars instead: one under the top, one on the floor (or
+ * the slot ceiling). They hold the top, not the sides.
+ */
+export const sidePrBars = (boxType: BoxType, perSide: number) => boxType === 'pr' && perSide > 0;
+/** Hole a passive radiator needs cut in its panel, as a radius, m (its frame is 10 % wider and sits outside). */
+export const prHoleRadius = (geo: Pick<BoxGeometry, 'prRadius'>) => geo.prRadius * 0.9;
 /**
  * Dowel diameter, m. 25 mm round wood is a common hardware-store size, chosen here, not taken from
  * any datasheet: the blueprint asks the builder to measure the dowel they buy.
@@ -128,23 +157,33 @@ export interface BracePlan {
   /** Bottom and top of every plane, m above the outside floor. */
   bottom: number;
   top: number;
-  /** Window brace opening (centred, bars all round) or null for a frame too small for one. */
-  window: { w: number; h: number } | null;
+  /**
+   * Window frames: their bar width and opening (centred, bars all round). null for other kinds,
+   * and for a box too small for a frame with an opening (every plane is then missing).
+   */
+  window: { w: number; h: number; bar: number } | null;
+  /**
+   * Window planes built as two cross bars (top and bottom, no side bars) because passive
+   * radiators sit in the side panels; they hold the top but not the sides.
+   */
+  barsOnly: boolean;
   /** Dowel brace: centre height of each dowel in a plane, m above the outside floor. */
   dowelYs: number[];
   /** Planes that found no clear spot, and what the first of them would have hit (Thai). */
   missing: number;
   blockedBy: string | null;
   /**
-   * Lines along the depth where the side panels are held (the braces and any full inside board),
-   * and the top panel (window braces and inside boards: dowels run side to side and miss it), m.
+   * Lines along the depth where the side panels are held (window frames and dowels) and the top
+   * panel (window frames and cross bars: dowels run side to side and miss it), m. Only the braces:
+   * a band-pass divider or an isobaric inner baffle is not counted, so an unbraced box keeps the
+   * unbraced numbers exactly and the panel estimate stays on the safe (lower) side.
    */
   sideHeld: number[];
   topHeld: number[];
 }
 
 /** No bracing: what a box gets before its brace plan is laid out. */
-export const NO_BRACES: BracePlan = { kind: 'none', count: 0, zs: [], thick: 0, bottom: 0, top: 0, window: null, dowelYs: [], missing: 0, blockedBy: null, sideHeld: [], topHeld: [] };
+export const NO_BRACES: BracePlan = { kind: 'none', count: 0, zs: [], thick: 0, bottom: 0, top: 0, window: null, barsOnly: false, dowelYs: [], missing: 0, blockedBy: null, sideHeld: [], topHeld: [] };
 
 interface Keepout { a: number; b: number; what: string }
 
@@ -157,7 +196,8 @@ interface Keepout { a: number; b: number; what: string }
  *   frame's radius (an estimate). A window frame may sit where the basket passes through its opening;
  *   dowels cross the middle of the box, so they go where they miss the basket (usually behind it);
  * - the band-pass divider (with the driver frame in front of it), the isobaric tunnel and inner
- *   baffle, the slot port's riser, a bp6 rear port tube and side passive radiators.
+ *   baffle, the slot port's riser, a bp6 rear port tube and the holes of side passive radiators
+ *   (a window plane there is two cross bars, which only have to clear the holes at their ends).
  * The slot ceiling and the round front tubes are below `braceBottom`, so they never meet a brace.
  * A plane that finds no clear depth is counted in `missing` and becomes a build problem: moving it
  * further would leave the panel it is meant to hold as free as before, so the builder decides.
@@ -166,23 +206,28 @@ export function bracePlan(geo: BoxGeometry, boxType: BoxType, count: number, kin
   const t = geo.t;
   const bottom = braceBottom(geo), top = geo.hx - t;
   const span = top - bottom;
-  const window = geo.wi - 2 * BRACE_BAR > 0.04 && span - 2 * BRACE_BAR > 0.04 ? { w: geo.wi - 2 * BRACE_BAR, h: span - 2 * BRACE_BAR } : null;
+  const bar = braceBar(geo.wi, span);
+  const window = bar !== null ? { w: geo.wi - 2 * bar, h: span - 2 * bar, bar } : null;
+  const barsOnly = kind === 'window' && sidePrBars(boxType, geo.prLayout.perSide);
   const rows = dowelRows(span);
   const dowelYs = kind === 'dowel' ? Array.from({ length: rows }, (_, i) => bottom + (span * (i + 1)) / (rows + 1)) : [];
   const bandpass = boxType === 'bp4' || boxType === 'bp6';
-  // Full boards glued to all four walls hold the side and top panels just like a brace.
-  const boards = bandpass ? [geo.frontDepth + t / 2] : boxType === 'isobaric' ? [innerBaffleZ(geo) + t / 2] : [];
-  const none: BracePlan = { ...NO_BRACES, bottom, top, sideHeld: boards, topHeld: boards };
+  const none: BracePlan = { ...NO_BRACES, bottom, top };
   if (kind === 'none') return none;
   const want = braceCountOf(n);
   const thick = kind === 'dowel' ? DOWEL_D : t;
+  if (kind === 'window' && !window) {
+    // No frame with an opening fits this cross-section, and a solid one would seal the driver in.
+    return { ...none, kind, count: want, thick, missing: want, blockedBy: 'ตู้เล็กเกินกว่าจะเจาะช่องโครงค้ำ' };
+  }
 
   /** Does a plane at `s` behind a mounting face clear a basket centred at (x, y), radius r0 there narrowing to r1 at `depth`? */
   const clears = (s: number, x: number, y: number, r0: number, r1: number, depth: number) => {
     if (s >= depth) return true;
     const rad = r0 + ((r1 - r0) * s) / depth;
     if (kind === 'window') {
-      return !!window && Math.abs(x) + rad + BRACE_GAP <= geo.wi / 2 - BRACE_BAR && y - rad - BRACE_GAP >= bottom + BRACE_BAR && y + rad + BRACE_GAP <= top - BRACE_BAR;
+      const b = window!.bar;
+      return (barsOnly || Math.abs(x) + rad + BRACE_GAP <= geo.wi / 2 - b) && y - rad - BRACE_GAP >= bottom + b && y + rad + BRACE_GAP <= top - b;
     }
     return dowelYs.every((yd) => Math.abs(yd - y) >= rad + DOWEL_D / 2 + BRACE_GAP);
   };
@@ -217,15 +262,27 @@ export function bracePlan(geo: BoxGeometry, boxType: BoxType, count: number, kin
   const slot = slotBoards(geo);
   // A plain box's riser stands one slot height in front of the back (or the divider).
   if (slot.riser > 0 && !wedge) keep.push({ a: geo.frontDepth - geo.slotH - t, b: geo.frontDepth, what: 'ท่อสลอตที่พับขึ้น' });
-  if (boxType === 'pr') {
-    const hit = kind === 'window' || dowelYs.some((yd) => Math.abs(yd - geo.hx / 2) < geo.prRadius + DOWEL_D / 2 + BRACE_GAP);
-    if (hit) for (const z of sideRow(geo)) { const c = geo.dx / 2 - t - z; keep.push({ a: c - geo.prRadius, b: c + geo.prRadius, what: 'PR ข้างตู้' }); }
+  if (boxType === 'pr' && geo.prLayout.perSide > 0) {
+    // Where a plane meets the side panel (the ends of the cross bars, the dowel sockets) it must
+    // stay clear of each radiator's hole, centred half-way up: a hole of radius R reaches
+    // ±√(R² − dy²) along the depth at a height dy from its centre.
+    const yc = geo.hx / 2;
+    const ends: [number, number, number][] = barsOnly
+      ? [[bottom, bottom + window!.bar, 0], [top - window!.bar, top, 0]]
+      : dowelYs.map((yd): [number, number, number] => [yd, yd, DOWEL_D / 2]);
+    for (const [y0, y1, pad] of ends) {
+      const dy = Math.max(0, y0 - yc, yc - y1);
+      const reach = prHoleRadius(geo) + pad + BRACE_GAP;
+      if (dy >= reach) continue;
+      const half = Math.sqrt(reach * reach - dy * dy);
+      for (const z of sideRow(geo)) { const c = geo.dx / 2 - t - z; keep.push({ a: c - half, b: c + half, what: 'PR ข้างตู้' }); }
+    }
   }
   if (geo.rearPort) {
     const rp = geo.rearPort;
     const run = Math.max(0.02, Math.min(rp.length, rp.room));
     const hit = kind === 'window'
-      ? !window || (rp.y - rp.radius < bottom + BRACE_BAR + BRACE_GAP && rp.y + rp.radius > bottom - BRACE_GAP)
+      ? rp.y - rp.radius < bottom + window!.bar + BRACE_GAP && rp.y + rp.radius > bottom - BRACE_GAP
       : dowelYs.some((yd) => Math.abs(yd - rp.y) < rp.radius + DOWEL_D / 2 + BRACE_GAP);
     if (hit) keep.push({ a: geo.di - run, b: geo.di, what: 'ท่อหลัง' });
   }
@@ -257,10 +314,10 @@ export function bracePlan(geo: BoxGeometry, boxType: BoxType, count: number, kin
   }
   zs.sort((a, b) => a - b);
   return {
-    kind, count: want, zs, thick, bottom, top, window: kind === 'window' ? window : null, dowelYs, missing, blockedBy,
-    sideHeld: [...boards, ...zs].sort((a, b) => a - b),
-    // Dowels run side to side: they hold the side panels but never touch the top.
-    topHeld: kind === 'window' ? [...boards, ...zs].sort((a, b) => a - b) : boards
+    kind, count: want, zs, thick, bottom, top, window: kind === 'window' ? window : null, barsOnly, dowelYs, missing, blockedBy,
+    // Cross bars meet the sides only at their ends; dowels run side to side and never touch the top.
+    sideHeld: barsOnly ? [] : [...zs],
+    topHeld: kind === 'window' ? [...zs] : []
   };
 }
 

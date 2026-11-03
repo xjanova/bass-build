@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { OVERLAY_CONF, type Conf, type ResultKey } from '../sim/confidence';
-import { BRACE_TH, type BoxGeometry, type WallDamping } from '../sim/model';
+import { BRACE_BARS_TH, BRACE_TH, type BoxGeometry, type WallDamping } from '../sim/model';
 import { useApp, type OverlayId } from '../state/store';
 import { ConfDot } from './Conf';
 import { Icon, Logo, ICONS } from './icons';
@@ -79,7 +79,7 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
         <div><span className="sw" style={{ background: '#7c4a2a' }} />ผนัง · {matName} {d.thicknessMm} มม. · {outer}</div>
         <div><span className="sw" style={{ background: '#94a3b8', borderRadius: '50%' }} />ลำโพง × {d.boxType === 'isobaric' ? 2 : d.count}</div>
         <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo?.tubes ? `ท่อกลม ${geo.tubes.count} ท่อ · ใน Ø ${Math.round(geo.tubes.id * 1000)} มม.` : geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
-        <div><span className="sw" style={{ background: '#64748b' }} />{BRACE_TH[d.braceKind]}{d.braceKind !== 'none' && geo ? ` × ${geo.braces.zs.length}` : ''}</div>
+        <div><span className="sw" style={{ background: '#64748b' }} />{geo?.braces.barsOnly ? BRACE_BARS_TH : BRACE_TH[d.braceKind]}{d.braceKind !== 'none' && geo ? ` × ${geo.braces.zs.length}` : ''}</div>
         <div><span className="sw" style={{ background: '#e2e8f0', borderRadius: '50%' }} />{d.stuffing > 0 ? `${fill?.nameTh ?? fill?.name ?? 'ใยซับเสียง'} ${Math.round(d.stuffing * 100)}%` : 'ไม่ใส่ใยซับเสียง'}</div>
         {cld && <div><span className="sw" style={{ background: '#a78bfa' }} />{cld.nameTh ?? cld.name} ทุกผนัง</div>}
         <div><span className="sw" style={{ background: '#f472b6', borderRadius: '50%' }} />ไมค์เสมือน · ระยะ 1 ม.</div>

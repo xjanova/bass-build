@@ -135,3 +135,18 @@ export function nearestBuildable(d: Design, ctx: BuildCtx): { field: LimitedFiel
 export function buildableChoices<K extends keyof Design>(d: Design, ctx: BuildCtx, key: K, values: Design[K][]): Map<Design[K], BuildProblem[]> {
   return new Map(values.map((v) => [v, problemsFor({ ...d, [key]: v }, ctx)]));
 }
+
+/**
+ * When bracing is all that stops a design: the fewest braces to take out so it builds (fewer
+ * planes, else none). The volume and tuning stay as they are, so the sound does not change only
+ * to make room for a brace. null when something else is wrong too, or nothing helps.
+ */
+export function fitBraces(d: Design, ctx: BuildCtx): Partial<Design> | null {
+  const now = problemsFor(d, ctx);
+  if (!now.length || now.some((p) => p.code !== 'brace') || d.braceKind === 'none') return null;
+  const tries: Partial<Design>[] = [
+    ...Array.from({ length: Math.max(0, Math.round(d.braceCount) - 1) }, (_, i) => ({ braceCount: Math.round(d.braceCount) - 1 - i })),
+    { braceKind: 'none' }
+  ];
+  return tries.find((p) => !problemsFor({ ...d, ...p }, ctx).length) ?? null;
+}

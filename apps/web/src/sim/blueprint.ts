@@ -2,7 +2,7 @@ import { tubeOf } from '../data/hardware';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
 import { baffleBottom, braceBottom, DOWEL_D, frontRow, innerRow, sideRow, slotBoards } from './layout';
-import { BRACE_TH, type BoxGeometry } from './model';
+import { BRACE_BARS_TH, BRACE_TH, type BoxGeometry } from './model';
 
 /**
  * The cutting and assembly drawings for a laid-out box: every board with its size, holes and
@@ -99,7 +99,9 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
     id: 'side', name: 'ผนังข้าง', qty: 2, w: wedge ? depthAt(t) : dx, h: sideH, t, holes: [...prHoles, ...sockets], bevels: [], face: true,
     outline: wedge ? [[0, 0], [depthAt(t), 0], [depthAt(hx - t), sideH], [0, sideH]] : undefined,
     note: [
-      wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? 'ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)' : null,
+      // With both kinds of hole, say which rule is for which: the PR holes go through and match
+      // left and right; the sockets are blind on the inside faces, so they mirror.
+      wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? `${sockets.length ? 'รู PR ' : ''}ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)` : null,
       sockets.length ? `รูบอดเดือยเจาะด้านใน ลึก ${Math.round(t / 2)} มม. ระยะวัดจากขอบหน้า ซ้ายกับขวาเจาะกลับด้านกัน (ไม่ทะลุ)` : null
     ].filter(Boolean).join(' · ') || undefined
   });
@@ -148,15 +150,23 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
     });
   }
 
-  // Window braces: boards with a window cut out, 50 mm bars all round, where the layout put them.
-  if (br.kind === 'window' && br.zs.length) {
+  // Window braces where the layout put them: boards with a window cut out (bars all round, 50 mm or
+  // narrower in a small box), or pairs of cross bars beside side passive radiators. The layout never
+  // places a frame without its window (a solid board would seal the driver into a pocket).
+  if (br.kind === 'window' && br.zs.length && br.window) {
     const braceH = hx - t - mm(braceBottom(geo));
     const win = br.window;
-    parts.push({
-      id: 'brace', name: BRACE_TH.window, qty: br.zs.length, w: wi, h: braceH, t, bevels: [], face: false,
-      holes: win ? [{ kind: 'window', x: wi / 2, y: braceH / 2, w: mm(win.w), h: mm(win.h), label: 'ช่องหน้าต่าง' }] : [],
-      note: `ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น)${win ? '' : ' · เล็กเกินกว่าจะเจาะช่อง ติดเป็นแผ่นเต็ม'}`
-    });
+    const at = `ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น)`;
+    parts.push(br.barsOnly
+      ? {
+        id: 'brace', name: BRACE_BARS_TH, qty: 2 * br.zs.length, w: wi, h: mm(win.bar), t, bevels: [], face: false, holes: [],
+        note: `ชุดละ 2 คาน: คานบนชิดฝาบน คานล่างชิด${geo.slotH > 0 ? 'เพดานท่อสลอต' : geo.tubes ? 'พื้นเหนือท่อ' : 'พื้น'} · ${at} · ไม่มีคานข้างเพราะผนังข้างมี PR`
+      }
+      : {
+        id: 'brace', name: BRACE_TH.window, qty: br.zs.length, w: wi, h: braceH, t, bevels: [], face: false,
+        holes: [{ kind: 'window', x: wi / 2, y: braceH / 2, w: mm(win.w), h: mm(win.h), label: 'ช่องหน้าต่าง' }],
+        note: `${at}${win.bar < 0.05 - 1e-9 ? ` · ขอบกว้าง ${Math.round(mm(win.bar))} มม. (ตู้เล็ก แคบลงให้ช่องเหลือ)` : ''}`
+      });
   }
 
   return parts;
@@ -314,7 +324,9 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     ...(has('port-ceiling') ? [`ติดเพดานท่อสลอตสูงจากพื้นใน ${Math.round(mm(geo.slotH))} มม. ตลอดความกว้าง${has('port-riser') ? ' แล้วติดแผ่นท่อพับขึ้นที่ปลายท่อ' : ''}`] : []),
     ...(has('divider') ? ['ติดแผ่นกั้นห้องพร้อมลำโพงตามระยะในแบบ ยาแนวรอบให้สนิท (สองห้องต้องไม่รั่วถึงกัน)'] : []),
     ...(has('inner-baffle') ? ['ยึดลำโพงตัวในบนแผงยึด แล้วติดแผงยึดเข้าตู้ หันหน้าชนหลังลำโพงตัวหน้า'] : []),
-    ...(has('brace') ? [`ติด${BRACE_TH.window} ${br.zs.length} ชุด ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น) ทากาวทุกขอบที่ชนผนัง`] : []),
+    ...(has('brace') ? [br.barsOnly
+      ? `ติด${BRACE_BARS_TH} ${br.zs.length} ชุด (ชุดละคานบนกับคานล่าง) ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางคาน) ทากาวขอบยาวและปลายทั้งสองที่ชนผนัง ปลายคานต้องไม่ทับรู PR`
+      : `ติด${BRACE_TH.window} ${br.zs.length} ชุด ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น) ทากาวทุกขอบที่ชนผนัง`] : []),
     `ติดผนังหลัง${geo.rearPort ? ' สอดท่อหลังเข้าห้องหลัง' : ''} และเจาะติดขั้วต่อ`,
     'ยาแนวซิลิโคนทุกรอยต่อด้านใน ปล่อยให้แห้ง',
     ...(d.stuffing > 0 ? ['ใส่ใยซับเสียงตามปริมาณในรายการวัสดุ ไม่อุดปากท่อหรือหลังลำโพง'] : []),

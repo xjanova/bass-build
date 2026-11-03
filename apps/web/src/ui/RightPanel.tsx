@@ -1,7 +1,7 @@
 import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
-import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
+import { buildableChoices, fitBraces, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
 import { braceCountOf, DOWEL_D, MAX_BRACES, rowProblem, rowRange } from '../sim/layout';
 import { TUBES, tubeOf } from '../data/hardware';
 import { ampLimits, AWG_MM2, BRACE_TH, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wallDamping, wireOhms, panelModes, type BoxGeometry, type Warning } from '../sim/model';
@@ -15,7 +15,7 @@ const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์']
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
 const BRACES: [BraceKind, string, string][] = [
   ['none', 'ไม่มี', 'ไม่มีโครงค้ำ ผนังข้างสั่นได้ทั้งแผ่น'],
-  ['window', 'แบบหน้าต่าง', 'แผ่นเจาะช่องกลาง ขอบ 5 ซม. ยึดผนังข้างทั้งสองและฝาบน'],
+  ['window', 'แบบหน้าต่าง', 'แผ่นเจาะช่องกลาง ขอบ 5 ซม. ยึดผนังข้างทั้งสองและฝาบน (ตู้ที่มี PR ข้างตู้ใช้คานบน-ล่างแทน ยึดเฉพาะฝาบน)'],
   ['dowel', 'เดือย', `ไม้กลม Ø ${DOWEL_D * 1000} มม. ข้างถึงข้าง ยึดเฉพาะผนังข้าง ใช้ที่น้อยกว่า`]
 ];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
@@ -189,6 +189,12 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
       })()
     };
   }, [deferred, ctx, buildable, material]);
+  // Brace kinds that cannot be built here, with why: a disabled button shows no tooltip on touch and
+  // cannot take focus, so the reason is also written out under the buttons.
+  const braceBlocked = BRACES.flatMap(([k, label]) => {
+    const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
+    return why ? [[label, why] as const] : [];
+  });
   const lim = (f: LimitedField) => (buildable ? limits[f] ?? null : limits[f] ? { ...limits[f]!, around: null } : null);
   const fix = () => {
     if (!ctx) return;
@@ -200,6 +206,13 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
       const clampMm = (v: number, r: [number, number]) => Math.min(Math.floor(r[1] * 1000), Math.max(Math.ceil(r[0] * 1000), v));
       patchDesign(range ? { rowXMm: clampMm(before.rowXMm, range.x), rowYMm: clampMm(before.rowYMm, range.y) } : { rowMode: 'auto' });
       showToast(range ? 'ย้ายลำโพงกลับเข้ามาในแผงหน้าแล้ว' : 'แผงหน้าเล็กเกินจะวางเอง จึงจัดลำโพงกลับกึ่งกลาง', { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
+    // Only the bracing in the way: take braces out rather than resize the box (that would change the sound).
+    const braces = fitBraces(before, ctx);
+    if (braces) {
+      patchDesign(braces);
+      showToast(braces.braceKind === 'none' ? 'ไม่มีที่วางโครงค้ำ จึงไม่ใส่โครงค้ำ ตู้สร้างได้แล้ว' : `ลดโครงค้ำเหลือ ${braces.braceCount} ชุด ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
       return;
     }
     const n = nearestBuildable(before, ctx);
@@ -457,12 +470,17 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
           </div>
 
           <div className="section-title sub" id="braces">โครงค้ำ</div>
-          <div className="seg" role="group" aria-label="แบบโครงค้ำ">
+          <div className="seg" role="group" aria-label="แบบโครงค้ำ" aria-describedby={braceBlocked.length ? 'brace-why' : undefined}>
             {BRACES.map(([k, label, tip]) => {
               const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
               return <button key={k} aria-pressed={d.braceKind === k} disabled={!!why} title={why ?? tip} onClick={() => p({ braceKind: k })}>{label}</button>;
             })}
           </div>
+          {braceBlocked.length > 0 && (
+            <div className="loadline muted" id="brace-why">
+              {braceBlocked.map(([label, why]) => <span key={label}>{label}: สร้างไม่ได้ · {why}</span>)}
+            </div>
+          )}
           {d.braceKind !== 'none' && (
             <div className="field-head">
               <label htmlFor="brn">จำนวนชุด (เรียงตามความลึก)</label>

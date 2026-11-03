@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { ResolvedShape } from '../sim/driverShape';
-import { baffleBottom, BRACE_BAR, braceBottom, DOWEL_D, frontRow, innerBaffleZ, innerRow, sideRow, slotBoards } from '../sim/layout';
+import { baffleBottom, braceBottom, DOWEL_D, frontRow, innerBaffleZ, innerRow, sideRow, slotBoards } from '../sim/layout';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
 import type { Looks } from './finishes';
@@ -293,7 +293,8 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
       internals.add(d.root);
       hiddenDrivers.push(d);
     }
-    if (boxType !== 'isobaric') slab(wi, hx - 2 * t - (hasFrontPort ? slotH + t : 0), t, new THREE.MeshStandardMaterial({ color: 0x2b3442, transparent: true, opacity: 0.6 }), 0, hx / 2 + (hasFrontPort ? (slotH + t) / 2 : 0), zDiv - t / 2, internals);
+    // The band-pass divider, or the isobaric inner baffle (a full board, as in the cut list).
+    slab(wi, hx - 2 * t - (hasFrontPort ? slotH + t : 0), t, new THREE.MeshStandardMaterial({ color: 0x2b3442, transparent: true, opacity: 0.6 }), 0, hx / 2 + (hasFrontPort ? (slotH + t) / 2 : 0), zDiv - t / 2, internals);
   }
 
   // Slot port: ceiling panel from the front edge, plus an L-shaped riser when it is long.
@@ -350,14 +351,14 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   for (const z of br.zs) {
     const zB = dx / 2 - t - z;
     if (br.kind === 'window' && br.window) {
-      const bar = BRACE_BAR;
+      // The layout never places a frame without its window; beside side PRs only the cross bars.
+      const bar = br.window.bar;
       slab(wi, bar, t, braceMat, 0, yA + bar / 2, zB, internals);
       slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, zB, internals);
-      slab(bar, innerH - 2 * bar, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, zB, internals);
-      slab(bar, innerH - 2 * bar, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, zB, internals);
-    } else if (br.kind === 'window') {
-      // Too small for a window: one board.
-      slab(wi, innerH, t, braceMat, 0, yA + innerH / 2, zB, internals);
+      if (!br.barsOnly) {
+        slab(bar, innerH - 2 * bar, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, zB, internals);
+        slab(bar, innerH - 2 * bar, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, zB, internals);
+      }
     } else if (br.kind === 'dowel') {
       for (const y of br.dowelYs) {
         const rod = new THREE.Mesh(new THREE.CylinderGeometry(DOWEL_D / 2, DOWEL_D / 2, wi, 20), braceMat);

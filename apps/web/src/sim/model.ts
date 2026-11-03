@@ -6,7 +6,7 @@ import {
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { BoxShape, BraceKind, Design, DimRef } from '../state/store';
-import { braceCountOf, bracePlan, DOWEL_D, dowelRows, freeSpan, NO_BRACES, rowProblem, type BracePlan } from './layout';
+import { braceBar, braceCountOf, bracePlan, braceSpan, BRACE_WINDOW_MIN, DOWEL_D, dowelRows, freeSpan, NO_BRACES, rowProblem, sidePrBars, type BracePlan } from './layout';
 import { tubeOf } from '../data/hardware';
 
 const cm2 = (v: number) => v * 1e-4;
@@ -328,16 +328,24 @@ export const shapeFor = (d: Pick<Design, 'shape' | 'boxType'>): BoxShape =>
 
 /** What each kind of bracing is called in the volume breakdown, the 3D tree and the blueprint. */
 export const BRACE_TH: Record<BraceKind, string> = { none: 'ไม่มีโครงค้ำ', window: 'โครงค้ำแบบหน้าต่าง', dowel: 'เดือยค้ำ (ไม้กลม)' };
+/** A window plane built as two cross bars (beside side passive radiators). */
+export const BRACE_BARS_TH = 'คานค้ำ (บน-ล่าง)';
 
 /**
- * Air the bracing takes, m³: a window frame is two bars across and two up, 5 cm wide, one panel
- * thick; a dowel plane is its row of round dowels across the inside width.
+ * Air the bracing takes, m³, for planes `span` high (see `braceSpan`: the slot or tube band below
+ * the braces is left out, as the layout does): a window frame is two bars across and two up (5 cm
+ * wide, narrower in a small box, see `braceBar`), one panel thick, or only the two bars across
+ * when side passive radiators leave no room for side bars; a dowel plane is its row of round
+ * dowels across the inside width, counted by the same rule as the layout.
  */
-export function braceVolume(kind: BraceKind, n: number, wi: number, hi: number, t: number): number {
+export function braceVolume(kind: BraceKind, n: number, wi: number, span: number, t: number, barsOnly = false): number {
   if (kind === 'none') return 0;
   const planes = braceCountOf(n);
-  if (kind === 'dowel') return planes * dowelRows(hi) * Math.PI * (DOWEL_D / 2) ** 2 * wi;
-  return planes * (2 * wi + 2 * Math.max(0, hi - 0.1)) * 0.05 * t;
+  if (kind === 'dowel') return planes * dowelRows(span) * Math.PI * (DOWEL_D / 2) ** 2 * wi;
+  const bar = braceBar(wi, span);
+  // No frame fits (a build problem): nothing is glued in.
+  if (bar === null) return 0;
+  return planes * (2 * wi + (barsOnly ? 0 : 2 * Math.max(0, span - 2 * bar))) * bar * t;
 }
 /** Density assumed for dowel wood (a medium hardwood), kg/m³: an estimate, only used for the box weight. */
 const DOWEL_KG_M3 = 650;
@@ -479,6 +487,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   // most commercial PR subwoofers); an odd one sits in the front row next to the drivers.
   const prs = d.boxType === 'pr' ? d.prCount : 0;
   const prLayout = { front: prs % 2, perSide: Math.floor(prs / 2) };
+  const barsOnly = braceKind === 'window' && sidePrBars(d.boxType, prLayout.perSide);
   const rowDiameters = [
     ...Array(bandpassType ? d.count : d.boxType === 'isobaric' ? 1 : d.count).fill(outer),
     ...Array(prLayout.front).fill(2 * prRadius)
@@ -526,11 +535,13 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
     }, 0);
     const guessW = width || 1.25 * Math.cbrt(net);
     const guessH = height || Math.cbrt(net);
+    // The braces' height as the layout will measure it: above the slot ceiling or the tube row.
+    const span = braceSpan({ t, hi: guessH, slotH: slotted ? front!.area / guessW : 0, tubes: tube ? { y: t + TUBE_EDGE + tube.od / 2, od: tube.od } : null });
     parts = {
       drivers: drivers * L(mount.displacementL),
       ports: portVol,
       boards: innerBoards * guessW * Math.cbrt(net) * t,
-      braces: braceVolume(braceKind, braceN, guessW, guessH, t)
+      braces: braceVolume(braceKind, braceN, guessW, span, t, barsOnly)
     };
     const gross = net + tunnel + parts.drivers + parts.ports + parts.boards + parts.braces;
     // Start from W:H:D = 1.25 : 1 : 0.8 (sides set by hand at their size), then raise any side
@@ -586,7 +597,8 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
     // Left-over space is the contents' fault when any side had to grow for them, else the hand-set sizes'.
     oversizeL = surplus > 1e-3 && held.includes('min') ? surplus : 0;
     extraL = surplus > 1e-3 && !held.includes('min') ? surplus : 0;
-    shortL = Math.max(0, -surplus);
+    // Rounding dust is neither: the same 1 mL floor as the two above.
+    shortL = surplus < -1e-3 ? -surplus : 0;
     dimConflict = conflict;
     capacityL = rules.every(Boolean)
       ? Math.max(0, (toInner(0, rules[0]!.v, hi) * toInner(1, rules[1]!.v, hi) * toInner(2, rules[2]!.v, hi) - (gross - net)) * 1000)
@@ -638,8 +650,9 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const dx = outline ? outline.outerFloor : di + 2 * t;
   const dxTop = outline ? outline.outerTop : dx;
   // Outside panels (top, bottom, baffle, back along its lean, two sides), the slot board, the
-  // window braces (about half a board each once the window is cut out) and any divider / inner baffle.
-  const braceBoards = braceKind === 'window' ? braceN * 0.5 * wi * hi : 0;
+  // window braces (about half a board each once the window is cut out; cross bars only their own
+  // area) and any divider / inner baffle.
+  const braceBoards = braceKind === 'window' ? (barsOnly ? parts.braces / t : braceN * 0.5 * wi * hi) : 0;
   const panelAreaM2 = wx * (dx + dxTop) + wx * hi + wx * backRun + hi * (di + diTop) + (slotted ? wi * Math.min(1.5, portLen) : 0) + braceBoards + innerBoards * wi * hi;
   const density = material?.densityKgM3 ?? 750;
   const lit = (v: number) => v * 1000;
@@ -687,10 +700,11 @@ export function thermalAt(watts: number, peW: number | null | undefined, seconds
  * and the panel's free span along the depth becomes the longest bay between the baffle, the
  * planes and the back — depth/(n+1) for n evenly spaced planes. A window frame touches both sides
  * and the top; dowels run side to side and hold only the sides (their point fixings are taken as
- * a line, so a dowel-braced side is somewhat optimistic). A band-pass divider or isobaric inner
- * baffle is a full board glued all round and holds them too. The planes run parallel to the back,
- * so they never touch it: the back keeps its whole width × height (bracing it would need a brace
- * from the baffle to the back). With no bracing and no inside board these are the unbraced numbers.
+ * a line, so a dowel-braced side is somewhat optimistic). Cross bars (a window plane in a box with
+ * side passive radiators) hold only the top. A band-pass divider or isobaric inner baffle is not
+ * counted as a support, so an unbraced box of any type gets exactly the unbraced numbers (and the
+ * estimate stays on the low side). The planes run parallel to the back, so they never touch it:
+ * the back keeps its whole width × height (bracing it would need a brace from the baffle to the back).
  */
 export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefined, f11Factor = 1): { side: number; back: number; top: number } {
   const e = (material?.eGpa ?? 3.5) * 1e9;
@@ -822,7 +836,9 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
   const br = geo.braces;
   if (br && br.missing > 0) {
     const placed = br.count - br.missing;
-    out.push({ code: 'brace', text: `${BRACE_TH[br.kind]} ${br.count} ชุด${placed ? ` ใส่ได้แค่ ${placed} ชุด ที่เหลือ` : ''}ไม่มีที่วาง (ติด${br.blockedBy ?? 'ของในตู้'}) ลดจำนวนชุด เปลี่ยนแบบโครงค้ำ หรือขยายตู้${note}` });
+    out.push(br.kind === 'window' && !br.window
+      ? { code: 'brace', text: `${BRACE_TH.window}ใส่ไม่ได้ ตู้เล็กเกินกว่าจะเจาะช่องโครงค้ำ (ช่องต้องเหลืออย่างน้อย ${Math.round(BRACE_WINDOW_MIN * 1000)} มม. ถ้าติดเป็นแผ่นเต็มจะปิดลำโพงไว้ในช่องเล็ก) ใช้เดือยหรือไม่ใส่โครงค้ำ` }
+      : { code: 'brace', text: `${BRACE_TH[br.kind]} ${br.count} ชุด${placed ? ` ใส่ได้แค่ ${placed} ชุด ที่เหลือ` : ''}ไม่มีที่วาง (ติด${br.blockedBy ?? 'ของในตู้'}) ลดจำนวนชุด เปลี่ยนแบบโครงค้ำ หรือขยายตู้${note}` });
   }
   if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
   return out;
@@ -830,7 +846,7 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
 
 // ---- suggested box -------------------------------------------------------------------------------
 
-export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable' | 'space-capped';
+export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable' | 'space-capped' | 'braces-reduced';
 
 export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-high-for-sealed': 'Qts สูง ตู้ปิดแบบ Qtc 0.707 จะใหญ่มาก จึงใช้ Qtc สูงขึ้น ลำโพงนี้เหมาะกับตู้ใหญ่หรือติดผนัง (free-air)',
@@ -843,7 +859,8 @@ export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'volume-raised': 'ตู้ตามสูตรเล็กเกินกว่าจะใส่ลำโพง แม่เหล็ก และท่อได้ (หรือแคบจนลมในท่อแรง) จึงขยายตู้โดยคงความถี่จูนเดิม',
   clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง',
   unbuildable: 'หาขนาดที่สร้างได้จริงสำหรับตู้แบบนี้ไม่เจอ (ท่อหรือลำโพงชนกัน) ลองตู้แบบอื่น',
-  'space-capped': 'ตู้ตามสูตรใหญ่เกินขนาดที่กำหนดไว้ จึงใช้ตู้ใหญ่สุดที่ใส่ในขนาดนั้นได้'
+  'space-capped': 'ตู้ตามสูตรใหญ่เกินขนาดที่กำหนดไว้ จึงใช้ตู้ใหญ่สุดที่ใส่ในขนาดนั้นได้',
+  'braces-reduced': 'ไม่มีที่วางโครงค้ำครบตามที่ตั้งไว้ จึงลดจำนวนชุด (หรือไม่ใส่โครงค้ำ) แทนการขยายตู้ ปริมาตรจึงยังตามสูตร'
 };
 
 const RECIPE_TH: Record<AlignmentRecipe, string> = {
@@ -1047,11 +1064,19 @@ export function suggestDesign(
       moved = patch.vbL !== before || moved;
     }
     if (codes.has('port-long')) moved = grow(d.boxType === 'bp4' || d.boxType === 'bp6' ? 'vfL' : 'vbL', 1.15) || moved;
-    // Braces with nowhere to go: a deeper box has room behind the drivers and ports for them.
-    if (codes.has('brace') && !codes.has('port-long')) moved = grow('vbL', 1.15) || moved;
     if (codes.has('rear-port-long')) moved = grow('vbL', 1.15) || moved;
-    if (codes.has('too-small') || codes.has('magnet') || codes.has('port-long') || codes.has('rear-port-long') || codes.has('brace')) {
+    if (codes.has('too-small') || codes.has('magnet') || codes.has('port-long') || codes.has('rear-port-long')) {
       if (!flags.includes('volume-raised')) flags.push('volume-raised');
+    }
+    // Braces with nowhere to go never change the volume (that would change the sound only to make
+    // room for a brace): once nothing else is left to fix, keep the planes that fit, or none.
+    if (codes.has('brace') && (codes.size === 1 || !moved)) {
+      const br = g.braces;
+      const placed = br.count - br.missing;
+      if (placed > 0) patch.braceCount = placed;
+      else patch.braceKind = 'none';
+      if (!flags.includes('braces-reduced')) flags.push('braces-reduced');
+      moved = true;
     }
     if (!moved) break; // every lever is at the end of its slider
   }

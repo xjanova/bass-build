@@ -4,10 +4,10 @@ import seed from '../../../data/seed/drivers.json';
 import materials from '../../../data/seed/materials.json';
 import { sanitizeDesign } from '../src/data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../src/data/types';
-import { problemsFor, type BuildCtx } from '../src/sim/buildable';
+import { fitBraces, problemsFor, type BuildCtx } from '../src/sim/buildable';
 import { blueprintFor, cutListCsv, partsFor } from '../src/sim/blueprint';
-import { BRACE_GAP, bracePlan, DOWEL_D, dowelRows, freeSpan, innerBaffleZ, sideRow, slotBoards } from '../src/sim/layout';
-import { braceVolume, driverFromDto, panelModes, sizeBox, suggestDesign, toSpec, type BoxGeometry } from '../src/sim/model';
+import { BRACE_GAP, BRACE_WINDOW_MIN, braceBottom, bracePlan, braceSpan, DOWEL_D, dowelRows, freeSpan, innerBaffleZ, prHoleRadius, sideRow, slotBoards } from '../src/sim/layout';
+import { braceVolume, buildProblems, driverFromDto, panelModes, sizeBox, suggestDesign, toSpec, type BoxGeometry } from '../src/sim/model';
 import { DEFAULT_DESIGN, type BoxType, type Design } from '../src/state/store';
 
 const drivers = (seed.drivers as unknown as Omit<DriverDto, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }) as DriverDto);
@@ -32,7 +32,7 @@ function unbraced(g: BoxGeometry) {
   const e = mdf.eGpa! * 1e9, rho = mdf.densityKgM3!, nu = mdf.poisson ?? 0.25, h = g.t;
   const bend = (e * h ** 3) / (12 * (1 - nu * nu));
   const f11 = (a: number, b: number) => (Math.PI / 2) * Math.sqrt(bend / (rho * h)) * (1 / (a * a) + 1 / (b * b));
-  return { side: f11((g.di + g.diTop) / 2, g.hi), back: f11(g.wi, Math.hypot(g.hi, g.di - g.diTop)) };
+  return { side: f11((g.di + g.diTop) / 2, g.hi), back: f11(g.wi, Math.hypot(g.hi, g.di - g.diTop)), top: f11(g.wi, g.diTop) };
 }
 
 describe('bracing and the panel modes', () => {
@@ -93,11 +93,15 @@ describe('bracing and the panel modes', () => {
     expect(g.braces.topHeld).toEqual([]);
   });
 
-  it('a band-pass divider and an isobaric inner baffle already hold the sides', () => {
-    for (const type of ['bp4', 'isobaric'] as const) {
+  it('no bracing is the unbraced formula for every box type (inside boards are not counted as supports)', () => {
+    for (const type of ['sealed', 'vented', 'pr', 'bp4', 'bp6', 'isobaric'] as const) {
       const g = geoOf(braced(boxOf(type), 'none'));
-      expect(g.braces.sideHeld).toHaveLength(1);
-      expect(panelModes(g, mdf).side).toBeGreaterThan(unbraced(g).side);
+      expect(g.braces.sideHeld).toEqual([]);
+      expect(g.braces.topHeld).toEqual([]);
+      const m = panelModes(g, mdf), u = unbraced(g);
+      expect(m.side, type).toBe(u.side);
+      expect(m.back, type).toBe(u.back);
+      expect(m.top, type).toBe(u.top);
     }
   });
 });
@@ -134,8 +138,51 @@ describe('where the braces go', () => {
     expect(slotBoards(g).riser).toBeGreaterThan(0);
     expect(g.braces.zs).toHaveLength(3);
     clear(g, g.frontDepth - g.slotH - g.t, g.frontDepth);
-    const pr = geoOf(braced(boxOf('pr', { prCount: 2 }), 'window', 2));
-    for (const z of sideRow(pr)) { const c = pr.dx / 2 - pr.t - z; clear(pr, c - pr.prRadius, c + pr.prRadius); }
+  });
+
+  /** Nearest distance from the centre of every side PR hole to where a plane meets the side panel. */
+  const prClearance = (g: BoxGeometry) => {
+    const br = g.braces, yc = g.hx / 2;
+    const ends: [number, number][] = br.kind === 'dowel'
+      ? br.dowelYs.map((y): [number, number] => [y - DOWEL_D / 2, y + DOWEL_D / 2])
+      : [[br.bottom, br.bottom + br.window!.bar], [br.top - br.window!.bar, br.top]];
+    let worst = Infinity;
+    for (const z of br.zs) for (const s of sideRow(g)) for (const [y0, y1] of ends) {
+      const c = g.dx / 2 - g.t - s;
+      const dz = Math.max(0, Math.abs(z - c) - br.thick / 2), dy = Math.max(0, y0 - yc, yc - y1);
+      worst = Math.min(worst, Math.hypot(dz, dy) - prHoleRadius(g));
+    }
+    return worst;
+  };
+
+  it('beside side passive radiators a window plane is two cross bars whose ends clear the PR holes', () => {
+    for (const n of [1, 2, 3]) {
+      const d = braced(boxOf('pr', { prCount: 2 }), 'window', n);
+      const g = geoOf(d);
+      expect(g.prLayout.perSide).toBe(1);
+      expect(g.braces.barsOnly).toBe(true);
+      expect(codes(d), `${n} planes`).toEqual([]);
+      expect(g.braces.zs).toHaveLength(n);
+      expect(prClearance(g)).toBeGreaterThanOrEqual(BRACE_GAP - 1e-9);
+      // Cross bars hold the top, not the sides (they meet the sides only at their ends).
+      expect(g.braces.sideHeld).toEqual([]);
+      expect(g.braces.topHeld).toEqual(g.braces.zs);
+      expect(panelModes(g, mdf).side).toBe(unbraced(g).side);
+      expect(panelModes(g, mdf).top).toBeGreaterThan(unbraced(g).top);
+    }
+    // A front-row PR alone leaves the sides free: a full frame as usual.
+    const one = geoOf({ ...boxOf('pr'), prCount: 1 });
+    expect(one.prLayout.perSide).toBe(0);
+    expect(one.braces.barsOnly).toBe(false);
+  });
+
+  it('dowel sockets in a side-PR box stay off the PR holes, or the dowels are a build problem', () => {
+    for (const n of [1, 2]) {
+      const d = braced(boxOf('pr', { prCount: 2 }), 'dowel', n);
+      const g = geoOf(d);
+      if (g.braces.missing) expect(codes(d)).toContain('brace');
+      else expect(prClearance(g)).toBeGreaterThanOrEqual(BRACE_GAP - 1e-9);
+    }
   });
 
   it('a brace with nowhere to go is a build problem, not a quiet overlap', () => {
@@ -146,10 +193,17 @@ describe('where the braces go', () => {
     expect(p?.text).toContain('เดือย');
     // Fewer planes fit.
     expect(codes(braced(boxOf('isobaric'), 'dowel', 1))).not.toContain('brace');
-    // The suggestion grows the box until the braces asked for fit.
+    // The suggestion keeps the volume it would give without bracing and drops the planes that do
+    // not fit, saying so, instead of growing the box (which would change the sound) for a brace.
     const s = suggestDesign(iso, r.driver, dto, damping);
     expect(s.flags).not.toContain('unbuildable');
-    expect(codes({ ...iso, ...s.patch })).toEqual([]);
+    expect(s.flags).toContain('braces-reduced');
+    expect(s.flags).not.toContain('volume-raised');
+    const fixed = { ...iso, ...s.patch };
+    expect(codes(fixed)).toEqual([]);
+    expect(fixed.braceKind).toBe('dowel');
+    expect(fixed.braceCount).toBeLessThan(3);
+    expect(fixed.vbL).toBe({ ...iso, ...suggestDesign(braced(iso, 'none'), r.driver, dto, damping).patch }.vbL);
   });
 });
 
@@ -159,7 +213,7 @@ describe('volume and the blueprint follow the bracing', () => {
     expect(geoOf(braced(vented, 'none')).volume.bracesL).toBe(0);
     expect(geoOf(braced(vented, 'window', 3)).volume.bracesL).toBeCloseTo(3 * one, 0);
     const g = geoOf(braced(vented, 'dowel', 2));
-    expect(g.volume.bracesL).toBeCloseTo(2 * dowelRows(g.hi) * Math.PI * (DOWEL_D / 2) ** 2 * g.wi * 1000, 1);
+    expect(g.volume.bracesL).toBeCloseTo(2 * g.braces.dowelYs.length * Math.PI * (DOWEL_D / 2) ** 2 * g.wi * 1000, 1);
     expect(braceVolume('window', 1, 0.5, 0.4, 0.018)).toBeCloseTo((2 * 0.5 + 2 * 0.3) * 0.05 * 0.018, 12);
     for (const kind of ['none', 'window', 'dowel'] as const) {
       const v = geoOf(braced(vented, kind, 2)).volume;
@@ -207,5 +261,134 @@ describe('volume and the blueprint follow the bracing', () => {
     expect(back.braceKind).toBe('window');
     expect(sanitizeDesign({ ...DEFAULT_DESIGN, braceKind: 'steel' }, DEFAULT_DESIGN).braceKind).toBe('window');
     expect(sanitizeDesign({ ...DEFAULT_DESIGN, braceKind: 'dowel', braceCount: 3 }, DEFAULT_DESIGN)).toMatchObject({ braceKind: 'dowel', braceCount: 3 });
+  });
+});
+
+describe('review fixes: side PRs, small boxes, dowel rows', () => {
+  const ctxOf = (model: string): BuildCtx & { dto: DriverDto } => {
+    const x = drivers.find((dd) => dd.model === model)!;
+    const rr = driverFromDto(x);
+    if (!rr.ok) throw new Error(model);
+    return { dto: x, driver: rr.driver, damping };
+  };
+  const suggestFor = (c: BuildCtx, start: Design) => ({ ...start, ...suggestDesign(start, c.driver, c.dto, damping).patch });
+  const geoFor = (c: BuildCtx, d: Design) => sizeBox(d, c.dto, buildNetwork(toSpec(d, c.driver, damping)), mdf);
+
+  it('a side-PR box suggested under the default bracing builds, with the volume it gets unbraced', () => {
+    const c = ctxOf('18TBW100');
+    for (const count of [1, 2]) {
+      const start = { ...DEFAULT_DESIGN, boxType: 'pr' as const, count, prCount: 2 };
+      const s = suggestDesign(start, c.driver, c.dto, damping);
+      const d = { ...start, ...s.patch };
+      expect(s.flags).not.toContain('unbuildable');
+      expect(s.flags).not.toContain('braces-reduced');
+      expect(d.braceKind).toBe('window');
+      expect(problemsFor(d, c)).toEqual([]);
+      const g = geoFor(c, d);
+      expect(g.braces.barsOnly).toBe(true);
+      expect(g.braces.zs).toHaveLength(1);
+      const unbracedVb = suggestFor(c, { ...start, braceKind: 'none' }).vbL;
+      expect(Math.abs(d.vbL - unbracedVb) / unbracedVb).toBeLessThan(0.05);
+      // A design stored before bracing existed loads with the window brace and still builds.
+      const { braceKind: _k, braceCount: _n, ...old } = { ...d };
+      expect(problemsFor(sanitizeDesign(old, DEFAULT_DESIGN), c)).toEqual([]);
+    }
+  });
+
+  it('the suggestion never grows a box to make room for a brace (every seed driver, PR boxes)', () => {
+    for (const x of drivers) {
+      const rr = driverFromDto(x);
+      if (!rr.ok) continue;
+      const c = { dto: x, driver: rr.driver, damping };
+      const start = { ...DEFAULT_DESIGN, boxType: 'pr' as const, prCount: 2 };
+      const braced1 = suggestDesign(start, rr.driver, x, damping);
+      const none = suggestFor(c, { ...start, braceKind: 'none' });
+      const d = { ...start, ...braced1.patch };
+      expect(d.vbL, x.model).toBeLessThanOrEqual(none.vbL);
+      // Whatever the unbraced box builds, the braced suggestion builds too (with fewer braces if it must).
+      if (!problemsFor(none, c).length) expect(problemsFor(d, c), x.model).toEqual([]);
+    }
+  }, 60_000);
+
+  it('a small box never gets a solid brace board: narrower bars keep a window, or it is a build problem', () => {
+    const cases: [string, Design['boxType'], number | null][] = [['DMA90-4', 'sealed', 2], ['RS100-8', 'vented', 3], ['PS95-8', 'isobaric', null], ['DMA90-4', 'bp4', null], ['10F/8414G10', 'sealed', null], ['10F/8414G10', 'vented', null]];
+    for (const [model, boxType, vb] of cases) {
+      const c = ctxOf(model);
+      const s = suggestFor(c, { ...DEFAULT_DESIGN, boxType });
+      const d = vb ? { ...s, vbL: vb } : s;
+      const g = geoFor(c, d);
+      const p = problemsFor(d, c);
+      const brace = partsFor(d, g).find((x) => x.id === 'brace');
+      if (g.braces.missing) expect(p.map((x) => x.code), model).toContain('brace');
+      if (brace) {
+        expect(brace.holes.some((h) => h.kind === 'window'), `${model} ${boxType}`).toBe(true);
+        const win = brace.holes[0];
+        expect(win.w! >= BRACE_WINDOW_MIN * 1000 - 1e-6 && win.h! >= BRACE_WINDOW_MIN * 1000 - 1e-6).toBe(true);
+        expect(brace.note ?? '').not.toContain('แผ่นเต็ม');
+      }
+    }
+    // A cross-section too small for any window: every plane is missing, with a clear reason.
+    const g = geoOf(vented);
+    const tiny = { ...g, wi: 0.07 } as BoxGeometry;
+    const plan = bracePlan(tiny, 'vented', 1, 'window', 2);
+    expect(plan.window).toBeNull();
+    expect(plan.zs).toEqual([]);
+    expect(plan.missing).toBe(2);
+    const text = buildProblems(vented, dto, { ...tiny, braces: plan }).find((x) => x.code === 'brace')!.text;
+    expect(text).toContain('เล็กเกินกว่าจะเจาะช่อง');
+    expect(partsFor(vented, { ...tiny, braces: plan }).some((x) => x.id === 'brace')).toBe(false);
+  });
+
+  it('dowel volume counts the same rows the layout draws (from the brace span, not the inside height)', () => {
+    for (const [model, boxType, vb] of [['ND105-8', 'bp4', 3], ['RS100-8', 'vented', 3], ['18BMA-2000S', 'vented', null]] as const) {
+      const c = ctxOf(model);
+      const s = suggestFor(c, { ...DEFAULT_DESIGN, boxType });
+      for (const n of [1, 2]) {
+        const d = { ...s, ...(vb ? { vbL: vb } : {}), braceKind: 'dowel' as const, braceCount: n };
+        const g = geoFor(c, d);
+        expect(g.braces.dowelYs).toHaveLength(dowelRows(braceSpan(g)));
+        const drawn = n * g.braces.dowelYs.length * Math.PI * (DOWEL_D / 2) ** 2 * g.wi * 1000;
+        // The volume is taken on the sizing pass's width (as the slot boards are), so a small box is
+        // a few per cent off; a different row count would be 50 % or 100 % off.
+        expect(Math.abs(g.volume.bracesL / drawn - 1), `${model} ${boxType}`).toBeLessThan(0.05);
+        expect(g.braces.bottom).toBeCloseTo(braceBottom(g), 12);
+      }
+    }
+  });
+
+  it('cross bars in the blueprint: two per plane, no window, clear of the PR holes', () => {
+    const c = ctxOf('18TBW100');
+    const d = suggestFor(c, { ...DEFAULT_DESIGN, boxType: 'pr', prCount: 2, braceCount: 2 });
+    const g = geoFor(c, d);
+    expect(g.braces.barsOnly).toBe(true);
+    const bars = partsFor(d, g).find((x) => x.id === 'brace')!;
+    expect(bars.qty).toBe(2 * g.braces.zs.length);
+    expect(bars.holes).toEqual([]);
+    expect(bars.h).toBeCloseTo(g.braces.window!.bar * 1000, 9);
+    const bp = blueprintFor({ d, geo: g, dto: c.dto, material: mdf, damping });
+    expect(bp.steps.some((x) => x.includes('คานค้ำ'))).toBe(true);
+    expect(geoFor(c, d).volume.bracesL).toBeCloseTo(2 * 2 * g.wi * g.braces.window!.bar * g.t * 1000, 1);
+  });
+
+  it('the side note says which holes match and which mirror when a PR box has dowels', () => {
+    const d = braced(boxOf('pr', { prCount: 2 }), 'dowel', 1);
+    const g = geoOf(d);
+    // Only the wording is checked here: a socket pair drawn behind the radiators.
+    const withSockets = { ...g, braces: { ...g.braces, zs: [g.di - 0.03] } };
+    const side = partsFor(d, withSockets).find((x) => x.id === 'side')!;
+    expect(side.holes.some((h) => h.kind === 'pr') && side.holes.some((h) => h.kind === 'dowel')).toBe(true);
+    expect(side.note).toContain('รู PR ซ้ายกับขวาเจาะเหมือนกัน');
+    expect(side.note).toMatch(/รูบอดเดือย.*ซ้ายกับขวาเจาะกลับด้านกัน/);
+    // Without sockets the PR rule needs no label.
+    expect(partsFor(braced(d, 'none'), geoOf(braced(d, 'none'))).find((x) => x.id === 'side')!.note).toBe('ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)');
+  });
+
+  it('the lab fix takes braces out rather than resizing the box', () => {
+    const iso = braced(boxOf('isobaric'), 'dowel', 3);
+    const f = fitBraces(iso, ctx)!;
+    expect(f).not.toBeNull();
+    expect(f.vbL).toBeUndefined();
+    expect(codes({ ...iso, ...f })).toEqual([]);
+    expect(fitBraces(vented, ctx)).toBeNull();
   });
 });
