@@ -5,7 +5,7 @@ import {
 } from '@bassbuild/physics';
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
-import type { BoxShape, Design } from '../state/store';
+import type { BoxShape, Design, DimRef } from '../state/store';
 import { rowProblem } from './layout';
 import { tubeOf } from '../data/hardware';
 
@@ -301,8 +301,11 @@ export interface BoxGeometry {
   extraL: number;
   /** Litres the sizes set by hand fall short of what the design needs (0 when it fits). */
   shortL: number;
-  /** A side whose contents need more than the size set (or allowed) for it, outside sizes in m. */
-  dimConflict: { axis: DimAxis; need: number; limit: number } | null;
+  /**
+   * A side whose contents need more than the size set (or allowed) for it, m, both measured the
+   * way the sizes were entered (`ref`: outside, or inside; a wedge's depth at the floor).
+   */
+  dimConflict: { axis: DimAxis; need: number; limit: number; ref: DimRef } | null;
   /** Largest net volume the sizes set by hand can hold, L (null while any side is free). */
   capacityL: number | null;
   volume: VolumeBreakdown;
@@ -344,6 +347,40 @@ function wedgeFloorFor(outer: number, h: number, r: number, t: number): number {
   let b = outer - 2 * t;
   for (let i = 0; i < 8; i++) b -= (wedgeOutline(b, h, r, t).outerFloor - outer) / (1 + (1 - r) * t / h);
   return Math.max(0.01, b);
+}
+
+/** Top depth over floor depth, inside, as sizeBox uses it (a plain box is a wedge with r = 1). */
+const wedgeRatio = (d: Pick<Design, 'shape' | 'boxType' | 'wedgeTopPct'>) => (shapeFor(d) === 'wedge' ? clamp(d.wedgeTopPct / 100, 0.2, 1) : 1);
+
+/**
+ * One side's size, m, re-measured from outside to inside or back (`hi`: the inside height, which
+ * a wedge's lean needs). Widths and heights differ by two panels; a wedge's floor depth by the
+ * baffle plus the leaning back measured level at the floor.
+ */
+export function convertSide(axis: DimAxis, v: number, from: DimRef, to: DimRef, t: number, wedgeR: number, hi: number): number {
+  if (from === to) return v;
+  if (axis < 2 || wedgeR >= 1) return to === 'inner' ? v - 2 * t : v + 2 * t;
+  return to === 'inner' ? wedgeFloorFor(v, hi, wedgeR, t) : wedgeOutline(v, hi, wedgeR, t).outerFloor;
+}
+
+/** The laid-out box measured the way the sizes are entered: [width, height, floor depth], m. */
+export const sidesIn = (geo: BoxGeometry, ref: DimRef): [number, number, number] =>
+  ref === 'inner' ? [geo.wi, geo.hi, geo.di] : [geo.wx, geo.hx, geo.dx];
+
+/**
+ * The hand-set sizes re-entered the other way (`to`), so the box keeps its size when the user
+ * switches between outside and inside numbers. Each number is converted as a number (a "max" limit
+ * stays the same limit, not the size the box has now), with the current inside height for a
+ * wedge's lean; whole millimetres, as the fields take them.
+ */
+export function convertDims(d: Design, geo: Pick<BoxGeometry, 'hi'> | null, to: DimRef): Partial<Design> {
+  if (d.dimRef === to) return {};
+  const t = d.thicknessMm / 1000;
+  const r = wedgeRatio(d);
+  // Without a laid-out box (no driver yet) the height field is the best guess at the inside height.
+  const hi = geo?.hi ?? Math.max(0.05, d.hMm / 1000 - (d.dimRef === 'inner' ? 0 : 2 * t));
+  const one = (axis: DimAxis, mm: number) => Math.max(1, Math.round(convertSide(axis, mm / 1000, d.dimRef, to, t, r, hi) * 1000));
+  return { dimRef: to, wMm: one(0, d.wMm), hMm: one(1, d.hMm), dMm: one(2, d.dMm) };
 }
 
 /** Lays the box out around its contents. Only the ports of `res` are used, so a bare network build will do. */
@@ -394,13 +431,18 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   // An isobaric pair needs a tunnel the size of one driver around the inner unit, on top of Vb.
   const tunnel = d.boxType === 'isobaric' ? (outer + 0.04) * (outer + 0.04) * (depth + 0.03) : 0;
 
-  // Sizes set by hand, outside, m (null = free).
+  // Sizes set by hand, m (null = free), measured outside or inside as the user chose.
+  const ref: DimRef = d.dimRef === 'inner' ? 'inner' : 'outer';
   const rules = ([[d.wMode, d.wMm], [d.hMode, d.hMm], [d.dMode, d.dMm]] as const).map(([mode, mm]) => (mode === 'auto' ? null : { mode, v: mm / 1000 }));
-  // The solver works on inside width, inside height and inside mean depth.
-  const toInner = (j: DimAxis, v: number, hiNow: number) =>
-    j < 2 ? v - 2 * t : wedge ? (wedgeFloorFor(v, hiNow, r, t) * (1 + r)) / 2 : v - 2 * t;
-  const toOuter = (j: DimAxis, v: number, hiNow: number) =>
-    j < 2 ? v + 2 * t : wedge ? wedgeOutline((2 * v) / (1 + r), hiNow, r, t).outerFloor : v + 2 * t;
+  // The solver works on inside width, inside height and inside mean depth; a hand-set depth is
+  // the floor depth (a wedge is deepest there). Inside sizes hold whatever the panels are, so a
+  // thicker panel grows the outside; outside sizes hold, so it shrinks the inside.
+  const toInner = (j: DimAxis, v: number, hiNow: number) => {
+    const inside = convertSide(j, v, ref, 'inner', t, r, hiNow);
+    return j === 2 ? (inside * (1 + r)) / 2 : inside;
+  };
+  /** An inside size the solver works on, measured the way the rules are. */
+  const toRef = (j: DimAxis, v: number, hiNow: number) => convertSide(j, j === 2 ? (2 * v) / (1 + r) : v, 'inner', ref, t, r, hiNow);
   /** Height of the magnet's top edge as a share of the inside height (where a wedge is shallowest for it). */
   const magnetShare = (hiNow: number, band: number) => {
     const bottom = band;
@@ -458,7 +500,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
       dims.forEach((v, j) => {
         const rule = rules[j];
         const cap = rule ? Math.max(0.01, toInner(j as DimAxis, rule.v, dims[1])) : Infinity;
-        if (mins[j] > cap + 1e-6) conflict = { axis: j as DimAxis, need: toOuter(j as DimAxis, mins[j], dims[1]), limit: rule!.v };
+        if (mins[j] > cap + 1e-6) conflict = { axis: j as DimAxis, need: toRef(j as DimAxis, mins[j], dims[1]), limit: rule!.v, ref };
         // A side set by hand follows its size (a wedge's depth limit moves with the height);
         // the contents win when they need more.
         const target = rule?.mode === 'fixed' ? Math.max(cap, mins[j]) : null;
@@ -645,6 +687,8 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
 export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement';
 
 export const AXIS_TH = ['กว้าง', 'สูง', 'ลึก'] as const;
+/** How the hand-set sizes are measured, as the UI and messages name it. */
+export const REF_TH: Record<DimRef, string> = { outer: 'ภายนอก', inner: 'ภายใน' };
 const mmTxt = (m: number) => String(Math.round(m * 1000));
 export interface BuildProblem { code: BuildCode; text: string }
 
@@ -683,10 +727,10 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
     const c = geo.dimConflict;
     const rule = [d.wMode, d.hMode, d.dMode][c.axis];
     const what = c.axis === 0 ? (geo.tubes ? 'ลำโพงหรือท่อกลมเรียงกัน' : 'ลำโพงเรียงกัน') : c.axis === 1 ? `ลำโพง${geo.slotH || geo.tubes ? 'และท่อ' : ''}` : `แม่เหล็ก${geo.portFold === 'L' ? 'และท่อที่พับ' : ''}`;
-    out.push({ code: 'space', text: `ด้าน${AXIS_TH[c.axis]}${c.axis === 2 && geo.shape === 'wedge' ? 'ที่พื้น' : ''}ต้องอย่างน้อย ${mmTxt(c.need)} มม. เพื่อใส่${what} แต่${rule === 'fixed' ? 'กำหนดไว้' : 'จำกัดไว้ไม่เกิน'} ${mmTxt(c.limit)} มม.${note}` });
+    out.push({ code: 'space', text: `ด้าน${AXIS_TH[c.axis]}${c.axis === 2 && geo.shape === 'wedge' ? 'ที่พื้น' : ''} (${REF_TH[c.ref]}) ต้องอย่างน้อย ${mmTxt(c.need)} มม. เพื่อใส่${what} แต่${rule === 'fixed' ? 'กำหนดไว้' : 'จำกัดไว้ไม่เกิน'} ${mmTxt(c.limit)} มม.${note}` });
   } else if (geo.shortL > 0.5) {
     const cap = geo.capacityL;
-    out.push({ code: 'space', text: `ขนาดที่กำหนดใส่ปริมาตรได้${cap !== null ? `ราว ${Math.floor(cap)} L` : 'ไม่พอ'} แต่ตู้นี้ต้องการ ${d.vbL}${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL}` : ''} L (ขาดราว ${Math.ceil(geo.shortL)} L) ลดปริมาตรหรือขยายขนาด` });
+    out.push({ code: 'space', text: `ขนาดที่กำหนด (${REF_TH[d.dimRef === 'inner' ? 'inner' : 'outer']}) ใส่ปริมาตรได้${cap !== null ? `ราว ${Math.floor(cap)} L` : 'ไม่พอ'} แต่ตู้นี้ต้องการ ${d.vbL}${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL}` : ''} L (ขาดราว ${Math.ceil(geo.shortL)} L) ลดปริมาตรหรือขยายขนาด` });
   }
   const place = d.rowMode === 'manual' ? rowProblem(geo, d.boxType, d.count) : null;
   if (place) {

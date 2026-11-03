@@ -245,6 +245,10 @@ select.mini:disabled { opacity: 0.45; }
 .field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; }
 .field-head label { color: #cbd5e1; }
 .field-head output { font-family: var(--mono); color: var(--cyan-soft); }
+.field-head.ref-row { align-items: center; }
+.field-head.ref-row > span { color: #cbd5e1; }
+.field-head.ref-row .seg { padding: 2px; }
+.field-head.ref-row .seg button { height: 24px; padding: 0 10px; font-size: 12px; }
 input[type='range'] { width: 100%; margin: 0; accent-color: var(--cyan); }
 select { height: 34px; border-radius: 8px; border: 1px solid var(--line-2); background: #0f172a; padding: 0 10px; }
 

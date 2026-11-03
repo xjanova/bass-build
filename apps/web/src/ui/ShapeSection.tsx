@@ -1,19 +1,23 @@
-import { AXIS_TH, buildProblems, RANGES, shapeFor, type BoxGeometry, type DimAxis } from '../sim/model';
-import { useApp, type DimMode, type Design } from '../state/store';
+import { AXIS_TH, buildProblems, convertDims, RANGES, REF_TH, shapeFor, sidesIn, type BoxGeometry, type DimAxis } from '../sim/model';
+import { useApp, type DimMode, type DimRef, type Design } from '../state/store';
 import { NumField } from './NumField';
 
 const MODE_TH: Record<DimMode, string> = { auto: 'อัตโนมัติ', fixed: 'กำหนด', max: 'ไม่เกิน' };
 const KEYS = [['wMode', 'wMm'], ['hMode', 'hMm'], ['dMode', 'dMm']] as const satisfies readonly (readonly [keyof Design, keyof Design])[];
 /** Outside sizes a hand-set side may take, mm. */
 export const DIM_RANGE = [80, 3000] as const;
+/** Inside sizes a hand-set side may take, mm: the same boxes as DIM_RANGE, less a panel or two. */
+export const DIM_RANGE_INNER = [40, 3000] as const;
+const rangeOf = (ref: DimRef) => (ref === 'inner' ? DIM_RANGE_INNER : DIM_RANGE);
 
 const mm = (m: number) => Math.round(m * 1000);
 const litres = (v: number) => (v >= 10 ? v.toFixed(0) : v.toFixed(1));
 
 /**
- * Outline and outside size of the box. Each side is laid out from the volume, held at a size, or
- * kept under a size (the space in a car boot, a shelf); the inside follows from the panels and the
- * physics keeps the net volume set above.
+ * Outline and size of the box. Each side is laid out from the volume, held at a size, or kept
+ * under a size (the space in a car boot, a shelf), entered as the outside size (what has to fit)
+ * or the inside size (what a plan gives); the other follows from the panels and the physics keeps
+ * the net volume set above.
  */
 export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
   const { design: d, patchDesign, drivers, driverId } = useApp();
@@ -24,12 +28,23 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
   const place = problems.find((p) => p.code === 'placement');
   const wedgeOk = shapeFor({ ...d, shape: 'wedge' }) === 'wedge';
   const wedge = geo?.shape === 'wedge';
-  const outside = (axis: DimAxis) => (geo ? [geo.wx, geo.hx, geo.dx][axis] : 0);
+  const ref: DimRef = d.dimRef === 'inner' ? 'inner' : 'outer';
+  const range = rangeOf(ref);
+  const sides = geo ? sidesIn(geo, ref) : null;
+  const outside = geo ? sidesIn(geo, 'outer') : null;
   const setMode = (axis: DimAxis, mode: DimMode) => {
     const [mk, vk] = KEYS[axis];
     // Leaving "auto" starts from the size the box has now, so nothing jumps.
-    const from = d[mk] === 'auto' && geo ? Math.min(DIM_RANGE[1], Math.max(DIM_RANGE[0], mm(outside(axis)))) : d[vk];
+    const from = d[mk] === 'auto' && sides ? Math.min(range[1], Math.max(range[0], mm(sides[axis]))) : d[vk];
     patchDesign({ [mk]: mode, [vk]: from });
+  };
+  // Re-enter the numbers the other way in one step, so the box keeps its size (and one undo brings it back).
+  const setRef = (to: DimRef) => {
+    if (to === ref) return;
+    const p = convertDims(d, geo, to);
+    const [lo, hi] = rangeOf(to);
+    const fit = (x: number | undefined) => Math.min(hi, Math.max(lo, x ?? lo));
+    patchDesign({ ...p, wMm: fit(p.wMm), hMm: fit(p.hMm), dMm: fit(p.dMm) });
   };
   const bp = d.boxType === 'bp4' || d.boxType === 'bp6';
   const fillUp = () => {
@@ -61,28 +76,39 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
           <input id="wtop" type="range" min={20} max={95} step={5} value={d.wedgeTopPct} onChange={(e) => patchDesign({ wedgeTopPct: Number(e.target.value) })} />
         </div>
       )}
+      <div className="field-head ref-row">
+        <span id="dimref-l">ขนาดที่กรอก</span>
+        <div className="seg" role="group" aria-labelledby="dimref-l">
+          {(['outer', 'inner'] as const).map((k) => (
+            <button key={k} aria-pressed={ref === k} onClick={() => setRef(k)}
+              title={k === 'outer' ? 'วัดรวมความหนาแผง: ขนาดที่ต้องวางลงในรถหรือชั้น' : 'วัดระหว่างแผ่น: ขนาดตามแบบ เปลี่ยนความหนาแผงแล้วด้านนอกโตขึ้น'}>{REF_TH[k]}</button>
+          ))}
+        </div>
+      </div>
       {([0, 1, 2] as const).map((axis) => {
         const [mk, vk] = KEYS[axis];
         const mode = d[mk] as DimMode;
         const name = axis === 2 && wedge ? 'ลึกที่พื้น' : AXIS_TH[axis];
         return (
           <div className="field-head" key={axis}>
-            <label htmlFor={`dim${axis}`}>{name} (ภายนอก)</label>
+            <label htmlFor={`dim${axis}`}>{name} ({REF_TH[ref]})</label>
             <span className="pair">
               <select id={`dim${axis}`} className="mini" value={mode} onChange={(e) => setMode(axis, e.target.value as DimMode)}>
                 {(Object.keys(MODE_TH) as DimMode[]).map((k) => <option key={k} value={k}>{MODE_TH[k]}</option>)}
               </select>
               {mode === 'auto'
-                ? <span className="fixed mono">{geo ? `${mm(outside(axis))} มม.` : '—'}</span>
-                : <NumField id={`dim${axis}v`} label={`${name} ${MODE_TH[mode]}`} value={d[vk] as number} min={DIM_RANGE[0]} max={DIM_RANGE[1]} unit="มม." onChange={(x) => patchDesign({ [vk]: x })} />}
+                ? <span className="fixed mono">{sides && outside ? `${mm(sides[axis])} มม.${ref === 'inner' ? ` (นอก ${mm(outside[axis])})` : ''}` : '—'}</span>
+                : <NumField id={`dim${axis}v`} label={`${name} ${REF_TH[ref]} ${MODE_TH[mode]}`} value={d[vk] as number} min={range[0]} max={range[1]} unit="มม." onChange={(x) => patchDesign({ [vk]: x })} />}
             </span>
           </div>
         );
       })}
       {geo && (
         <div className="loadline muted">
-          <span>ได้จริง <b>{mm(geo.wx)} × {mm(geo.hx)} × {mm(geo.dx)} มม.</b>{wedge ? <> · ด้านบนลึก <b>{mm(geo.dxTop)}</b> · หลังเอียง {(geo.backAngle * 180 / Math.PI).toFixed(0)}°</> : null}</span>
-          {geo.capacityL !== null && !geo.dimConflict && <span>ขนาดนี้ใส่ได้สุทธิราว <b>{Math.floor(geo.capacityL)} L</b></span>}
+          <span>ได้จริง{ref === 'inner' ? ' ภายใน' : ''} <b>{mm(sides![0])} × {mm(sides![1])} × {mm(sides![2])} มม.</b>{wedge ? <> · ด้านบนลึก <b>{mm(ref === 'inner' ? geo.diTop : geo.dxTop)}</b> · หลังเอียง {(geo.backAngle * 180 / Math.PI).toFixed(0)}°</> : null}</span>
+          {/* Inside numbers still have to fit the car: the outside is what gets measured there. */}
+          {ref === 'inner' && <span>ภายนอก <b>{mm(geo.wx)} × {mm(geo.hx)} × {mm(geo.dx)} มม.</b>{wedge ? <> · บน <b>{mm(geo.dxTop)}</b></> : null}</span>}
+          {geo.capacityL !== null && !geo.dimConflict && <span>ขนาด{REF_TH[ref]}นี้ใส่ได้สุทธิราว <b>{Math.floor(geo.capacityL)} L</b></span>}
         </div>
       )}
       {space && <div className="limit-note" role="status">{space.text}</div>}

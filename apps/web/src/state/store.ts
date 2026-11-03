@@ -13,6 +13,8 @@ export type Mode = 'design' | 'lab' | 'library' | 'wizard' | 'blueprint';
 export type BoxShape = 'box' | 'wedge';
 /** How one outside dimension is set: laid out from the volume, held at a size, or kept under one. */
 export type DimMode = 'auto' | 'fixed' | 'max';
+/** Which size the hand-set numbers are: outside the panels (what fits the car) or inside them (what a plan gives). */
+export type DimRef = 'outer' | 'inner';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
 export interface Design {
@@ -54,7 +56,8 @@ export interface Design {
   shape: BoxShape;
   /** Wedge only: inside depth at the top as a share of the inside depth at the floor, %. */
   wedgeTopPct: number;
-  /** Outside width / height / depth (at the floor for a wedge): rule and size, mm. */
+  /** Width / height / depth (at the floor for a wedge): rule and size, mm, measured as `dimRef` says. */
+  dimRef: DimRef;
   wMode: DimMode; wMm: number;
   hMode: DimMode; hMm: number;
   dMode: DimMode; dMm: number;
@@ -77,7 +80,7 @@ export const DEFAULT_DESIGN: Design = {
   watts: 1000, amp: false, ampW: 1000, ampOhms: 4, ampMinOhms: 2, dampingFactor: 200, wireM: 0, wireAwg: 12,
   subsonic: true, subsonicHz: 25,
   materialKey: 'mdf', thicknessMm: 18, finish: 'walnut',
-  shape: 'box', wedgeTopPct: 60, wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400,
+  shape: 'box', wedgeTopPct: 60, dimRef: 'outer', wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400,
   rowMode: 'auto', rowXMm: 0, rowYMm: 300,
   portStyle: 'slot', tubeKey: 'pvc_4', tubeIdMm: 105
 };
