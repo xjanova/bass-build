@@ -14,6 +14,7 @@ import { Hud, IrPanel, LeftPanel, OverlayBar, ToastHost, TopBar } from './ui/Pan
 import { RightPanel } from './ui/RightPanel';
 import { LibraryView } from './ui/Library';
 import { WizardView } from './ui/Wizard';
+import { BlueprintView } from './ui/Blueprint';
 import { Splash, TeaserDialog } from './ui/Showcase';
 import type { EngineInput, Osc } from './viewport/Engine';
 import { Viewport } from './viewport/Viewport';
@@ -166,7 +167,7 @@ export function App() {
       geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
-      mode: mode === 'library' || mode === 'wizard' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
+      mode: mode === 'library' || mode === 'wizard' || mode === 'blueprint' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
       osc: osc?.osc ?? null,
       portPeak: res?.metrics.portVelocityMax.ms ?? 0,
       splAtGen: osc?.spl ?? 0,
@@ -189,7 +190,9 @@ export function App() {
       <Viewport input={input} />
       <TopBar modelCode={modelCode} />
       {s.driversSource === 'offline' && <div className="offline">ไม่ได้เชื่อมเซิร์ฟเวอร์ C# · ใช้ข้อมูลตัวอย่างในเครื่อง</div>}
-      {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : <>
+      {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : mode === 'blueprint' ? (
+        <BlueprintView d={d} geo={geo} dto={dto} material={material} damping={damping} modelCode={modelCode} warnings={warnings} />
+      ) : <>
         <LeftPanel geo={geo} modelCode={modelCode} />
         <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} geo={geo} />
         <Hud modes={modes} wall={wall} vib={vib} conf={conf} />

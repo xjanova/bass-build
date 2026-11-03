@@ -8,7 +8,7 @@ import type { Finish } from '../viewport/finishes';
 export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
 export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd' | 'max' | 'cmp';
-export type Mode = 'design' | 'lab' | 'library' | 'wizard';
+export type Mode = 'design' | 'lab' | 'library' | 'wizard' | 'blueprint';
 /** Box outline: a plain box, or a wedge whose back slopes forward (behind a car seat, in a boot). */
 export type BoxShape = 'box' | 'wedge';
 /** How one outside dimension is set: laid out from the volume, held at a size, or kept under one. */
@@ -74,7 +74,7 @@ export const DEFAULT_DESIGN: Design = {
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
 export type Backend = 'webgpu' | 'webgl' | 'none';
 /** Main tabs that are still on the roadmap; clicking one shows what it will do. */
-export type Teaser = 'ai' | 'blueprint';
+export type Teaser = 'ai';
 
 interface State {
   mode: Mode;

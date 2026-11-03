@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { ResolvedShape } from '../sim/driverShape';
+import { baffleBottom, frontRow, innerRow, sideRow, slotBoards } from '../sim/layout';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
 import type { Looks } from './finishes';
@@ -230,24 +231,16 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
 
 
   // Front baffle with real holes (drivers, passive radiators), sitting above the slot port.
-  const bottomOfBaffle = hasFrontPort ? t + slotH + t : t;
+  const bottomOfBaffle = baffleBottom(geo);
   const bh = hx - t - bottomOfBaffle;
   const shape = new THREE.Shape();
   shape.moveTo(-wi / 2, 0); shape.lineTo(wi / 2, 0); shape.lineTo(wi / 2, bh); shape.lineTo(-wi / 2, bh); shape.lineTo(-wi / 2, 0);
-  const frontMounted = boxType === 'bp4' || boxType === 'bp6' ? 0 : boxType === 'isobaric' ? 1 : count;
-  const prs = boxType === 'pr' ? geo.prLayout.front : 0;
-  const slots = frontMounted + prs;
+  // One row across the baffle (shared with the blueprint); passive radiators keep their own size.
+  const row = frontRow(geo, boxType, count);
   const cy = geo.driverY - bottomOfBaffle;
-  const spacing = 2 * R + 0.03;
-  // One row across the baffle; passive radiators keep their own size.
-  const radii = Array.from({ length: slots }, (_, i) => (i < frontMounted ? R : geo.prRadius));
-  const rowWidth = radii.reduce((a, r) => a + 2 * r, 0) + 0.03 * Math.max(0, slots - 1);
-  const centers: number[] = [];
-  let cursor = -rowWidth / 2;
-  for (const r of radii) { centers.push(cursor + r); cursor += 2 * r + 0.03; }
-  centers.forEach((x, i) => {
+  row.forEach((it) => {
     const hole = new THREE.Path();
-    hole.absarc(x, cy, i < frontMounted ? geo.cutoutRadius : geo.prRadius * 0.9, 0, Math.PI * 2, true);
+    hole.absarc(it.x, cy, it.cut, 0, Math.PI * 2, true);
     shape.holes.push(hole);
   });
   const baffleGeo = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 });
@@ -258,8 +251,7 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
 
   const drivers: DriverParts[] = [];
   const passiveRadiators: DriverParts[] = [];
-  centers.forEach((x, i) => {
-    const passive = i >= frontMounted;
+  row.forEach(({ x, passive }) => {
     const d = passive ? buildDriver(prShape, true) : buildDriver(driverShape, false, look ?? undefined);
     d.root.position.set(x, geo.driverY, dx / 2);
     g.add(d.root);
@@ -272,11 +264,9 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
 
   // Side-mounted passive radiators, surface-mounted on the outside of each side panel, facing out.
   if (boxType === 'pr') {
-    const n = geo.prLayout.perSide;
     for (const side of [-1, 1] as const) {
-      for (let i = 0; i < n; i++) {
+      for (const z of sideRow(geo)) {
         const d = buildDriver(prShape, true);
-        const z = (i - (n - 1) / 2) * (2 * geo.prRadius + 0.03);
         d.root.rotation.y = side * Math.PI / 2;
         d.root.position.set(side * wx / 2, hx / 2, z);
         g.add(d.root);
@@ -289,12 +279,11 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   // Band-pass / isobaric: drivers hidden inside, on a divider (visible in x-ray only).
   const hiddenDrivers: DriverParts[] = [];
   if (boxType === 'bp4' || boxType === 'bp6' || boxType === 'isobaric') {
-    const n = boxType === 'isobaric' ? 1 : count;
     // A band-pass divider splits the inside by the two chamber volumes.
     const zDiv = boxType === 'isobaric' ? dx / 2 - depth - 0.03 : -dx / 2 + t + geo.di * geo.rearFraction;
-    for (let i = 0; i < n; i++) {
+    for (const x of innerRow(geo, boxType, count)) {
       const d = buildDriver(driverShape, false, look ?? undefined);
-      d.root.position.set((i - (n - 1) / 2) * spacing, geo.driverY, zDiv);
+      d.root.position.set(x, geo.driverY, zDiv);
       internals.add(d.root);
       hiddenDrivers.push(d);
     }
@@ -305,22 +294,21 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   let portMouth: Enclosure['portMouth'] = null;
   if (hasFrontPort) {
     // In a band-pass the port lives in the front chamber only, so it folds up at the divider.
-    const run = Math.min(geo.portLength, geo.frontDepth - slotH - 0.01);
+    const { run, riser } = slotBoards(geo);
     const foldZ = dx / 2 - t - geo.frontDepth + slotH + t / 2;
     const ceiling = slab(wi, t, Math.max(0.02, run + t), portMat(), 0, t + slotH + t / 2, dx / 2 - (run + t) / 2);
     shell.push(ceiling);
     const tunnel = new THREE.Mesh(new THREE.PlaneGeometry(wi, slotH), new THREE.MeshBasicMaterial({ color: 0x020304 }));
     tunnel.position.set(0, t + slotH / 2, dx / 2 - Math.max(0.03, run * 0.6));
     g.add(tunnel);
-    const rest = geo.portLength - run;
-    if (rest > 0.02 && wedge) {
+    if (riser > 0 && wedge) {
       // Up a wedge the riser leans with the back panel, one slot height inside it.
       const a = geo.backAngle;
-      const len = Math.min(rest, Math.hypot(geo.hi, geo.di - geo.diTop) - slotH - t);
+      const len = riser;
       const y = t + slotH + t + (len / 2) * Math.cos(a);
-      const riser = slab(wi, len, t, portMat(), 0, y, backZ(y) + (t + slotH + t / 2) / Math.cos(a), internals);
-      riser.rotation.x = a;
-    } else if (rest > 0.02) slab(wi, Math.min(rest, geo.hi - slotH - t), t, portMat(), 0, t + slotH + Math.min(rest, geo.hi - slotH - t) / 2, foldZ, internals);
+      const board = slab(wi, len, t, portMat(), 0, y, backZ(y) + (t + slotH + t / 2) / Math.cos(a), internals);
+      board.rotation.x = a;
+    } else if (riser > 0) slab(wi, riser, t, portMat(), 0, t + slotH + riser / 2, foldZ, internals);
     portMouth = { y: t + slotH / 2, z: dx / 2, width: wi, height: slotH };
   }
 

@@ -16,7 +16,7 @@ export function TopBar({ modelCode }: { modelCode: string }) {
   const b = backend ? BACKEND[backend] : null;
   return (
     <header className="topbar">
-      <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span></div>
+      <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span><span className="ver mono" title={`เวอร์ชัน ${__APP_VERSION__} · บิลด์ ${__BUILD_DATE__}`}>v{__APP_VERSION__}</span></div>
       <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span>
         <span className="history" role="group" aria-label="ประวัติการแก้">
           <button type="button" onClick={undo} disabled={!past.length} aria-label="ย้อนกลับ" title={`ย้อนกลับ (Ctrl+Z)${past.length ? ` · ${past.length} ขั้น` : ''}`}>↶</button>
@@ -28,7 +28,7 @@ export function TopBar({ modelCode }: { modelCode: string }) {
         <button className="tab" aria-pressed={mode === 'design'} onClick={() => setMode('design')}>ออกแบบ</button>
         <button className="tab" aria-pressed={mode === 'lab'} onClick={() => setMode('lab')}>แล็บทดสอบ</button>
         <button className="tab soon" title="มาในเฟส 5 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('ai')}>AI สุ่มตู้</button>
-        <button className="tab soon" title="มาในเฟส 3 · ดูว่าจะทำอะไรได้" onClick={() => setTeaser('blueprint')}>พิมพ์เขียว</button>
+        <button className="tab" aria-pressed={mode === 'blueprint'} onClick={() => setMode('blueprint')}>พิมพ์เขียว</button>
         <button className="tab" aria-pressed={mode === 'library'} onClick={() => setMode('library')}>คลังข้อมูล</button>
       </nav>
       <button className="chip nbbtn" title="สมุดสูตร: ทุกตัวเลขพร้อมสูตร ค่าที่แทน และแหล่งอ้างอิง · เขียนสูตรเองได้" onClick={() => openNotebook()}>ƒ สมุดสูตร</button>
