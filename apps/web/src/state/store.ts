@@ -58,6 +58,10 @@ export interface Design {
   wMode: DimMode; wMm: number;
   hMode: DimMode; hMm: number;
   dMode: DimMode; dMm: number;
+  /** Front row of drivers: centred by the layout, or placed by hand (offset from the centre line, centre height above the floor), mm. */
+  rowMode: 'auto' | 'manual';
+  rowXMm: number;
+  rowYMm: number;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -68,7 +72,8 @@ export const DEFAULT_DESIGN: Design = {
   watts: 1000, amp: false, ampW: 1000, ampOhms: 4, ampMinOhms: 2, dampingFactor: 200, wireM: 0, wireAwg: 12,
   subsonic: true, subsonicHz: 25,
   materialKey: 'mdf', thicknessMm: 18, finish: 'walnut',
-  shape: 'box', wedgeTopPct: 60, wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400
+  shape: 'box', wedgeTopPct: 60, wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400,
+  rowMode: 'auto', rowXMm: 0, rowYMm: 300
 };
 
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
@@ -111,8 +116,11 @@ interface State {
   /** Adds or replaces a driver in the list (after it was saved). */
   upsertDriver: (d: DriverDto) => void;
   removeDriver: (id: number) => void;
-  /** Changes the design; `history: false` leaves no undo step (the automatic first box). */
-  patchDesign: (p: Partial<Design>, opts?: { history?: boolean }) => void;
+  /**
+   * Changes the design. `history: false` leaves no undo step (the automatic first box);
+   * `merge: true` folds the change into the last step (the rest of a drag after its first move).
+   */
+  patchDesign: (p: Partial<Design>, opts?: { history?: boolean; merge?: boolean }) => void;
   undo: () => void;
   redo: () => void;
   setGen: (hz: number) => void;
@@ -201,9 +209,11 @@ export const useApp = create<State>((set) => ({
     const changed = (Object.keys(p) as (keyof Design)[]).filter((k) => s.design[k] !== design[k]);
     if (!changed.length) return {};
     if (opts?.history === false) return { design };
-    const keys = changed.sort().join(',');
+    // Grouped by what the change sets, not by which values moved: a drag that sometimes moves
+    // only one of its two numbers is still one step.
+    const keys = Object.keys(p).sort().join(',');
     const now = Date.now();
-    const same = keys === lastStep.keys && now - lastStep.at < COALESCE_MS && s.past.length > 0;
+    const same = s.past.length > 0 && (opts?.merge || (keys === lastStep.keys && now - lastStep.at < COALESCE_MS));
     lastStep = { at: now, keys };
     return { design, past: same ? s.past : [...s.past, s.design].slice(-HISTORY), future: [] };
   }),

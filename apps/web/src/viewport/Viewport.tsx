@@ -11,7 +11,8 @@ export function Viewport({ input }: { input: EngineInput | null }) {
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const e = new Engine(el);
+    // A dragged driver row becomes a hand placement (one undo step per drag).
+    const e = new Engine(el, (x, y, first) => useApp.getState().patchDesign({ rowMode: 'manual', rowXMm: x, rowYMm: y }, { merge: !first }));
     engine.current = e;
     let alive = true;
     e.start().then(() => {

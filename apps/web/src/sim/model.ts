@@ -6,6 +6,7 @@ import {
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { BoxShape, Design } from '../state/store';
+import { rowProblem } from './layout';
 
 const cm2 = (v: number) => v * 1e-4;
 const L = (v: number) => v * 1e-3;
@@ -251,8 +252,12 @@ export interface BoxGeometry {
   frontDepth: number;
   /** Round port of a 6th-order band-pass rear chamber, out through the back panel. */
   rearPort: { y: number; radius: number; length: number; room: number; maxLength: number; fits: boolean } | null;
-  /** Driver centre height above the box bottom, m. */
+  /** Driver centre height above the box bottom, m (set by hand, or centred on the baffle). */
   driverY: number;
+  /** Front row centre offset from the box centre line, m (0 unless placed by hand). */
+  rowX: number;
+  /** Where the layout would centre the front row: height above the box bottom, m. */
+  autoDriverY: number;
   driverRadius: number;
   cutoutRadius: number;
   /** Outer (frame) radius of a passive radiator, from its Sd. */
@@ -453,7 +458,10 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const diTop = r * di;
   const slotH = front ? front.area / wi : 0;
   const usableBottom = t + (front ? slotH + t : 0);
-  const driverY = usableBottom + (hi + t - usableBottom) / 2;
+  const autoDriverY = usableBottom + (hi + t - usableBottom) / 2;
+  const manual = d.rowMode === 'manual' && !bandpassType;
+  const driverY = manual ? d.rowYMm / 1000 : autoDriverY;
+  const rowX = manual ? d.rowXMm / 1000 : 0;
   const fits = hi - (front ? slotH + t : 0) >= outer + 0.01;
   const bandpass = d.boxType === 'bp4' || d.boxType === 'bp6';
   // The divider sits where it splits the inside by the two net volumes.
@@ -464,7 +472,8 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const backRun = Math.hypot(hi, di - diTop);
   // Where the magnet must fit: behind the baffle, in a band-pass rear chamber, or behind a clamped pair.
   const room = slotPortRoom(frontDepth, backRun, slotH);
-  const magnetDepth = di * (1 - (1 - r) * magnetShare(hi, slotH));
+  // Depth where the magnet's top edge actually sits (a wedge is shallower higher up).
+  const magnetDepth = di * (1 - (1 - r) * Math.min(1, Math.max(0, (driverY - t + outer / 4) / hi)));
   const magnetClear = bandpass
     ? di * rearFraction - t - depth >= 0.02
     : d.boxType === 'isobaric'
@@ -496,7 +505,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   };
   return {
     wx, hx, dx, wi, hi, di, t, shape, dxTop, diTop, backAngle: outline?.angle ?? 0,
-    slotH, portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY,
+    slotH, portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY, rowX, autoDriverY,
     driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
     fits, magnetClear, panelAreaM2, outerL: lit(wx * hx * (dx + dxTop) / 2),
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
@@ -594,7 +603,7 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
 
 // ---- can it be built? ---------------------------------------------------------------------------
 
-export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space';
+export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement';
 
 export const AXIS_TH = ['กว้าง', 'สูง', 'ลึก'] as const;
 const mmTxt = (m: number) => String(Math.round(m * 1000));
@@ -637,6 +646,11 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
   } else if (geo.shortL > 0.5) {
     const cap = geo.capacityL;
     out.push({ code: 'space', text: `ขนาดที่กำหนดใส่ปริมาตรได้${cap !== null ? `ราว ${Math.floor(cap)} L` : 'ไม่พอ'} แต่ตู้นี้ต้องการ ${d.vbL}${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL}` : ''} L (ขาดราว ${Math.ceil(geo.shortL)} L) ลดปริมาตรหรือขยายขนาด` });
+  }
+  const place = d.rowMode === 'manual' ? rowProblem(geo, d.boxType, d.count) : null;
+  if (place) {
+    const where = { left: 'ล้นขอบซ้าย', right: 'ล้นขอบขวา', top: 'ล้นขอบบน', bottom: 'ล้นขอบล่าง', slot: 'ขอบลำโพงบังปากท่อ' }[place.side];
+    out.push({ code: 'placement', text: `ตำแหน่งลำโพงที่วางเอง${where} ${Math.ceil(place.by * 1000)} มม. (รูเจาะต้องเหลือไม้รอบอย่างน้อย 10 มม.) ลากกลับเข้ามาหรือกด "จัดกลาง"` });
   }
   if (!geo.magnetClear) out.push({ code: 'magnet', text: `ท้ายแม่เหล็กชนผนังหลังหรือท่อ${note}` });
   if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });

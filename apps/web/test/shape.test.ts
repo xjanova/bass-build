@@ -179,6 +179,17 @@ describe('undo and redo', () => {
     useApp.getState().undo();
     expect(useApp.getState().design.watts).toBe(100);
   });
+
+  it('the rest of a drag folds into the step its first move opened', () => {
+    const st = useApp.getState();
+    st.patchDesign({ rowXMm: 0 }, { history: false });
+    const n = useApp.getState().past.length;
+    st.patchDesign({ rowMode: 'manual', rowXMm: 10, rowYMm: 300 });
+    for (const x of [20, 30, 40]) useApp.getState().patchDesign({ rowMode: 'manual', rowXMm: x, rowYMm: 300 }, { merge: true });
+    expect(useApp.getState().past.length).toBe(n + 1);
+    useApp.getState().undo();
+    expect(useApp.getState().design.rowXMm).toBe(0);
+  });
 });
 
 describe('stored designs', () => {

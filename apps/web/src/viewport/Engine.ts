@@ -48,7 +48,17 @@ export interface EngineInput {
   fill: number;
   /** The driver's measured shape and photo textures (its key belongs in geoKey). */
   driverLook?: DriverLook | null;
+  /** The front row of drivers can be dragged across the baffle, within this range of its centre (m). */
+  editRow: boolean;
+  rowRange: { x: [number, number]; y: [number, number] } | null;
 }
+
+/** Where a dragged front row was dropped: centre offset from the centre line and height above the floor, mm. */
+export type RowMove = (xMm: number, yMm: number, first: boolean) => void;
+
+/** Dragged positions land on this grid, and snap to the centre within SNAP_NEAR, m. */
+const SNAP_GRID = 0.005;
+const SNAP_NEAR = 0.008;
 
 const re = (z: Cx, wt: number) => z.re * Math.cos(wt) - z.im * Math.sin(wt);
 
@@ -84,13 +94,102 @@ export class Engine {
   private ro: ResizeObserver | null = null;
   private disposed = false;
   private started = false;
+  private readonly ray = new THREE.Raycaster();
+  private readonly dragLabel: CSS2DObject;
+  /** Pointer offset from the row centre while dragging, m. */
+  private drag: { dx: number; dy: number; id: number; moved: boolean } | null = null;
+  private pendingRow: [number, number] | null = null;
   backend: 'webgpu' | 'webgl' = 'webgpu';
 
-  constructor(private readonly host: HTMLElement) {
+  constructor(private readonly host: HTMLElement, private readonly onRowMove?: RowMove) {
     const tag = (cls: string) => { const d = document.createElement('div'); d.className = cls; return d; };
     this.micLabel = new CSS2DObject(tag('scene-label'));
     this.airLabel = new CSS2DObject(tag('scene-label air'));
+    this.dragLabel = new CSS2DObject(tag('scene-label drag'));
+    this.dragLabel.visible = false;
   }
+
+  /** The front-row drivers and passive radiators (not the ones on the side panels). */
+  private rowParts(): THREE.Object3D[] {
+    const enc = this.enc;
+    if (!enc) return [];
+    return [...enc.drivers, ...enc.passiveRadiators.filter((p) => p.root.rotation.y === 0)].map((p) => p.root);
+  }
+
+  /** Pointer position on the plane of the front baffle, in box coordinates. */
+  private onBaffle(e: PointerEvent): THREE.Vector3 | null {
+    const g = this.input?.geo;
+    if (!g) return null;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
+    return this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -g.dx / 2), new THREE.Vector3());
+  }
+
+  private hitsRow(e: PointerEvent): boolean {
+    if (!this.onBaffle(e)) return false;
+    return this.ray.intersectObjects(this.rowParts(), true).length > 0;
+  }
+
+  private readonly pointerDown = (e: PointerEvent): void => {
+    const inp = this.input;
+    if (!inp?.editRow || e.button !== 0 || !this.hitsRow(e)) return;
+    const p = this.onBaffle(e)!;
+    this.drag = { dx: p.x - inp.geo.rowX, dy: p.y - inp.geo.driverY, id: e.pointerId, moved: false };
+    this.controls.enabled = false;
+    this.renderer.domElement.setPointerCapture(e.pointerId);
+    this.renderer.domElement.style.cursor = 'grabbing';
+    e.preventDefault();
+  };
+
+  private readonly pointerMove = (e: PointerEvent): void => {
+    const inp = this.input;
+    const el = this.renderer.domElement;
+    if (!this.drag) {
+      el.style.cursor = inp?.editRow && this.hitsRow(e) ? 'grab' : '';
+      return;
+    }
+    const g = inp!.geo;
+    const p = this.onBaffle(e);
+    if (!p) return;
+    let x = Math.round((p.x - this.drag.dx) / SNAP_GRID) * SNAP_GRID;
+    let y = Math.round((p.y - this.drag.dy) / SNAP_GRID) * SNAP_GRID;
+    const midX = Math.abs(x) < SNAP_NEAR, midY = Math.abs(y - g.autoDriverY) < SNAP_NEAR;
+    if (midX) x = 0;
+    if (midY) y = g.autoDriverY;
+    // Stop at the edges of the baffle, as the sliders stop where the box cannot be built.
+    const range = inp!.rowRange;
+    let edge = false;
+    if (range) {
+      const cx = Math.min(range.x[1], Math.max(range.x[0], x)), cy = Math.min(range.y[1], Math.max(range.y[0], y));
+      edge = cx !== x || cy !== y;
+      x = cx;
+      y = cy;
+    }
+    const el2 = this.dragLabel.element as HTMLElement;
+    el2.textContent = `กลางลำโพง · จากขอบซ้าย ${Math.round((x + g.wx / 2) * 1000)} · จากพื้น ${Math.round(y * 1000)} มม.${edge ? ' · ชิดขอบแล้ว' : midX && midY ? ' · กึ่งกลาง' : midX ? ' · กึ่งกลางซ้ายขวา' : midY ? ' · กึ่งกลางสูง' : ''}`;
+    this.dragLabel.position.set(x, y + g.driverRadius + 0.06, g.dx / 2 + 0.02);
+    this.dragLabel.visible = true;
+    // One store update per frame: the box (and its holes) are rebuilt from it.
+    const first = !this.pendingRow;
+    // Rounded inward, so a row held at an edge is still inside it.
+    const mmIn = (v: number, r?: [number, number]) => (r ? Math.min(Math.floor(r[1] * 1000), Math.max(Math.ceil(r[0] * 1000), Math.round(v * 1000))) : Math.round(v * 1000));
+    this.pendingRow = [mmIn(x, range?.x), mmIn(y, range?.y)];
+    if (first) {
+      // The first update of a drag opens one undo step; the rest fold into it.
+      const opens = !this.drag.moved;
+      this.drag.moved = true;
+      requestAnimationFrame(() => { const r = this.pendingRow; this.pendingRow = null; if (r) this.onRowMove?.(r[0], r[1], opens); });
+    }
+  };
+
+  private readonly pointerUp = (e: PointerEvent): void => {
+    if (!this.drag || e.pointerId !== this.drag.id) return;
+    this.drag = null;
+    this.controls.enabled = true;
+    this.dragLabel.visible = false;
+    this.renderer.domElement.style.cursor = '';
+    if (this.renderer.domElement.hasPointerCapture(e.pointerId)) this.renderer.domElement.releasePointerCapture(e.pointerId);
+  };
 
   async start(): Promise<void> {
     this.renderer = new THREE.WebGPURenderer({ antialias: true });
@@ -128,6 +227,11 @@ export class Engine {
     this.controls.autoRotate = true;
     this.controls.autoRotateSpeed = 0.35;
     this.renderer.domElement.addEventListener('pointerdown', () => { this.controls.autoRotate = false; }, { once: true });
+    // Dragging a front-row driver moves the row; registered before OrbitControls sees the press.
+    this.renderer.domElement.addEventListener('pointerdown', this.pointerDown, { capture: true });
+    this.renderer.domElement.addEventListener('pointermove', this.pointerMove);
+    this.renderer.domElement.addEventListener('pointerup', this.pointerUp);
+    this.renderer.domElement.addEventListener('pointercancel', this.pointerUp);
 
     // Virtual measurement microphone on a tripod.
     const metal = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: 0.35, metalness: 0.8 });
@@ -136,7 +240,7 @@ export class Engine {
     capsule.rotation.x = Math.PI / 2;
     this.mic.add(stand, capsule, this.micLabel);
     this.mic.userData = { stand, capsule };
-    this.scene.add(this.mic, this.wave.mesh, this.arrows.group, this.smoke.mesh, this.balloon.lines, this.vibe.mesh, this.dims, this.airLabel);
+    this.scene.add(this.mic, this.wave.mesh, this.arrows.group, this.smoke.mesh, this.balloon.lines, this.vibe.mesh, this.dims, this.airLabel, this.dragLabel);
 
     const resize = () => {
       const w = this.host.clientWidth, h = this.host.clientHeight;
@@ -340,6 +444,11 @@ export class Engine {
     this.ro?.disconnect();
     if (!this.started) return; // start() cleans up itself if disposal happened mid-init
     this.renderer.setAnimationLoop(null);
+    const el = this.renderer.domElement;
+    el.removeEventListener('pointerdown', this.pointerDown, { capture: true });
+    el.removeEventListener('pointermove', this.pointerMove);
+    el.removeEventListener('pointerup', this.pointerUp);
+    el.removeEventListener('pointercancel', this.pointerUp);
     this.enc?.dispose();
     this.controls?.dispose();
     this.scene.traverse((o) => {

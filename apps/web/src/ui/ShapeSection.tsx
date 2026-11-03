@@ -19,7 +19,9 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
   const { design: d, patchDesign, drivers, driverId } = useApp();
   const dto = drivers.find((x) => x.id === driverId);
   // The sizes' own problem, repeated here: the panel is scrolled to this section when it is edited.
-  const space = geo ? buildProblems(d, dto, geo).find((p) => p.code === 'space') : undefined;
+  const problems = geo ? buildProblems(d, dto, geo) : [];
+  const space = problems.find((p) => p.code === 'space');
+  const place = problems.find((p) => p.code === 'placement');
   const wedgeOk = shapeFor({ ...d, shape: 'wedge' }) === 'wedge';
   const wedge = geo?.shape === 'wedge';
   const outside = (axis: DimAxis) => (geo ? [geo.wx, geo.hx, geo.dx][axis] : 0);
@@ -89,6 +91,30 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
           ใช้ปริมาตรเต็มตู้ (+{Math.floor(geo.extraL)} L)
         </button>
       )}
+      {geo && d.boxType !== 'bp4' && d.boxType !== 'bp6' && <>
+        <div className="field-head">
+          <label htmlFor="rowmode">ตำแหน่งลำโพงบนแผงหน้า</label>
+          <span className="pair">
+            <select id="rowmode" className="mini" value={d.rowMode} onChange={(e) => patchDesign(e.target.value === 'auto'
+              ? { rowMode: 'auto' }
+              // Start from where the row is now, so nothing jumps.
+              : { rowMode: 'manual', rowXMm: Math.round(geo.rowX * 1000), rowYMm: Math.round(geo.driverY * 1000) })}>
+              <option value="auto">กึ่งกลาง</option><option value="manual">วางเอง</option>
+            </select>
+            {d.rowMode === 'manual' && <button type="button" className="linkbtn" onClick={() => patchDesign({ rowMode: 'auto' })}>จัดกลาง</button>}
+          </span>
+        </div>
+        {d.rowMode === 'manual' && (
+          <div className="field-head">
+            <label htmlFor="rowx">เลื่อนซ้าย/ขวา · สูงจากพื้น</label>
+            <span className="pair">
+              <NumField id="rowx" label="เลื่อนจากกึ่งกลาง (ลบ = ซ้าย)" value={d.rowXMm} min={-1500} max={1500} unit="มม." onChange={(x) => patchDesign({ rowXMm: x })} />
+              <NumField id="rowy" label="ศูนย์กลางลำโพงสูงจากพื้น" value={d.rowYMm} min={20} max={3000} unit="มม." onChange={(x) => patchDesign({ rowYMm: x })} />
+            </span>
+          </div>
+        )}
+        {d.rowMode === 'manual' && place && <div className="limit-note" role="status">{place.text}</div>}
+      </>}
       {v && (
         <details className="volbreak">
           <summary>ปริมาตรแยกรายการ · ภายในตู้ {litres(v.shellL)} L → สุทธิ {litres(v.netL)} L</summary>

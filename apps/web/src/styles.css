@@ -587,3 +587,4 @@ button.tile:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px;
   .bp-card { background: #fff; border: 1px solid #cbd5e1; }
   .bp-noprint { display: none !important; }
 }
+.scene-label.drag { color: #cffafe; background: rgba(8, 47, 73, 0.9); border: 1px solid rgba(34, 211, 238, 0.5); }

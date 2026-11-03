@@ -89,7 +89,8 @@ const ENUMS: Partial<Record<keyof Design, readonly string[]>> = {
   shape: ['box', 'wedge'],
   wMode: ['auto', 'fixed', 'max'],
   hMode: ['auto', 'fixed', 'max'],
-  dMode: ['auto', 'fixed', 'max']
+  dMode: ['auto', 'fixed', 'max'],
+  rowMode: ['auto', 'manual']
 };
 
 /**

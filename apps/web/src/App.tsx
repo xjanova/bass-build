@@ -5,6 +5,7 @@ import { sanitizeDesign, type Slot } from './data/compare';
 import { resultConfidence } from './sim/confidence';
 import type { NotebookCtx } from './sim/formulas';
 import { driverFromDto, fillFor, maxOutputFor, mountOf, panelModes, ratedWatts, simulate, suggestDesign, sizeBox, solveAt, summarize, thermalAt, toSpec, wallDamping, warningsFor } from './sim/model';
+import { rowRange } from './sim/layout';
 import { LAB_GRID } from './sim/wizard';
 import { DEFAULT_DESIGN, useApp, type BoxType } from './state/store';
 import { ChartDock } from './ui/ChartDock';
@@ -164,7 +165,7 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
       mode: mode === 'library' || mode === 'wizard' || mode === 'blueprint' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
@@ -181,9 +182,11 @@ export function App() {
         fromPort: d.boxType === 'bp4' || d.boxType === 'bp6'
       },
       fill,
-      driverLook: driverLook.look
+      driverLook: driverLook.look,
+      editRow: mode === 'design' && s.tool === 'select' && d.boxType !== 'bp4' && d.boxType !== 'bp6',
+      rowRange: rowRange(geo, d.boxType, d.count)
     };
-  }, [geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib, driverLook]);
+  }, [s.tool, geo, d.boxType, d.finish, d.materialKey, d.count, d.prCount, fill, dto?.depthMm, dto?.sdCm2, mode, overlays, genHz, s.slow, s.playing, osc, res, irOn, thermal, vib, driverLook]);
 
   return (
     <div className="app">
@@ -197,7 +200,7 @@ export function App() {
         <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} geo={geo} />
         <Hud modes={modes} wall={wall} vib={vib} conf={conf} />
         {irOn && <IrPanel thermal={thermal} speedup={IR_SPEEDUP} conf={conf.thermal} />}
-        <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม</div>
+        <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม{mode === 'design' && d.boxType !== 'bp4' && d.boxType !== 'bp6' ? ' · ลากลำโพงเพื่อย้ายตำแหน่ง' : ''}</div>
         <OverlayBar geo={geo} />
         {res && max && <ChartDock res={res} max={max} geo={geo} xmax={dto?.xmaxMm ?? null} watts={d.watts} conf={conf} makeSlot={makeSlot} loadSlot={loadSlot} />}
       </>}

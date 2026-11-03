@@ -2,6 +2,7 @@ import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
 import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
+import { rowProblem, rowRange } from '../sim/layout';
 import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type BoxGeometry, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
@@ -174,6 +175,15 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
   const fix = () => {
     if (!ctx) return;
     const before = useApp.getState().design;
+    // A row placed off the baffle goes back to the nearest spot inside it.
+    const place = geo && before.rowMode === 'manual' ? rowProblem(geo, before.boxType, before.count) : null;
+    if (place && geo) {
+      const range = rowRange(geo, before.boxType, before.count);
+      const clampMm = (v: number, r: [number, number]) => Math.min(Math.floor(r[1] * 1000), Math.max(Math.ceil(r[0] * 1000), v));
+      patchDesign(range ? { rowXMm: clampMm(before.rowXMm, range.x), rowYMm: clampMm(before.rowYMm, range.y) } : { rowMode: 'auto' });
+      showToast(range ? 'ย้ายลำโพงกลับเข้ามาในแผงหน้าแล้ว' : 'แผงหน้าเล็กเกินจะวางเอง จึงจัดลำโพงกลับกึ่งกลาง', { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
     const n = nearestBuildable(before, ctx);
     if (!n) {
       showToast('ปรับค่าเดียวแล้วยังสร้างไม่ได้ ลองกด "จัดตู้แนะนำสำหรับลำโพงนี้" เพื่อให้ระบบจัดทั้งตู้ใหม่');
