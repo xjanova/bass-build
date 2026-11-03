@@ -383,6 +383,49 @@ export function convertDims(d: Design, geo: Pick<BoxGeometry, 'hi'> | null, to: 
   return { dimRef: to, wMm: one(0, d.wMm), hMm: one(1, d.hMm), dMm: one(2, d.dMm) };
 }
 
+/** Outside sizes a hand-set side may take, mm. */
+export const DIM_RANGE = [80, 3000] as const;
+/** Smallest inside number a field takes, mm (a thick panel can leave little of DIM_RANGE's minimum). */
+const INNER_FLOOR_MM = 10;
+
+/**
+ * The range one hand-set side's field takes, mm, measured `ref`. Inside ranges are DIM_RANGE
+ * re-measured through the current panels (and a wedge's lean), so both references cover the
+ * very same boxes and a switch never has to squeeze a number into a narrower range.
+ */
+export function dimRange(d: Design, geo: Pick<BoxGeometry, 'hi'> | null, axis: DimAxis, ref: DimRef): [number, number] {
+  if (ref === 'outer') return [DIM_RANGE[0], DIM_RANGE[1]];
+  const t = d.thicknessMm / 1000;
+  const r = wedgeRatio(d);
+  const hi = geo?.hi ?? Math.max(0.05, d.hMm / 1000 - (d.dimRef === 'inner' ? 0 : 2 * t));
+  const at = (mm: number) => Math.round(convertSide(axis, mm / 1000, 'outer', 'inner', t, r, hi) * 1000);
+  return [Math.max(INNER_FLOOR_MM, at(DIM_RANGE[0])), Math.max(INNER_FLOOR_MM, at(DIM_RANGE[1]))];
+}
+
+/**
+ * Switching the reference as the shape section does it: the converted numbers, or the hand-set
+ * sides (not "auto") whose converted number falls outside the other reference's range. Those are
+ * refused rather than clamped, since clamping would quietly resize the box the switch promises
+ * to keep. A millimetre over is rounding (the wedge's lean) and is taken back in.
+ */
+export function switchDims(d: Design, geo: Pick<BoxGeometry, 'hi'> | null, to: DimRef): { patch: Partial<Design>; blocked: DimAxis[] } {
+  const p = convertDims(d, geo, to);
+  if (!('dimRef' in p)) return { patch: {}, blocked: [] };
+  const keys = [['wMode', 'wMm'], ['hMode', 'hMm'], ['dMode', 'dMm']] as const;
+  const blocked: DimAxis[] = [];
+  const patch: Partial<Design> = { ...p };
+  ([0, 1, 2] as const).forEach((axis) => {
+    const [mk, vk] = keys[axis];
+    const [lo, hi] = dimRange(d, geo, axis, to);
+    const v = p[vk] as number;
+    const fit = Math.min(hi, Math.max(lo, v));
+    // An "auto" side's number is not used (leaving auto starts from the laid-out size), so keep it in range.
+    if (d[mk] !== 'auto' && Math.abs(fit - v) > 1) blocked.push(axis);
+    patch[vk] = fit;
+  });
+  return blocked.length ? { patch: {}, blocked } : { patch, blocked };
+}
+
 /** Lays the box out around its contents. Only the ports of `res` are used, so a bare network build will do. */
 export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick<BuildInfo, 'ports'> } | null, material: PanelMaterialDto | undefined, sheetKgM2 = 0): BoxGeometry {
   const t = d.thicknessMm / 1000;

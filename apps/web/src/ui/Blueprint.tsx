@@ -88,6 +88,8 @@ export function BlueprintView({ d, geo, dto, material, damping, modelCode, warni
             <h3>{title}</h3>
             <div className="bp-facts">
               <span>ขนาดภายนอก <b>{mm(geo.wx)} × {mm(geo.hx)} × {mm(geo.dx)}</b>{geo.shape === 'wedge' ? <> (บนลึก <b>{mm(geo.dxTop)}</b>)</> : null}</span>
+              {/* Inside sizes too: a plan gives them, and the builder checks the cut box against it. */}
+              <span>ขนาดภายใน <b>{mm(geo.wi)} × {mm(geo.hi)} × {mm(geo.di)}</b>{geo.shape === 'wedge' ? <> (บนลึก <b>{mm(geo.diTop)}</b>)</> : null}</span>
               <span>ปริมาตรสุทธิ <b>{net}</b></span>
               {d.boxType !== 'sealed' && d.boxType !== 'isobaric' && d.boxType !== 'pr' && <span>จูน <b>{d.fbHz}{d.boxType === 'bp6' ? ` / ${d.fb2Hz}` : ''} Hz</b></span>}
               <span>{matName} <b>{d.thicknessMm} มม.</b> · <b>{bp.sheets.length}</b> แผ่น</span>

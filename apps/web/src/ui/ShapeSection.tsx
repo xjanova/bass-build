@@ -1,14 +1,10 @@
-import { AXIS_TH, buildProblems, convertDims, RANGES, REF_TH, shapeFor, sidesIn, type BoxGeometry, type DimAxis } from '../sim/model';
+import { useState } from 'react';
+import { AXIS_TH, buildProblems, dimRange, RANGES, REF_TH, shapeFor, sidesIn, switchDims, type BoxGeometry, type DimAxis } from '../sim/model';
 import { useApp, type DimMode, type DimRef, type Design } from '../state/store';
 import { NumField } from './NumField';
 
 const MODE_TH: Record<DimMode, string> = { auto: 'อัตโนมัติ', fixed: 'กำหนด', max: 'ไม่เกิน' };
 const KEYS = [['wMode', 'wMm'], ['hMode', 'hMm'], ['dMode', 'dMm']] as const satisfies readonly (readonly [keyof Design, keyof Design])[];
-/** Outside sizes a hand-set side may take, mm. */
-export const DIM_RANGE = [80, 3000] as const;
-/** Inside sizes a hand-set side may take, mm: the same boxes as DIM_RANGE, less a panel or two. */
-export const DIM_RANGE_INNER = [40, 3000] as const;
-const rangeOf = (ref: DimRef) => (ref === 'inner' ? DIM_RANGE_INNER : DIM_RANGE);
 
 const mm = (m: number) => Math.round(m * 1000);
 const litres = (v: number) => (v >= 10 ? v.toFixed(0) : v.toFixed(1));
@@ -29,23 +25,30 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
   const wedgeOk = shapeFor({ ...d, shape: 'wedge' }) === 'wedge';
   const wedge = geo?.shape === 'wedge';
   const ref: DimRef = d.dimRef === 'inner' ? 'inner' : 'outer';
-  const range = rangeOf(ref);
+  const rangeOf = (axis: DimAxis) => dimRange(d, geo, axis, ref);
+  // The design a switch was refused for: the note goes away as soon as anything changes.
+  const [refused, setRefused] = useState<{ d: Design; axes: DimAxis[] } | null>(null);
   const sides = geo ? sidesIn(geo, ref) : null;
   const outside = geo ? sidesIn(geo, 'outer') : null;
   const setMode = (axis: DimAxis, mode: DimMode) => {
     const [mk, vk] = KEYS[axis];
     // Leaving "auto" starts from the size the box has now, so nothing jumps.
-    const from = d[mk] === 'auto' && sides ? Math.min(range[1], Math.max(range[0], mm(sides[axis]))) : d[vk];
+    const [lo, hi] = rangeOf(axis);
+    const from = d[mk] === 'auto' && sides ? Math.min(hi, Math.max(lo, mm(sides[axis]))) : d[vk];
     patchDesign({ [mk]: mode, [vk]: from });
   };
-  // Re-enter the numbers the other way in one step, so the box keeps its size (and one undo brings it back).
+  // Re-enter the numbers the other way in one step, so the box keeps its size (and one undo brings it
+  // back); a number the other side cannot take refuses the switch instead of resizing the box.
   const setRef = (to: DimRef) => {
     if (to === ref) return;
-    const p = convertDims(d, geo, to);
-    const [lo, hi] = rangeOf(to);
-    const fit = (x: number | undefined) => Math.min(hi, Math.max(lo, x ?? lo));
-    patchDesign({ ...p, wMm: fit(p.wMm), hMm: fit(p.hMm), dMm: fit(p.dMm) });
+    const { patch, blocked } = switchDims(d, geo, to);
+    if (blocked.length) { setRefused({ d, axes: blocked }); return; }
+    setRefused(null);
+    patchDesign(patch);
   };
+  const refusedNote = refused && refused.d === d
+    ? `สลับไม่ได้: ${refused.axes.map((a) => (a === 2 && wedge ? 'ลึกที่พื้น' : AXIS_TH[a])).join(' ')} เกินช่วงที่กรอกได้เมื่อวัด${REF_TH[ref === 'inner' ? 'outer' : 'inner']}`
+    : null;
   const bp = d.boxType === 'bp4' || d.boxType === 'bp6';
   const fillUp = () => {
     if (!geo) return;
@@ -81,10 +84,11 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
         <div className="seg" role="group" aria-labelledby="dimref-l">
           {(['outer', 'inner'] as const).map((k) => (
             <button key={k} aria-pressed={ref === k} onClick={() => setRef(k)}
-              title={k === 'outer' ? 'วัดรวมความหนาแผง: ขนาดที่ต้องวางลงในรถหรือชั้น' : 'วัดระหว่างแผ่น: ขนาดตามแบบ เปลี่ยนความหนาแผงแล้วด้านนอกโตขึ้น'}>{REF_TH[k]}</button>
+              title={k === 'outer' ? 'วัดรวมความหนาแผง: ขนาดที่ต้องวางลงในรถหรือชั้น' : 'วัดระหว่างแผ่น: ขนาดตามแบบ ด้านในคงที่ ด้านนอกเปลี่ยนตามความหนาแผง'}>{REF_TH[k]}</button>
           ))}
         </div>
       </div>
+      {refusedNote && <div className="limit-note" role="status">{refusedNote}</div>}
       {([0, 1, 2] as const).map((axis) => {
         const [mk, vk] = KEYS[axis];
         const mode = d[mk] as DimMode;
@@ -98,7 +102,7 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
               </select>
               {mode === 'auto'
                 ? <span className="fixed mono">{sides && outside ? `${mm(sides[axis])} มม.${ref === 'inner' ? ` (นอก ${mm(outside[axis])})` : ''}` : '—'}</span>
-                : <NumField id={`dim${axis}v`} label={`${name} ${REF_TH[ref]} ${MODE_TH[mode]}`} value={d[vk] as number} min={range[0]} max={range[1]} unit="มม." onChange={(x) => patchDesign({ [vk]: x })} />}
+                : <NumField id={`dim${axis}v`} label={`${name} ${REF_TH[ref]} ${MODE_TH[mode]}`} value={d[vk] as number} min={rangeOf(axis)[0]} max={rangeOf(axis)[1]} unit="มม." onChange={(x) => patchDesign({ [vk]: x })} />}
             </span>
           </div>
         );

@@ -5,7 +5,7 @@ import materials from '../../../data/seed/materials.json';
 import { sanitizeDesign } from '../src/data/compare';
 import type { DampingMaterialDto, DriverDto } from '../src/data/types';
 import { problemsFor, type BuildCtx } from '../src/sim/buildable';
-import { convertDims, driverFromDto, sidesIn, sizeBox, suggestDesign, toSpec, type BoxGeometry } from '../src/sim/model';
+import { convertDims, DIM_RANGE, dimRange, driverFromDto, sidesIn, sizeBox, suggestDesign, switchDims, toSpec, type BoxGeometry } from '../src/sim/model';
 import { DEFAULT_DESIGN, useApp, type Design } from '../src/state/store';
 
 const drivers = (seed.drivers as unknown as Omit<DriverDto, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }) as DriverDto);
@@ -113,6 +113,59 @@ describe('switching between outside and inside numbers', () => {
     expect(useApp.getState().design).toMatchObject({ dimRef: 'inner', wMm: 724 });
     useApp.getState().undo();
     expect(useApp.getState().design).toMatchObject({ dimRef: 'outer', wMm: 760 });
+  });
+});
+
+describe('switching at the ends of the range', () => {
+  const same = (a: BoxGeometry, b: BoxGeometry, tol: number) => {
+    for (const k of ['wx', 'hx', 'dx', 'wi', 'hi', 'di'] as const) expect(Math.abs(mm(a[k]) - mm(b[k]))).toBeLessThanOrEqual(tol);
+  };
+
+  it('the inside range is the outside range less the panels', () => {
+    const d: Design = { ...sealed, thicknessMm: 18 };
+    expect(dimRange(d, geoOf(d), 0, 'outer')).toEqual([...DIM_RANGE]);
+    expect(dimRange(d, geoOf(d), 0, 'inner')).toEqual([DIM_RANGE[0] - 36, DIM_RANGE[1] - 36]);
+    expect(dimRange({ ...d, thicknessMm: 25 }, null, 1, 'inner')).toEqual([DIM_RANGE[0] - 50, DIM_RANGE[1] - 50]);
+  });
+
+  it('the largest and smallest sizes switch without being clamped, both ways', () => {
+    for (const [wMm, t] of [[DIM_RANGE[1], 18], [DIM_RANGE[0], 18], [DIM_RANGE[0], 25]] as const) {
+      const d: Design = { ...sealed, thicknessMm: t, wMode: 'fixed', wMm };
+      const g = geoOf(d);
+      const s = switchDims(d, g, 'inner');
+      expect(s.blocked).toEqual([]);
+      expect(s.patch).toMatchObject({ dimRef: 'inner', wMm: wMm - 2 * t });
+      const inner = { ...d, ...s.patch };
+      same(g, geoOf(inner), 1e-6);
+      const back = switchDims(inner, geoOf(inner), 'outer');
+      expect(back.blocked).toEqual([]);
+      expect(back.patch).toMatchObject({ dimRef: 'outer', wMm });
+    }
+  });
+
+  it('a wedge floor depth at the end of the range switches to the millimetre', () => {
+    const d: Design = { ...sealed, shape: 'wedge', wedgeTopPct: 40, hMode: 'fixed', hMm: 700, dMode: 'fixed', dMm: DIM_RANGE[1] };
+    const g = geoOf(d);
+    const s = switchDims(d, g, 'inner');
+    expect(s.blocked).toEqual([]);
+    const inner = { ...d, ...s.patch };
+    same(g, geoOf(inner), 1);
+    const back = switchDims(inner, geoOf(inner), 'outer');
+    expect(back.blocked).toEqual([]);
+    expect(Math.abs(back.patch.dMm! - DIM_RANGE[1])).toBeLessThanOrEqual(1);
+  });
+
+  it('refuses, instead of resizing the box, when a number has no match on the other side', () => {
+    // An inside width entered at the top of the range with a thin panel, then a thicker panel.
+    const d: Design = { ...sealed, thicknessMm: 25, dimRef: 'inner', wMode: 'fixed', wMm: DIM_RANGE[1] - 36 };
+    const s = switchDims(d, geoOf(d), 'outer');
+    expect(s.blocked).toEqual([0]);
+    expect(s.patch).toEqual({});
+    // A side left to "auto" does not block: its number is not used.
+    const auto = { ...d, wMode: 'auto' } as const;
+    const a = switchDims(auto, geoOf(auto), 'outer');
+    expect(a.blocked).toEqual([]);
+    expect(a.patch.wMm).toBe(DIM_RANGE[1]);
   });
 });
 
