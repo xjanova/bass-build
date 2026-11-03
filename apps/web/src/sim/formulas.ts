@@ -238,12 +238,12 @@ export function buildEntries(ctx: NotebookCtx): Entry[] {
       conf: conf.panelModes
     });
     const vol = geo.volume;
-    const less = ([[vol.driversL, 'ลำโพง'], [vol.portsL, 'ท่อ'], [vol.boardsL, 'แผ่นกั้น'], [vol.tunnelL, 'อุโมงค์'], [vol.bracesL, br.kind === 'dowel' ? 'เดือยค้ำ' : 'โครงค้ำ'], [vol.extraL, 'บล็อก']] as [number, string][]).filter(([x]) => x >= 0.05);
+    const less = ([[vol.driversL, 'ลำโพง'], [vol.portsL, 'ท่อ'], [vol.boardsL, 'แผ่นกั้น'], [vol.tunnelL, 'อุโมงค์'], [vol.bracesL, br.kind === 'dowel' ? 'เดือยค้ำ' : 'โครงค้ำ'], [vol.terminalL, 'ขั้วต่อ'], [vol.handlesL, 'มือจับฝัง'], [vol.extraL, 'บล็อก']] as [number, string][]).filter(([x]) => x >= 0.05);
     add({
       id: 'netVolume', group: g4, title: 'ปริมาตรสุทธิจากขนาดตู้',
       formula: geo.shape === 'wedge' ? 'Vสุทธิ = Wi · Hi · (Dล่าง + Dบน)/2 − Vลำโพง − Vท่อ − Vโครงค้ำ − …' : 'Vสุทธิ = Wi · Hi · Di − Vลำโพง − Vท่อ − Vโครงค้ำ − …',
       subst: `= ${num(geo.wi)} × ${num(geo.hi)} × ${geo.shape === 'wedge' ? `(${num(geo.di)} + ${num(geo.diTop)})/2` : num(geo.di)} ม.³ = ${num(vol.shellL)} L${less.map(([x, k]) => ` − ${num(x)} (${k})`).join('')}${geo.shortL >= 0.05 ? ` + ${num(geo.shortL)} (ขาด)` : ''} = ${num(vol.netL)} L`,
-      value: vol.netL, unit: 'L', ref: `ขนาดภายใน = ภายนอก − ความหนาแผ่น 2 ด้าน · ${br.kind === 'window' ? `${br.barsOnly ? BRACE_BARS_TH : BRACE_TH.window} ${br.count} ชุด${br.window ? ` ขอบกว้าง ${num(br.window.bar * 1000, 2)} มม.` : ''}` : br.kind === 'dowel' ? `เดือย Ø ${num(DOWEL_D * 1000, 2)} มม. ${br.count} ชุด ชุดละ ${br.dowelYs.length} ท่อน` : 'ไม่มีโครงค้ำ'} · ท่อคิดทั้งอากาศในท่อและแผ่นที่ทำท่อ`, conf: conf.size
+      value: vol.netL, unit: 'L', ref: `ขนาดภายใน = ภายนอก − ความหนาแผ่น 2 ด้าน · ${br.kind === 'window' ? `${br.barsOnly ? BRACE_BARS_TH : BRACE_TH.window} ${br.count} ชุด${br.window ? ` ขอบกว้าง ${num(br.window.bar * 1000, 2)} มม.` : ''}` : br.kind === 'dowel' ? `เดือย Ø ${num(DOWEL_D * 1000, 2)} มม. ${br.count} ชุด ชุดละ ${br.dowelYs.length} ท่อน` : 'ไม่มีโครงค้ำ'} · ท่อคิดทั้งอากาศในท่อและแผ่นที่ทำท่อ${vol.terminalL >= 0.05 || vol.handlesL >= 0.05 ? ' · ขั้วต่อและมือจับฝังคิดจากขนาดทั่วไป (ประมาณ) ส่วนที่ลึกเกินความหนาแผง' : ''}`, conf: conf.size
     });
     add({ id: 'weight', group: g4, title: 'น้ำหนักตู้เปล่า', formula: 'm = Aแผ่นรวม · t · ρ (+ แผ่นซับแรงสั่น)', subst: `= ${num(geo.panelAreaM2)} × ${num(geo.t)} × ${rho}${wall.massKgM2 ? ` + ${num(geo.panelAreaM2 * 0.8)} × ${num(wall.massKgM2)}` : ''} = ${num(geo.weightKg)} กก.`, value: geo.weightKg, unit: 'กก.', ref: `พื้นที่แผ่น = ผนัง 6 ด้าน + แผ่นท่อ${br.kind === 'window' ? (br.barsOnly ? ` + คานค้ำ 2 คาน × ${br.count} ชุด` : ` + โครงค้ำชุดละราวครึ่งแผ่น × ${br.count}`) : ''} + แผ่นกั้นภายใน${br.kind === 'dowel' ? ' (+ เดือยไม้เนื้อแข็ง ความหนาแน่นประมาณ 650 kg/m³)' : ''}`, conf: conf.size });
   }

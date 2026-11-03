@@ -150,3 +150,22 @@ export function fitBraces(d: Design, ctx: BuildCtx): Partial<Design> | null {
   ];
   return tries.find((p) => !problemsFor({ ...d, ...p }, ctx).length) ?? null;
 }
+
+/**
+ * When only the hardware stops a design (no room for the terminal or the handles): the smallest
+ * change of hardware that builds — binding posts for a cup, bar handles for recessed ones, else no
+ * handles — keeping the box and its sound. null when something else is wrong too, or nothing helps.
+ */
+export function fitHardware(d: Design, ctx: BuildCtx): Partial<Design> | null {
+  const now = problemsFor(d, ctx);
+  if (!now.length || now.some((p) => p.code !== 'terminal' && p.code !== 'handles')) return null;
+  const term: Partial<Design>[] = now.some((p) => p.code === 'terminal') && d.terminal !== 'posts' ? [{ terminal: 'posts' }] : [{}];
+  const hand: Partial<Design>[] = now.some((p) => p.code === 'handles')
+    ? (d.handles === 'recessed' ? [{ handles: 'surface' }, { handles: 'none' }] : [{ handles: 'none' }])
+    : [{}];
+  for (const a of term) for (const b of hand) {
+    const p = { ...a, ...b };
+    if (Object.keys(p).length && !problemsFor({ ...d, ...p }, ctx).length) return p;
+  }
+  return null;
+}

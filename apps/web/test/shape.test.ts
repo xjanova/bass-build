@@ -25,7 +25,7 @@ const sealed: Design = { ...base, boxType: 'sealed', vbL: 120 };
 /** What the breakdown says the net air is: the shell less everything else in it. */
 const netFromParts = (g: BoxGeometry) => {
   const v = g.volume;
-  return v.shellL - v.driversL - v.portsL - v.boardsL - v.bracesL - v.tunnelL - v.extraL + g.shortL;
+  return v.shellL - v.driversL - v.portsL - v.boardsL - v.bracesL - v.tunnelL - v.terminalL - v.handlesL - v.extraL + g.shortL;
 };
 
 describe('box sizes set by hand', () => {

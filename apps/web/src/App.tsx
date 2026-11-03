@@ -165,7 +165,7 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, geo.braces.kind, geo.braces.zs.join(','), geo.braces.dowelYs.join(','), fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, geo.braces.kind, geo.braces.zs.join(','), geo.braces.dowelYs.join(','), geo.terminal.kind, geo.terminal.panel, geo.terminal.x, geo.terminal.y, geo.terminal.z, geo.handles?.kind ?? 'none', geo.handles?.z ?? 0, geo.handles?.y ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
       mode: mode === 'library' || mode === 'wizard' || mode === 'blueprint' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,

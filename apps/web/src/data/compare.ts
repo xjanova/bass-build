@@ -93,7 +93,9 @@ const ENUMS: Partial<Record<keyof Design, readonly string[]>> = {
   dMode: ['auto', 'fixed', 'max'],
   rowMode: ['auto', 'manual'],
   portStyle: ['slot', 'round'],
-  braceKind: ['none', 'window', 'dowel']
+  braceKind: ['none', 'window', 'dowel'],
+  terminal: ['cup', 'posts'],
+  handles: ['none', 'surface', 'recessed']
 };
 
 /**

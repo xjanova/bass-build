@@ -1,4 +1,4 @@
-import type { BoxType, BraceKind } from '../state/store';
+import type { BoxType, BraceKind, HandleKind, TerminalKind } from '../state/store';
 import type { BoxGeometry } from './model';
 
 /**
@@ -40,6 +40,9 @@ export const sideRow = (geo: BoxGeometry): number[] =>
 
 /** Wood that must stay round a cut-out, and between it and the slot port, m. */
 export const EDGE_WOOD = 0.01;
+
+/** Free air a port's open inner end needs before a wall: about one slot height (one diameter for a tube), at least 3 cm. */
+export const portEndGap = (size: number) => Math.max(0.03, size);
 
 /** Lowest a driver frame may reach: above the slot mouth or the row of tube holes (0 when the baffle is clear). */
 export const frameFloor = (geo: BoxGeometry) =>
@@ -286,6 +289,31 @@ export function bracePlan(geo: BoxGeometry, boxType: BoxType, count: number, kin
       : dowelYs.some((yd) => Math.abs(yd - rp.y) < rp.radius + DOWEL_D / 2 + BRACE_GAP);
     if (hit) keep.push({ a: geo.di - run, b: geo.di, what: 'ท่อหลัง' });
   }
+  // Hardware reaching inside: the terminal's cup or studs at the back, recessed handle cups on
+  // the sides. A plane is kept off them where its bars or dowels would cross them.
+  const hitsPlane = (x0: number, x1: number, y0: number, y1: number) => {
+    const g = BRACE_GAP;
+    if (kind === 'dowel') return dowelYs.some((yd) => y0 - g < yd + DOWEL_D / 2 && y1 + g > yd - DOWEL_D / 2);
+    const w = window!;
+    const inOuter = x1 + g > -geo.wi / 2 && x0 - g < geo.wi / 2 && y1 + g > bottom && y0 - g < top;
+    if (!inOuter) return false;
+    if (barsOnly) return y0 - g < bottom + w.bar || y1 + g > top - w.bar;
+    // A frame: everything but its opening.
+    return !(x0 - g >= -w.w / 2 && x1 + g <= w.w / 2 && y0 - g >= bottom + w.bar && y1 + g <= top - w.bar);
+  };
+  const term = geo.terminal;
+  // Only hardware that fits: what does not is reported on its own, not blamed on the braces too.
+  if (term?.fits && term.inside > 0 && term.panel === 'back') {
+    const cos = Math.cos(geo.backAngle);
+    const y0 = term.y - (term.body.h / 2) * cos, y1 = term.y + (term.body.h / 2) * cos;
+    if (hitsPlane(term.x - term.body.w / 2, term.x + term.body.w / 2, y0, y1)) keep.push({ a: depthAt(geo, y1) - term.inside, b: geo.di, what: 'ขั้วต่อลำโพง' });
+  } else if (term?.fits && term.inside > 0 && hitsPlane(-geo.wi / 2, -geo.wi / 2 + term.inside, term.y - term.body.h / 2, term.y + term.body.h / 2)) {
+    keep.push({ a: term.z - t - term.body.w / 2, b: term.z - t + term.body.w / 2, what: 'ขั้วต่อลำโพง' });
+  }
+  const hd = geo.handles;
+  if (hd?.fits && hd.hole && hd.inside > 0 && hitsPlane(geo.wi / 2 - hd.inside, geo.wi / 2, hd.y - hd.hole.h / 2, hd.y + hd.hole.h / 2)) {
+    keep.push({ a: hd.z - hd.hole.w / 2 - t, b: hd.z + hd.hole.w / 2 - t, what: 'มือจับฝัง' });
+  }
   // A wedge's planes stay inside its top depth (and in front of a riser leaning up the back).
   const room = wedge ? geo.diTop - (slot.riser > 0 ? (geo.slotH + t) / Math.cos(geo.backAngle) : 0) : geo.di;
   const pad = thick / 2 + BRACE_GAP;
@@ -332,3 +360,326 @@ export function bays(held: number[], depth: number): [number, number][] {
 
 /** Longest free span of a panel along the depth, m (the whole depth when nothing holds it). */
 export const freeSpan = (held: number[], depth: number) => Math.max(...bays(held, depth).map(([a, b]) => b - a));
+
+// ---- hardware: speaker terminal and handles -----------------------------------------------------
+
+/**
+ * Sizes of the speaker terminal, m. None of them comes from a datasheet: the cup's 80 × 80 mm
+ * cut-out is the seed's own estimate (materials.json, terminal_cup, "ตรวจกับสินค้าจริง"); its
+ * 100 mm plate and 40 mm depth, and the posts' Ø 10 mm holes 19 mm apart (the usual pitch of a
+ * dual banana plug) are typical sizes chosen here. The UI and the BOM say they are estimates.
+ */
+export const TERMINAL_SPEC: Record<TerminalKind, {
+  /** Plate on the outside face (posts: the room their knobs need), across × up. */
+  plate: [number, number];
+  /** Rectangular cut-out (cup), or null for round post holes. */
+  hole: [number, number] | null;
+  /** Post holes: diameter and centre-to-centre pitch. */
+  postD: number; pitch: number;
+  /** From the outside face to the back of the cup (or the end of a post stud with its lug). */
+  depth: number;
+}> = {
+  cup: { plate: [0.1, 0.1], hole: [0.08, 0.08], postD: 0, pitch: 0, depth: 0.04 },
+  posts: { plate: [0.05, 0.03], hole: null, postD: 0.01, pitch: 0.019, depth: 0.03 }
+};
+
+/**
+ * Handle sizes, m, typical of what is sold for speaker cabinets — estimates, not a product's
+ * datasheet (the BOM says "ตรวจกับสินค้าจริง"). A bar handle is 200 mm long on two screws 170 mm
+ * apart and stands 35 mm off the panel; a recessed cup has a 200 × 135 mm flange over a
+ * 180 × 115 mm cut-out and is 80 mm deep. Both lie along the depth of the side panel.
+ */
+export const HANDLE_SPEC = {
+  surface: { plate: [0.2, 0.03] as [number, number], screwPitch: 0.17, standOff: 0.035 },
+  recessed: { plate: [0.2, 0.135] as [number, number], hole: [0.18, 0.115] as [number, number], depth: 0.08 }
+} as const;
+/** Gap between the top of a handle's plate and the top edge of the side panel, m. */
+export const HANDLE_TOP_GAP = 0.02;
+/** Wall of a rear port tube round its bore, m (unknown until the tube is bought: a PVC-like estimate). */
+const PORT_WALL = 0.01;
+
+/** Air the terminal takes, m³: the part of the cup (or the two post studs) inside the inner face. */
+export function terminalVolume(kind: TerminalKind, t: number): number {
+  const s = TERMINAL_SPEC[kind] ?? TERMINAL_SPEC.cup;
+  const inside = Math.max(0, s.depth - t);
+  return s.hole ? s.hole[0] * s.hole[1] * inside : 2 * Math.PI * (s.postD / 2) ** 2 * inside;
+}
+/** Air two recessed handle cups take, m³ (bar handles take none). */
+export function handleVolume(kind: HandleKind, t: number): number {
+  if (kind !== 'recessed') return 0;
+  const s = HANDLE_SPEC.recessed;
+  return 2 * s.hole[0] * s.hole[1] * Math.max(0, s.depth - t);
+}
+
+/** Length of the back board, m: between top and bottom, up the lean on a wedge (as the cut list draws it). */
+export const backLength = (geo: Pick<BoxGeometry, 'hx' | 't' | 'dx' | 'dxTop'>) => {
+  const sideH = geo.hx - 2 * geo.t;
+  return Math.hypot(sideH, (geo.dx - geo.dxTop) * (sideH / geo.hx));
+};
+/** Inside depth at a height y above the outside floor, m (a wedge is shallower higher up). */
+export const depthAt = (geo: Pick<BoxGeometry, 'di' | 'diTop' | 'hi' | 't'>, y: number) =>
+  geo.di - (geo.di - geo.diTop) * Math.min(1, Math.max(0, (y - geo.t) / geo.hi));
+/** Outside depth of a side panel at a height y above the outside floor, m. */
+const outerDepthAt = (geo: Pick<BoxGeometry, 'dx' | 'dxTop' | 'hx'>, y: number) => geo.dx - (geo.dx - geo.dxTop) * (y / geo.hx);
+
+/** Distance from a point to a rectangle (0 inside it). */
+const toRect = (px: number, py: number, x0: number, x1: number, y0: number, y1: number) =>
+  Math.hypot(Math.max(x0 - px, 0, px - x1), Math.max(y0 - py, 0, py - y1));
+
+/** Top of the front port band along the floor (slot ceiling, or the row of tubes), m above the outside floor; 0 without one. */
+const portBandTop = (geo: BoxGeometry) => (geo.slotH > 0 ? geo.t + geo.slotH + geo.t : geo.tubes ? geo.tubes.y + geo.tubes.od / 2 : 0);
+
+/**
+ * What a block of hardware reaching into the box would hit, or null: `xs` are its sides across
+ * (from the centre line), `y0..y1` its height above the outside floor, `a..b` its depth behind the
+ * baffle's inner face. Checked: every driver's basket (a cone from the cut-out to a magnet half the
+ * frame's radius, the brace layout's estimate) or a front passive radiator's travel, the band-pass
+ * divider and its drivers, the isobaric inner baffle and its driver, and a slot riser with the
+ * channel behind it (plus its mouth's end gap above it). Braces are laid out afterwards round it.
+ */
+function insideHit(geo: BoxGeometry, boxType: BoxType, count: number, x0: number, x1: number, y0: number, y1: number, a: number, b: number): string | null {
+  const t = geo.t;
+  const near = (px: number, py: number) => toRect(px, py, x0, x1, y0, y1);
+  /** A basket from radius r0 at depth `from` narrowing to r1 at `from + depth`: does it reach the block? */
+  const basket = (px: number, py: number, r0: number, r1: number, from: number, depth: number) => {
+    const lo = Math.max(a, from), hi = Math.min(b, from + depth);
+    const dist = near(px, py);
+    for (let s = lo; s <= hi + 1e-9; s += 0.005) if (dist < r0 + ((r1 - r0) * (s - from)) / depth + BRACE_GAP) return true;
+    return false;
+  };
+  for (const it of frontRow(geo, boxType, count)) {
+    const hit = it.passive ? basket(it.x, geo.driverY, it.r, it.r, -t, t + 0.03) : basket(it.x, geo.driverY, geo.cutoutRadius, 0.5 * geo.driverRadius, -t, geo.driverDepth);
+    if (hit) return it.passive ? 'PR หน้าตู้' : 'โครงลำโพง';
+  }
+  const bandpass = boxType === 'bp4' || boxType === 'bp6';
+  const span = (p: number, q: number) => b > p - BRACE_GAP && a < q + BRACE_GAP;
+  if (bandpass) {
+    if (span(geo.frontDepth - 0.03, geo.frontDepth + t)) return 'แผ่นกั้นห้อง';
+    for (const x of innerRow(geo, boxType, count)) if (basket(x, geo.driverY, geo.cutoutRadius, 0.5 * geo.driverRadius, geo.frontDepth, geo.driverDepth)) return 'โครงลำโพง';
+  }
+  if (boxType === 'isobaric') {
+    const zb = innerBaffleZ(geo);
+    if (span(zb, zb + t)) return 'แผงยึดลำโพงตัวใน';
+    for (const x of innerRow(geo, boxType, count)) if (basket(x, geo.driverY, geo.cutoutRadius, 0.5 * geo.driverRadius, zb, geo.driverDepth)) return 'โครงลำโพง';
+  }
+  const slot = slotBoards(geo);
+  if (slot.riser > 0) {
+    // The riser stands one slot height in front of the back (or the divider), up to its open top.
+    const rTop = t + geo.slotH + t + slot.riser;
+    const back = bandpass ? geo.frontDepth : depthAt(geo, y1);
+    // Up a wedge the riser leans, so it takes a little more depth measured level.
+    if (y0 < rTop + portEndGap(geo.slotH) && span(back - (geo.slotH + t) / Math.cos(geo.backAngle), back)) return 'ท่อสลอตที่พับขึ้น';
+  }
+  return null;
+}
+
+/** Where the back of the drivers' magnets sits, as discs on the back panel's plane, with the clear depth behind them, m. */
+function magnetsAtBack(geo: BoxGeometry, boxType: BoxType, count: number): { x: number; y: number; r: number; gap: (y: number) => number }[] {
+  const r = 0.5 * geo.driverRadius; // magnet about half the frame's radius (estimate, as the brace layout uses)
+  const bandpass = boxType === 'bp4' || boxType === 'bp6';
+  // The same clear depth the magnet check in sizeBox measures.
+  if (bandpass) return innerRow(geo, boxType, count).map((x) => ({ x, y: geo.driverY, r, gap: () => geo.di * geo.rearFraction - geo.t - geo.driverDepth }));
+  if (boxType === 'isobaric') return [{ x: 0, y: geo.driverY, r, gap: () => geo.di - 2 * geo.driverDepth - 0.03 }];
+  return frontRow(geo, boxType, count).filter((it) => !it.passive).map((it) => ({ x: it.x, y: geo.driverY, r, gap: (y: number) => depthAt(geo, y) - geo.driverDepth }));
+}
+
+export interface TerminalPlan {
+  kind: TerminalKind;
+  /**
+   * The panel it is on: the back, or — when a slot folded up the back leaves no room there — the
+   * left side panel (as seen from the front).
+   */
+  panel: 'back' | 'side';
+  /** On the back: centre across from the centre line, and along the board from its bottom edge (up the lean on a wedge), m. */
+  x: number;
+  s: number;
+  /** On the side: centre's depth from the front edge, m. */
+  z: number;
+  /** Height of the centre above the outside floor, m. */
+  y: number;
+  /** Plate on the outside face, and what sits inside past the inner face (cup body, or the two studs), across × up the panel, m. */
+  plate: { w: number; h: number };
+  body: { w: number; h: number };
+  /** Cup: one rectangular cut-out. Posts: none (see `posts`). */
+  hole: { w: number; h: number } | null;
+  /** Posts: centre of each round hole across the panel from the terminal's centre, and their diameter, m. */
+  posts: number[];
+  postD: number;
+  /** How far the terminal reaches inside past the panel's inner face, m. */
+  inside: number;
+  fits: boolean;
+  /** What took the room when it does not fit (Thai). */
+  blockedBy: string | null;
+}
+
+/**
+ * The speaker terminal, low and centred on the back panel: as low as it can go and as near the
+ * centre line as it can, clear of
+ * - the slot port: a riser folded up the back is a port channel the full width of the back, so the
+ *   terminal goes above its open top (with the port's end gap); a slot or tube row along the floor
+ *   keeps it above the port band;
+ * - the 6th-order band-pass rear port hole (and its tube wall);
+ * - the back of the magnets, where they come within the terminal's depth of the back.
+ * The plate stays on the back board and the cut-out keeps EDGE_WOOD of wood round it; on a wedge
+ * every position is measured up the leaning board. When the folded slot leaves no room on the back,
+ * the terminal goes low on the left side panel instead, near the front, clear of the drivers'
+ * baskets, the riser and the handles — so a long port is not made unbuildable by the terminal.
+ */
+export function terminalPlan(geo: BoxGeometry, boxType: BoxType, count: number, kind: TerminalKind): TerminalPlan {
+  const spec = TERMINAL_SPEC[kind] ?? TERMINAL_SPEC.cup;
+  const t = geo.t, cos = Math.cos(geo.backAngle);
+  const len = backLength(geo);
+  const half = geo.wi / 2;
+  const [pw, ph] = spec.plate;
+  const posts = spec.hole ? [] : [-spec.pitch / 2, spec.pitch / 2];
+  // Inside the box: the cup's body, or the two studs with their lugs (5 mm round each).
+  const [bw, bh] = spec.hole ?? [spec.pitch + spec.postD + 0.01, spec.postD + 0.01];
+  const inside = Math.max(0, spec.depth - t);
+  const bandpass = boxType === 'bp4' || boxType === 'bp6';
+  const slot = slotBoards(geo);
+  const riserBack = !bandpass && slot.riser > 0;
+  // Lowest the inside part may start, along the board.
+  let sMin = 0;
+  let floorWhat: string | null = null;
+  if (riserBack) {
+    // A wedge's riser starts above the slot ceiling and leans with the back.
+    sMin = (geo.shape === 'wedge' ? (geo.slotH + t) / cos : geo.slotH) + slot.riser + portEndGap(geo.slotH);
+    floorWhat = 'ท่อสลอตที่พับขึ้นผนังหลัง';
+  } else if (!bandpass && portBandTop(geo) > 0) {
+    sMin = (portBandTop(geo) - t) / cos + EDGE_WOOD;
+    floorWhat = geo.slotH > 0 ? 'ท่อสลอต' : 'ท่อกลม';
+  }
+  const rp = geo.rearPort;
+  const rpS = rp ? rp.y - t : 0;
+  const rpR = rp ? rp.radius + PORT_WALL + EDGE_WOOD : 0;
+  const magnets = inside > 0 ? magnetsAtBack(geo, boxType, count) : [];
+  const yOf = (s: number) => t + s * cos;
+  const why = (x: number, s: number): string | null => {
+    if (Math.abs(x) + pw / 2 > half + 1e-9 || Math.abs(x) + bw / 2 + EDGE_WOOD > half + 1e-9) return 'ผนังหลังแคบเกินไป';
+    if (s - ph / 2 < -1e-9 || s - bh / 2 < EDGE_WOOD - 1e-9) return 'ผนังหลังเตี้ยเกินไป';
+    if (s + ph / 2 > len + 1e-9 || s + bh / 2 + EDGE_WOOD > len + 1e-9) return floorWhat ? `ชน${floorWhat}` : 'ผนังหลังเตี้ยเกินไป';
+    if (s - bh / 2 < sMin - 1e-9) return `ชน${floorWhat}`;
+    if (rp && toRect(0, rpS, x - pw / 2, x + pw / 2, s - ph / 2, s + ph / 2) < rpR - 1e-9) return 'ชนรูท่อหลัง';
+    for (const m of magnets) {
+      const y0 = yOf(s - bh / 2), y1 = yOf(s + bh / 2);
+      if (m.gap(y1) < inside + BRACE_GAP && toRect(m.x, m.y, x - bw / 2, x + bw / 2, y0, y1) < m.r + BRACE_GAP) return 'ชนท้ายแม่เหล็ก';
+    }
+    return null;
+  };
+  const sLow = Math.max(ph / 2, bh / 2 + EDGE_WOOD, sMin + bh / 2);
+  // Candidate spots: centred low, then beside or above whatever is in the way.
+  const xs = [0];
+  const ss = [sLow];
+  if (rp) { xs.push(rpR + pw / 2, -(rpR + pw / 2)); ss.push(rpS + rpR + ph / 2); }
+  for (const m of magnets) {
+    xs.push(m.x + m.r + BRACE_GAP + bw / 2, m.x - m.r - BRACE_GAP - bw / 2);
+    ss.push((m.y + m.r + BRACE_GAP - t) / cos + bh / 2);
+  }
+  let best: { x: number; s: number; cost: number } | null = null;
+  for (const x of xs) for (const s of ss) {
+    if (s < sLow - 1e-9 || why(x, s)) continue;
+    const cost = s - sLow + Math.abs(x);
+    if (!best || cost < best.cost - 1e-12) best = { x, s, cost };
+  }
+  const base = {
+    kind, plate: { w: pw, h: ph }, body: { w: bw, h: bh }, hole: spec.hole ? { w: spec.hole[0], h: spec.hole[1] } : null, posts, postD: spec.postD, inside
+  };
+  if (best) return { ...base, panel: 'back', x: best.x, s: best.s, z: 0, y: yOf(best.s), fits: true, blockedBy: null };
+  let backWhy = why(0, sLow) ?? 'ไม่มีที่ว่างบนผนังหลัง';
+  if (riserBack) {
+    const side = sideTerminal(geo, boxType, count, base);
+    if (side) return side;
+    backWhy += ' และผนังข้างก็ไม่มีที่ว่าง';
+  }
+  // Nowhere: drawn centred low on the back, and reported.
+  const s = Math.min(sLow, Math.max(ph / 2, len - ph / 2));
+  return { ...base, panel: 'back', x: 0, s, z: 0, y: yOf(s), fits: false, blockedBy: backWhy };
+}
+
+/** The terminal low on the left side panel, as far forward as it can go; null when it does not fit there either. */
+function sideTerminal(geo: BoxGeometry, boxType: BoxType, count: number, base: Omit<TerminalPlan, 'panel' | 'x' | 's' | 'z' | 'y' | 'fits' | 'blockedBy'>): TerminalPlan | null {
+  const t = geo.t;
+  const { w: pw, h: ph } = base.plate, { w: bw, h: bh } = base.body;
+  // Low, just above the slot ceiling (and the side's bottom edge).
+  const y = Math.max(t + ph / 2, portBandTop(geo) + bh / 2 + EDGE_WOOD);
+  const y0 = y - bh / 2, y1 = y + bh / 2;
+  if (y1 + EDGE_WOOD > geo.hx - t || y + ph / 2 > geo.hx - t) return null;
+  // From just behind the baffle backwards (depth of its centre behind the baffle's inner face):
+  // brace planes start a quarter of the depth back at the earliest, so a terminal up front leaves
+  // them where they belong; it moves back only past a driver's basket, never into the riser's channel.
+  const lean = 1 / Math.cos(geo.backAngle);
+  const backmost = depthAt(geo, y1) - (geo.slotH + t) * lean - BRACE_GAP - bw / 2;
+  const hd = geo.handles;
+  for (let c = EDGE_WOOD + bw / 2; c <= backmost + 1e-9; c += 0.01) {
+    const z = t + c; // from the front edge
+    if (z - pw / 2 < 0 || z + pw / 2 > outerDepthAt(geo, y + ph / 2)) continue;
+    if (hd && toRect(hd.z, hd.y, z - pw / 2 - hd.plate.w / 2, z + pw / 2 + hd.plate.w / 2, y - ph / 2 - hd.plate.h / 2, y + ph / 2 + hd.plate.h / 2) < EDGE_WOOD) continue;
+    if (base.inside > 0 && insideHit(geo, boxType, count, -geo.wi / 2, -geo.wi / 2 + base.inside, y0, y1, c - bw / 2, c + bw / 2)) continue;
+    return { ...base, panel: 'side', x: -geo.wi / 2, s: 0, z, y, fits: true, blockedBy: null };
+  }
+  return null;
+}
+
+export interface HandlePlan {
+  kind: Exclude<HandleKind, 'none'>;
+  /** Centre on each side panel's outside face: depth from the front edge, and height above the outside floor, m (both sides alike). */
+  z: number;
+  y: number;
+  /** Plate (or bar) on the outside, along the depth × up, m. */
+  plate: { w: number; h: number };
+  /** Recessed cup's cut-out, or null for a bar handle (screwed on, nothing cut). */
+  hole: { w: number; h: number } | null;
+  /** Bar handle: its two screws, depth from the front edge, at height `y`, m. */
+  screws: number[];
+  /** How far a cup reaches into the box past the side's inner face, m (0 for a bar). */
+  inside: number;
+  /** How far a bar stands off the side, m (it makes the box that much wider to carry). */
+  standOff: number;
+  fits: boolean;
+  blockedBy: string | null;
+}
+
+/**
+ * Handles on both side panels near the top, centred along the depth there (a wedge's top is
+ * shallower). They must lie on the side panel (a recessed cup's cut-out inside the box with
+ * EDGE_WOOD round it), stay clear of side-mounted passive radiators, and a recessed cup — which
+ * reaches into the box — must not meet the other cup or anything `insideHit` checks.
+ */
+export function handlePlan(geo: BoxGeometry, boxType: BoxType, count: number, kind: HandleKind): HandlePlan | null {
+  if (kind !== 'surface' && kind !== 'recessed') return null;
+  const t = geo.t;
+  const recessed = kind === 'recessed';
+  const [pw, ph] = HANDLE_SPEC[kind].plate;
+  const hole = recessed ? { w: HANDLE_SPEC.recessed.hole[0], h: HANDLE_SPEC.recessed.hole[1] } : null;
+  const inside = recessed ? Math.max(0, HANDLE_SPEC.recessed.depth - t) : 0;
+  const top = geo.hx - t - HANDLE_TOP_GAP;
+  const y = top - ph / 2;
+  // Centred on the inside depth at the plate's top, measured from the front edge.
+  const z = t + depthAt(geo, top) / 2;
+  const screws = recessed ? [] : [z - HANDLE_SPEC.surface.screwPitch / 2, z + HANDLE_SPEC.surface.screwPitch / 2];
+  const out: HandlePlan = { kind, z, y, plate: { w: pw, h: ph }, hole, screws, inside, standOff: recessed ? 0 : HANDLE_SPEC.surface.standOff, fits: true, blockedBy: null };
+  const fail = (what: string): HandlePlan => ({ ...out, fits: false, blockedBy: what });
+  // On the side panel: the plate on its outside face (between the bottom and top panels, the front
+  // edge and the back); a cup's cut-out inside the box with wood round it.
+  if (y - ph / 2 < t || z - pw / 2 < EDGE_WOOD || z + pw / 2 > outerDepthAt(geo, top) - EDGE_WOOD) return fail('ผนังข้างเล็กเกินกว่าจะติดมือจับ');
+  if (hole) {
+    const hTop = y + hole.h / 2, hBot = y - hole.h / 2;
+    if (hBot < t + EDGE_WOOD || hTop > geo.hx - t - EDGE_WOOD || z - hole.w / 2 < t + EDGE_WOOD || z + hole.w / 2 > t + depthAt(geo, hTop) - EDGE_WOOD) {
+      return fail('ผนังข้างเล็กเกินกว่าจะเจาะช่องมือจับ');
+    }
+    if (2 * inside + 2 * BRACE_GAP > geo.wi) return fail('ตู้แคบ ถ้วยมือจับสองข้างชนกัน');
+  }
+  // Side passive radiators: their frames sit on the same outside faces, centred half-way up.
+  if (boxType === 'pr' && geo.prLayout.perSide > 0) {
+    for (const zr of sideRow(geo)) {
+      if (toRect(geo.dx / 2 - zr, geo.hx / 2, z - pw / 2, z + pw / 2, y - ph / 2, y + ph / 2) < geo.prRadius + EDGE_WOOD) return fail('ชน PR ข้างตู้');
+    }
+  }
+  if (!hole) return out;
+  // Inside: each cup as a block against its side (the layout is symmetric, so one side tells).
+  const a = z - hole.w / 2 - t, b = z + hole.w / 2 - t;
+  const y0 = y - hole.h / 2, y1 = y + hole.h / 2;
+  const hitR = insideHit(geo, boxType, count, geo.wi / 2 - inside, geo.wi / 2, y0, y1, a, b);
+  const hitL = hitR ?? insideHit(geo, boxType, count, -geo.wi / 2, -geo.wi / 2 + inside, y0, y1, a, b);
+  return hitL ? fail(`ถ้วยมือจับชน${hitL}`) : out;
+}

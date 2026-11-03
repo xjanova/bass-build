@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AXIS_TH, BRACE_TH, buildProblems, dimRange, RANGES, REF_TH, shapeFor, sidesIn, switchDims, type BoxGeometry, type DimAxis } from '../sim/model';
+import { AXIS_TH, BRACE_TH, buildProblems, TERMINAL_TH, dimRange, RANGES, REF_TH, shapeFor, sidesIn, switchDims, type BoxGeometry, type DimAxis } from '../sim/model';
 import { useApp, type DimMode, type DimRef, type Design } from '../state/store';
 import { NumField } from './NumField';
 
@@ -61,7 +61,9 @@ export function ShapeSection({ geo }: { geo: BoxGeometry | null }) {
   const v = geo?.volume;
   const rows: [string, number][] = v ? ([
     ['ลำโพง (ปริมาตรแทนที่)', v.driversL], ['ท่อและแผ่นท่อ', v.portsL], ['แผ่นกั้น / แผงยึดลำโพงใน', v.boardsL],
-    ['อุโมงค์ลำโพงประกบ', v.tunnelL], [BRACE_TH[d.braceKind], v.bracesL], ['ที่ว่างเกิน (ต้องใส่บล็อก)', v.extraL]
+    ['อุโมงค์ลำโพงประกบ', v.tunnelL], [BRACE_TH[d.braceKind], v.bracesL],
+    // Hardware sizes are estimates: say so on the row.
+    [`${TERMINAL_TH[d.terminal] ?? 'ขั้วต่อลำโพง'} (ประมาณ)`, v.terminalL], ['มือจับฝัง 2 ข้าง (ประมาณ)', v.handlesL], ['ที่ว่างเกิน (ต้องใส่บล็อก)', v.extraL]
   ] as [string, number][]).filter(([, x]) => x >= 0.05) : [];
 
   return (

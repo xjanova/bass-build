@@ -1,11 +1,11 @@
 import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
-import { buildableChoices, fitBraces, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
-import { braceCountOf, DOWEL_D, MAX_BRACES, rowProblem, rowRange } from '../sim/layout';
+import { buildableChoices, fitBraces, fitHardware, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
+import { braceCountOf, DOWEL_D, HANDLE_SPEC, MAX_BRACES, rowProblem, rowRange, TERMINAL_SPEC } from '../sim/layout';
 import { TUBES, tubeOf } from '../data/hardware';
-import { ampLimits, AWG_MM2, BRACE_TH, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wallDamping, wireOhms, panelModes, type BoxGeometry, type Warning } from '../sim/model';
-import { useApp, type BoxType, type BraceKind, type Design } from '../state/store';
+import { ampLimits, AWG_MM2, BRACE_TH, HANDLE_TH, TERMINAL_TH, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wallDamping, wireOhms, panelModes, type BoxGeometry, type Warning } from '../sim/model';
+import { useApp, type BoxType, type BraceKind, type Design, type HandleKind, type TerminalKind } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
 import { NumField } from './NumField';
@@ -17,6 +17,16 @@ const BRACES: [BraceKind, string, string][] = [
   ['none', 'ไม่มี', 'ไม่มีโครงค้ำ ผนังข้างสั่นได้ทั้งแผ่น'],
   ['window', 'แบบหน้าต่าง', 'แผ่นเจาะช่องกลาง ขอบ 5 ซม. ยึดผนังข้างทั้งสองและฝาบน (ตู้ที่มี PR ข้างตู้ใช้คานบน-ล่างแทน ยึดเฉพาะฝาบน)'],
   ['dowel', 'เดือย', `ไม้กลม Ø ${DOWEL_D * 1000} มม. ข้างถึงข้าง ยึดเฉพาะผนังข้าง ใช้ที่น้อยกว่า`]
+];
+const mmS = (m: number) => Math.round(m * 1000);
+const TERMINALS: [TerminalKind, string, string][] = [
+  ['cup', 'แบบถ้วย', `ขั้วต่อลำโพงแบบถ้วย 2 ทาง เจาะช่องประมาณ ${mmS(TERMINAL_SPEC.cup.hole![0])} × ${mmS(TERMINAL_SPEC.cup.hole![1])} มม.`],
+  ['posts', 'หลักคู่', `binding post 2 ตัว รู Ø ${mmS(TERMINAL_SPEC.posts.postD)} มม. ห่างกัน ${mmS(TERMINAL_SPEC.posts.pitch)} มม. เล็กกว่าแบบถ้วย`]
+];
+const HANDLES: [HandleKind, string, string][] = [
+  ['none', 'ไม่มี', 'ไม่ติดมือจับ'],
+  ['surface', 'ติดผิว', `มือจับบาร์ยาวราว ${mmS(HANDLE_SPEC.surface.plate[0])} มม. ยึดสกรูข้างละชิ้น ไม่ต้องเจาะช่อง`],
+  ['recessed', 'ฝัง', `ถ้วยมือจับฝังผนังข้าง เจาะช่องราว ${mmS(HANDLE_SPEC.recessed.hole[0])} × ${mmS(HANDLE_SPEC.recessed.hole[1])} มม. กินที่ในตู้`]
 ];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
@@ -179,6 +189,8 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
       prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null,
       braceCount: deferred.braceKind !== 'none' ? why('braceCount', Array.from({ length: MAX_BRACES }, (_, i) => i + 1)) : null,
       braceKind: new Map([...buildableChoices(deferred, ctx, 'braceKind', BRACES.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [BraceKind, string | null])),
+      terminal: new Map([...buildableChoices(deferred, ctx, 'terminal', TERMINALS.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [TerminalKind, string | null])),
+      handles: new Map([...buildableChoices(deferred, ctx, 'handles', HANDLES.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [HandleKind, string | null])),
       // Each tube count as the front port area it stands for.
       tubes: (() => {
         const tb = roundTubes(deferred);
@@ -195,6 +207,11 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
     const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
     return why ? [[label, why] as const] : [];
   });
+  // The same for the hardware choices.
+  const hardwareBlocked = [
+    ...TERMINALS.flatMap(([k, label]) => { const why = k !== d.terminal ? choices?.terminal.get(k) : null; return why ? [[`ขั้วต่อ${label}`, why] as const] : []; }),
+    ...HANDLES.flatMap(([k, label]) => { const why = k !== d.handles ? choices?.handles.get(k) : null; return why ? [[`มือจับ${label}`, why] as const] : []; })
+  ];
   const lim = (f: LimitedField) => (buildable ? limits[f] ?? null : limits[f] ? { ...limits[f]!, around: null } : null);
   const fix = () => {
     if (!ctx) return;
@@ -213,6 +230,13 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
     if (braces) {
       patchDesign(braces);
       showToast(braces.braceKind === 'none' ? 'ไม่มีที่วางโครงค้ำ จึงไม่ใส่โครงค้ำ ตู้สร้างได้แล้ว' : `ลดโครงค้ำเหลือ ${braces.braceCount} ชุด ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+      return;
+    }
+    // Only the terminal or the handles in the way: smaller hardware, same box.
+    const hw = fitHardware(before, ctx);
+    if (hw) {
+      patchDesign(hw);
+      showToast(`เปลี่ยนเป็น${[hw.terminal ? TERMINAL_TH[hw.terminal] : null, hw.handles ? HANDLE_TH[hw.handles] : null].filter(Boolean).join(' และ ')} ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
       return;
     }
     const n = nearestBuildable(before, ctx);
@@ -494,6 +518,41 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
               <span>ผนังข้าง ≈ <b>{modes.side.toFixed(0)} Hz</b> · ฝาบน ≈ <b>{modes.top.toFixed(0)} Hz</b> · ผนังหลัง ≈ <b>{modes.back.toFixed(0)} Hz</b> (ประมาณ)</span>
               {d.braceKind === 'dowel' && <span>เดือย Ø {DOWEL_D * 1000} มม. เป็นขนาดทั่วไป ไม่ใช่ค่าที่ยืนยัน · ไม่ช่วยฝาบน</span>}
               {d.braceKind !== 'none' && <span>โครงค้ำขนานผนังหลัง จึงไม่ช่วยผนังหลัง</span>}
+            </div>
+          )}
+
+          <div className="section-title sub" id="hardware">ขั้วต่อและมือจับ</div>
+          <div className="field-head ref-row">
+            <span id="term-l">ขั้วต่อลำโพง</span>
+            <div className="seg" role="group" aria-labelledby="term-l">
+              {TERMINALS.map(([k, label, tip]) => {
+                const why = k !== d.terminal ? choices?.terminal.get(k) : null;
+                return <button key={k} aria-pressed={d.terminal === k} disabled={!!why} title={why ?? tip} onClick={() => p({ terminal: k })}>{label}</button>;
+              })}
+            </div>
+          </div>
+          <div className="field-head ref-row">
+            <span id="hand-l">มือจับ</span>
+            <div className="seg" role="group" aria-labelledby="hand-l">
+              {HANDLES.map(([k, label, tip]) => {
+                const why = k !== d.handles ? choices?.handles.get(k) : null;
+                return <button key={k} aria-pressed={d.handles === k} disabled={!!why} title={why ?? tip} onClick={() => p({ handles: k })}>{label}</button>;
+              })}
+            </div>
+          </div>
+          {hardwareBlocked.length > 0 && (
+            <div className="loadline muted">
+              {hardwareBlocked.map(([label, why]) => <span key={label}>{label}: สร้างไม่ได้ · {why}</span>)}
+            </div>
+          )}
+          {geo && (
+            <div className="loadline muted">
+              <span>{TERMINAL_TH[geo.terminal.kind]} · {geo.terminal.panel === 'side'
+                ? <>ผนังข้างซ้ายด้านล่าง (ท่อสลอตพับขึ้นเต็มผนังหลัง)</>
+                : <>ผนังหลัง{Math.abs(geo.terminal.x) > 1e-4 ? ` เยื้องกลาง ${mmS(Math.abs(geo.terminal.x))} มม.` : ' กึ่งกลาง'} สูงจากพื้น {mmS(geo.terminal.y)} มม.</>}
+                {geo.volume.terminalL >= 0.05 ? <> · กินที่ <b>{geo.volume.terminalL.toFixed(2)} L</b></> : null}</span>
+              {geo.handles && <span>{HANDLE_TH[geo.handles.kind]} 2 ข้าง ใกล้ขอบบน{geo.handles.hole ? <> · กินที่ <b>{geo.volume.handlesL.toFixed(1)} L</b></> : ` · ยื่นออกราว ${mmS(geo.handles.standOff)} มม.`}</span>}
+              <span>ขนาดขั้วต่อและมือจับเป็นค่าประมาณ ตรวจกับสินค้าจริงก่อนเจาะ</span>
             </div>
           )}
         </div>

@@ -342,6 +342,61 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     portMouth = { y: tb.y, z: dx / 2, width, height: tb.id };
   }
 
+  // Hardware: the speaker terminal and the handles. Each sits in a frame of its own whose z axis is
+  // the panel's outward normal and whose y axis runs up the panel (up the lean on a wedge's back);
+  // the plate goes on the outside, the part reaching inside goes with the x-ray internals.
+  const plastic = new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 0.6, metalness: 0.1 });
+  const hollow = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.9 });
+  const hidden = new THREE.MeshStandardMaterial({ color: 0x334155, transparent: true, opacity: 0.6 });
+  /** A pair of frames (outside, inside) at `at` on a panel facing `out`, with `up` along the panel. */
+  const mount = (at: THREE.Vector3, out: THREE.Vector3, up: THREE.Vector3) => {
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(up, out), up, out));
+    const outside = new THREE.Group(), inside = new THREE.Group();
+    for (const f of [outside, inside]) { f.position.copy(at); f.quaternion.copy(q); }
+    g.add(outside);
+    internals.add(inside);
+    return { outside, inside };
+  };
+  const tr = geo.terminal;
+  if (tr) {
+    const a = geo.backAngle;
+    const frame = tr.panel === 'side'
+      ? mount(new THREE.Vector3(-wx / 2, tr.y, dx / 2 - tr.z), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0))
+      : mount(new THREE.Vector3(tr.x, tr.y, backZ(tr.y)), new THREE.Vector3(0, Math.sin(a), -Math.cos(a)), new THREE.Vector3(0, Math.cos(a), Math.sin(a)));
+    slab(tr.plate.w, tr.plate.h, 0.003, plastic, 0, 0, 0.0015, frame.outside);
+    if (tr.hole) {
+      // The cup's recess, and the two spring clips in it.
+      slab(tr.hole.w * 0.8, tr.hole.h * 0.8, 0.001, hollow, 0, 0, 0.0035, frame.outside);
+      [-1, 1].forEach((k) => slab(0.012, 0.018, 0.006, new THREE.MeshStandardMaterial({ color: k < 0 ? 0xb91c1c : 0x1f2937, roughness: 0.5 }), k * tr.hole!.w * 0.2, 0, 0.006, frame.outside));
+    }
+    tr.posts.forEach((x, i) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(tr.postD * 0.7, tr.postD * 0.7, 0.02, 20).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: i ? 0x1f2937 : 0xb91c1c, roughness: 0.4 }));
+      post.position.set(x, 0, 0.013);
+      frame.outside.add(post);
+    });
+    if (tr.inside > 0) slab(tr.body.w, tr.body.h, tr.inside, hidden, 0, 0, -t - tr.inside / 2, frame.inside);
+  }
+  const hd = geo.handles;
+  if (hd) {
+    for (const sx of [-1, 1]) {
+      const frame = mount(new THREE.Vector3(sx * wx / 2, hd.y, dx / 2 - hd.z), new THREE.Vector3(sx, 0, 0), new THREE.Vector3(0, 1, 0));
+      if (hd.hole) {
+        // A recessed cup: its flange, the dark hollow and the grip bar across it.
+        slab(hd.plate.w, hd.plate.h, 0.003, plastic, 0, 0, 0.0015, frame.outside);
+        slab(hd.hole.w * 0.94, hd.hole.h * 0.9, 0.001, hollow, 0, 0, 0.0035, frame.outside);
+        slab(hd.hole.w * 0.8, 0.018, 0.004, plastic, 0, hd.hole.h * 0.25, 0.005, frame.outside);
+        if (hd.inside > 0) slab(hd.hole.w, hd.hole.h, hd.inside, hidden, 0, 0, -t - hd.inside / 2, frame.inside);
+      } else {
+        // A bar handle on two feet, standing off the panel.
+        const metal = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, roughness: 0.3, metalness: 0.9 });
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, hd.plate.w * 0.9, 16).rotateZ(Math.PI / 2), metal);
+        bar.position.set(0, 0, hd.standOff - 0.009);
+        frame.outside.add(bar);
+        for (const z of hd.screws) slab(0.022, hd.plate.h, hd.standOff, metal, z - hd.z, 0, hd.standOff / 2, frame.outside);
+      }
+    }
+  }
+
   // Braces and polyfill, internal only. Every plane sits where the layout put it (shared with the
   // blueprint): depth behind the inside face of the baffle.
   const braceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, transparent: true, opacity: 0.55 });

@@ -1,8 +1,9 @@
 import { tubeOf } from '../data/hardware';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
-import { baffleBottom, braceBottom, DOWEL_D, frontRow, innerRow, sideRow, slotBoards } from './layout';
-import { BRACE_BARS_TH, BRACE_TH, type BoxGeometry } from './model';
+import { TERMINAL_CUP } from '../data/hardware';
+import { baffleBottom, braceBottom, DOWEL_D, frontRow, HANDLE_SPEC, innerRow, sideRow, slotBoards, TERMINAL_SPEC } from './layout';
+import { BRACE_BARS_TH, BRACE_TH, HANDLE_TH, TERMINAL_TH, type BoxGeometry } from './model';
 
 /**
  * The cutting and assembly drawings for a laid-out box: every board with its size, holes and
@@ -11,7 +12,7 @@ import { BRACE_BARS_TH, BRACE_TH, type BoxGeometry } from './model';
  */
 
 export interface Hole {
-  kind: 'driver' | 'pr' | 'port' | 'window' | 'dowel';
+  kind: 'driver' | 'pr' | 'port' | 'window' | 'dowel' | 'terminal' | 'handle';
   /** Drilled part-way from the inside face (a dowel socket), not through the board. */
   blind?: boolean;
   /** Centre from the board's left edge and from its bottom edge, as drawn (mm). */
@@ -95,21 +96,45 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
   const sockets: Hole[] = dowels.flatMap((z, i) => br.dowelYs.map((y, j): Hole => ({
     kind: 'dowel', blind: true, x: t + mm(z), y: mm(y) - t, d: mm(DOWEL_D), label: `เดือย ${i + 1}.${j + 1}`
   })));
-  parts.push({
-    id: 'side', name: 'ผนังข้าง', qty: 2, w: wedge ? depthAt(t) : dx, h: sideH, t, holes: [...prHoles, ...sockets], bevels: [], face: true,
+  // Handles: a recessed cup's cut-out in both sides (the same spot from the front edge); bar
+  // handles cut nothing, their screw positions go in the note.
+  const hd = geo.handles;
+  const handleHoles: Hole[] = hd?.hole ? [{ kind: 'handle', x: mm(hd.z), y: mm(hd.y) - t, w: mm(hd.hole.w), h: mm(hd.hole.h), label: 'มือจับฝัง (ประมาณ)' }] : [];
+  // A terminal pushed off the back by a folded slot goes on the left side only: the sides then differ.
+  const term = geo.terminal;
+  const onSide = term.panel === 'side';
+  const termHoles = (x: number, y: number): Hole[] => term.hole
+    ? [{ kind: 'terminal', x, y, w: mm(term.hole.w), h: mm(term.hole.h), label: 'ขั้วต่อ (ประมาณ)' }]
+    : term.posts.map((dxp, i): Hole => ({ kind: 'terminal', x: x + mm(dxp), y, d: mm(term.postD), label: i ? 'ขั้ว −' : 'ขั้ว +' }));
+  const sideNote = (left: boolean | null) => [
+    // With both kinds of hole, say which rule is for which: the PR holes go through and match
+    // left and right; the sockets are blind on the inside faces, so they mirror.
+    wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? `${sockets.length || handleHoles.length ? 'รู PR ' : ''}ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)` : null,
+    !wedge && handleHoles.length ? 'ช่องมือจับซ้ายกับขวาเจาะที่เดียวกัน (วัดจากขอบหน้า)' : null,
+    sockets.length ? `รูบอดเดือยเจาะด้านใน ลึก ${Math.round(t / 2)} มม. ระยะวัดจากขอบหน้า ซ้ายกับขวาเจาะกลับด้านกัน (ไม่ทะลุ)` : null,
+    hd && !hd.hole ? `มือจับติดผิว: สกรู 2 ตัว ห่างขอบหน้า ${hd.screws.map((z) => Math.round(mm(z))).join(' / ')} มม. สูงจากขอบล่างแผ่น ${Math.round(mm(hd.y) - t)} มม. (ไม่ต้องเจาะช่อง)` : null,
+    left === true ? 'รูขั้วต่ออยู่แผ่นซ้ายเท่านั้น (มองจากหน้าตู้) เพราะท่อสลอตพับขึ้นเต็มผนังหลัง' : left === false ? 'ไม่มีรูขั้วต่อ' : null
+  ].filter(Boolean).join(' · ') || undefined;
+  const side = (id: string, name: string, qty: number, holes: Hole[], left: boolean | null): Part => ({
+    id, name, qty, w: wedge ? depthAt(t) : dx, h: sideH, t, holes, bevels: [], face: true,
     outline: wedge ? [[0, 0], [depthAt(t), 0], [depthAt(hx - t), sideH], [0, sideH]] : undefined,
-    note: [
-      // With both kinds of hole, say which rule is for which: the PR holes go through and match
-      // left and right; the sockets are blind on the inside faces, so they mirror.
-      wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? `${sockets.length ? 'รู PR ' : ''}ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)` : null,
-      sockets.length ? `รูบอดเดือยเจาะด้านใน ลึก ${Math.round(t / 2)} มม. ระยะวัดจากขอบหน้า ซ้ายกับขวาเจาะกลับด้านกัน (ไม่ทะลุ)` : null
-    ].filter(Boolean).join(' · ') || undefined
+    note: sideNote(left)
   });
+  const sideHoles = [...prHoles, ...handleHoles, ...sockets];
+  if (onSide) {
+    parts.push(side('side', 'ผนังข้างขวา', 1, sideHoles, false));
+    parts.push(side('side-left', 'ผนังข้างซ้าย', 1, [...sideHoles, ...termHoles(mm(term.z), mm(term.y) - t)], true));
+  } else parts.push(side('side', 'ผนังข้าง', 2, sideHoles, null));
 
   // Back: between the sides and between top and bottom; a wedge's runs up the lean.
   const backLen = wedge ? Math.hypot(sideH, (dx - dxTop) * (sideH / hx)) : sideH;
   const backHoles: Hole[] = geo.rearPort ? [{ kind: 'port', x: wi / 2, y: mm(geo.rearPort.y) - t, d: mm(2 * geo.rearPort.radius), label: 'ท่อหลัง (ขนาดใน)' }] : [];
-  parts.push({ id: 'back', name: 'ผนังหลัง', qty: 1, w: wi, h: backLen, t, holes: backHoles, bevels: wedge ? [{ edge: 'top', deg: r1(lean) }, { edge: 'bottom', deg: r1(lean) }] : [], face: false });
+  // The terminal, measured up the board (up the lean on a wedge).
+  if (!onSide) backHoles.push(...termHoles(wi / 2 + mm(term.x), mm(term.s)));
+  parts.push({
+    id: 'back', name: 'ผนังหลัง', qty: 1, w: wi, h: backLen, t, holes: backHoles, bevels: wedge ? [{ edge: 'top', deg: r1(lean) }, { edge: 'bottom', deg: r1(lean) }] : [], face: false,
+    note: !onSide && wedge ? 'ระยะรูขั้วต่อวัดตามแนวเอียงของแผ่น' : undefined
+  });
 
   // Front baffle above the slot port, with the driver / passive radiator row.
   const bottom = mm(baffleBottom(geo));
@@ -260,9 +285,10 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
   const boardM2 = parts.reduce((a, p) => a + partArea(p) * p.qty, 0);
   const t = mm(geo.t);
   // Glued joints: every edge of the shell boards meets another board (each joint shared by two).
-  const shell = parts.filter((p) => ['bottom', 'top', 'side', 'back', 'baffle'].includes(p.id));
+  const SHELL = ['bottom', 'top', 'side', 'side-left', 'back', 'baffle'];
+  const shell = parts.filter((p) => SHELL.includes(p.id));
   const jointM = shell.reduce((a, p) => a + p.qty * (2 * (p.w + p.h)), 0) / 2 / 1000;
-  const inside = parts.filter((p) => !['bottom', 'top', 'side', 'back', 'baffle'].includes(p.id));
+  const inside = parts.filter((p) => !SHELL.includes(p.id));
   const insideM = inside.reduce((a, p) => a + p.qty * 2 * p.w, 0) / 1000; // each inside board glued along two long edges
   const screws = Math.ceil(((jointM + insideM) * 1000) / SCREW_PITCH / 10) * 10;
   const matName = material?.nameTh ?? material?.name ?? 'MDF';
@@ -293,9 +319,9 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     { item: 'กาวไม้ (PVA)', qty: `ราว ${Math.max(100, Math.ceil(((jointM + insideM) * 20) / 50) * 50)} มล.`, note: 'ประมาณ 20 มล. ต่อเมตรรอยต่อ' },
     { item: `สกรูไม้ ยาว ≈ ${Math.round((2.5 * t) / 5) * 5} มม.`, qty: `${screws} ตัว`, note: `ทุก ${SCREW_PITCH} มม. ตามรอยต่อ (รอยต่อรวม ${(jointM + insideM).toFixed(1)} ม.)` },
     { item: 'ซิลิโคน / กาวยาแนวด้านใน', qty: `${(jointM).toFixed(1)} ม.`, note: 'ยาแนวทุกรอยต่อด้านในกันรั่ว' },
-    { item: 'เทปโฟมกันรั่วรอบขอบลำโพง', qty: `${(((frontRow(geo, d.boxType, d.count).reduce((a, it) => a + 2 * Math.PI * it.r, 0) + innerRow(geo, d.boxType, d.count).length * 2 * Math.PI * geo.driverRadius) * 1.1)).toFixed(1)} ม.` },
-    { item: 'ขั้วต่อลำโพง', qty: '1 ชุด', note: 'เจาะผนังหลังตามขนาดขั้วที่ใช้ ทาซิลิโคนรอบขั้ว' }
+    { item: 'เทปโฟมกันรั่วรอบขอบลำโพง', qty: `${(((frontRow(geo, d.boxType, d.count).reduce((a, it) => a + 2 * Math.PI * it.r, 0) + innerRow(geo, d.boxType, d.count).length * 2 * Math.PI * geo.driverRadius) * 1.1)).toFixed(1)} ม.` }
   );
+  bom.push(terminalLine(geo), ...handleLines(geo));
   if (d.stuffing > 0 && (d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr')) {
     const fill = damping.find((x) => x.key === d.fillKey);
     const lo = fill?.fillGPerLMin, hi2 = fill?.fillGPerLMax;
@@ -317,6 +343,7 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     `ตัดแผ่นตามรายการตัด ตรวจขนาดและฉากทุกแผ่น${geo.shape === 'wedge' ? ` ผนังข้างตัดเป็นคางหมู และขอบที่ชนผนังหลังตัดเอียง ${lean}°` : ''}`,
     ...(geo.tubes ? [`ตัดท่อ ${geo.tubes.count} ท่อ ยาวท่อละ ${Math.round(mm(geo.portLength))} มม. ลบคมปลายท่อด้านใน แล้วเจาะรูท่อที่แผงหน้า Ø ${Math.round(mm(geo.tubes.od))} มม. ให้ท่อสวมพอดี`] : []),
     `เจาะรูลำโพงที่${has('divider') ? 'แผ่นกั้นห้อง' : has('inner-baffle') ? 'แผงหน้าและแผงยึดลำโพงตัวใน' : 'แผงหน้า'} Ø ${Math.round(mm(2 * geo.cutoutRadius))} มม. ตามระยะในแบบ${d.boxType === 'pr' ? ' และรู PR' : ''}${geo.rearPort ? ' · เจาะรูท่อหลังที่ผนังหลัง' : ''} · ทาบลำโพงจริงก่อนเจาะ`,
+    `เจาะรู${terminalHoleText(geo)} ที่${geo.terminal.panel === 'side' ? 'ผนังข้างซ้าย' : 'ผนังหลัง'}${geo.handles?.hole ? ` และช่องมือจับฝัง ${Math.round(mm(geo.handles.hole.w))} × ${Math.round(mm(geo.handles.hole.h))} มม. ที่ผนังข้างทั้งสอง` : ''} ตามระยะในแบบ · ทาบของจริงก่อนเจาะ (ขนาดในแบบเป็นค่าประมาณ)`,
     ...(dowels ? [`ตัดเดือย ${dowels.qty} ท่อน ยาว ${dowels.length} มม. แล้วเจาะรูบอด Ø ${dowels.d} มม. ลึก ${Math.round(t / 2)} มม. ด้านในผนังข้างทั้งสองตามแบบ (ซ้ายกับขวากลับด้านกัน ห้ามเจาะทะลุ)`] : []),
     dowels
       ? 'ทากาวแล้วยึดผนังข้างแผ่นแรกบนพื้น ทากาวเดือยใส่รูบอดให้สุด แล้วประกบผนังข้างอีกแผ่นให้เดือยเข้ารู ใช้ฉากจับให้ตั้งตรง'
@@ -327,17 +354,66 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     ...(has('brace') ? [br.barsOnly
       ? `ติด${BRACE_BARS_TH} ${br.zs.length} ชุด (ชุดละคานบนกับคานล่าง) ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางคาน) ทากาวขอบยาวและปลายทั้งสองที่ชนผนัง ปลายคานต้องไม่ทับรู PR`
       : `ติด${BRACE_TH.window} ${br.zs.length} ชุด ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น) ทากาวทุกขอบที่ชนผนัง`] : []),
-    `ติดผนังหลัง${geo.rearPort ? ' สอดท่อหลังเข้าห้องหลัง' : ''} และเจาะติดขั้วต่อ`,
+    `ติดผนังหลัง${geo.rearPort ? ' สอดท่อหลังเข้าห้องหลัง' : ''} แล้วติด${TERMINAL_TH[geo.terminal.kind]}${geo.terminal.panel === 'side' ? 'ที่ผนังข้างซ้าย' : ''} ทาซิลิโคนรอบขั้วกันรั่ว`,
     'ยาแนวซิลิโคนทุกรอยต่อด้านใน ปล่อยให้แห้ง',
     ...(d.stuffing > 0 ? ['ใส่ใยซับเสียงตามปริมาณในรายการวัสดุ ไม่อุดปากท่อหรือหลังลำโพง'] : []),
     geo.tubes ? 'ติดฝาบนและแผงหน้า สอดท่อเข้ารูให้ปลายเสมอหน้าแผง ยึดด้วยกาวหรือซิลิโคนรอบท่อ ขัดขอบ แล้วทำผิว' : 'ติดฝาบนและแผงหน้า ขัดขอบ แล้วทำผิว',
-    'เดินสายจากขั้วต่อถึงลำโพง ติดเทปโฟมรอบขอบ ยึดลำโพง แล้วกดกรวยเบา ๆ ฟังว่ามีลมรั่วหรือไม่'
+    'เดินสายจากขั้วต่อถึงลำโพง ติดเทปโฟมรอบขอบ ยึดลำโพง แล้วกดกรวยเบา ๆ ฟังว่ามีลมรั่วหรือไม่',
+    ...(geo.handles ? [geo.handles.hole
+      ? 'ใส่มือจับฝังทั้งสองข้าง ทาซิลิโคนรอบขอบถ้วยกันรั่ว แล้วขันสกรูยึด'
+      : `ยึดมือจับติดผิวข้างละชิ้น สกรูห่างขอบหน้า ${geo.handles.screws.map((z) => Math.round(mm(z))).join(' / ')} มม. สูงจากพื้นนอก ${Math.round(mm(geo.handles.y))} มม. เจาะนำก่อนขันสกรู`] : [])
   ];
   const sheetM2 = (sheets.length * sheetW * sheetH) / 1e6;
   return {
     parts, dowels, sheets, oversize, bom, steps,
     totals: { boardM2, sheetM2, jointM: jointM + insideM, screws, waste: sheetM2 > 0 ? 1 - boardM2 / sheetM2 : 0 }
   };
+}
+
+/** The terminal's holes, in words: one rectangular cut-out, or the two post holes. */
+function terminalHoleText(geo: BoxGeometry): string {
+  const tr = geo.terminal;
+  return tr.hole ? `ขั้วต่อ ${Math.round(mm(tr.hole.w))} × ${Math.round(mm(tr.hole.h))} มม.` : `ขั้วต่อ Ø ${Math.round(mm(tr.postD))} มม. 2 รู ห่างกัน ${Math.round(mm(TERMINAL_SPEC.posts.pitch))} มม.`;
+}
+
+/** BOM line for the terminal, with where it goes and the air it takes; every size an estimate. */
+function terminalLine(geo: BoxGeometry): BomLine {
+  const tr = geo.terminal;
+  const where = tr.panel === 'side'
+    ? `ผนังข้างซ้ายด้านล่าง (ท่อสลอตพับขึ้นเต็มผนังหลัง) ห่างขอบหน้า ${Math.round(mm(tr.z))} มม.`
+    : `ผนังหลังด้านล่าง${Math.abs(tr.x) > 1e-4 ? ` เยื้องกลาง ${Math.round(mm(tr.x))} มม. (หลบ${geo.rearPort ? 'ท่อหลัง' : 'แม่เหล็ก'})` : ' กึ่งกลาง'}`;
+  const vol = geo.volume.terminalL;
+  return tr.kind === 'cup'
+    ? {
+      item: TERMINAL_CUP?.name ?? TERMINAL_TH.cup, qty: '1 ชุด',
+      note: `${TERMINAL_CUP?.notes ?? 'รูเจาะประมาณ 80 × 80 มม. ตรวจกับสินค้าจริง'} · ติด${where} · กินที่ในตู้ราว ${vol.toFixed(2)} L (ประมาณจากถ้วยลึก ${Math.round(mm(TERMINAL_SPEC.cup.depth))} มม.) · ทาซิลิโคนรอบขอบ`
+    }
+    : {
+      item: TERMINAL_TH.posts, qty: '1 คู่ (แดง/ดำ)',
+      note: `${terminalHoleText(geo)} (ขนาดทั่วไป ประมาณ ตรวจกับสินค้าจริง) · ติด${where} · ใส่แหวนยางหรือซิลิโคนกันรั่ว`
+    };
+}
+
+/** BOM lines for the handles (none without handles). */
+function handleLines(geo: BoxGeometry): BomLine[] {
+  const hd = geo.handles;
+  if (!hd) return [];
+  if (hd.hole) {
+    return [{
+      item: HANDLE_TH.recessed, qty: '2 ชิ้น',
+      note: `ผนังข้างละชิ้นใกล้ขอบบน · ช่องเจาะ ${Math.round(mm(hd.hole.w))} × ${Math.round(mm(hd.hole.h))} มม. ขอบ ${Math.round(mm(hd.plate.w))} × ${Math.round(mm(hd.plate.h))} มม. ลึก ${Math.round(mm(HANDLE_SPEC.recessed.depth))} มม. (ขนาดทั่วไป ประมาณ ตรวจกับสินค้าจริง) · กินที่ในตู้รวมราว ${geo.volume.handlesL.toFixed(1)} L`
+    }];
+  }
+  return [
+    {
+      item: HANDLE_TH.surface, qty: '2 ชิ้น',
+      note: `ผนังข้างละชิ้นใกล้ขอบบน ยาวราว ${Math.round(mm(hd.plate.w))} มม. ยื่นออกราว ${Math.round(mm(hd.standOff))} มม. (ขนาดทั่วไป ประมาณ ตรวจกับสินค้าจริง) · ไม่ต้องเจาะช่อง`
+    },
+    {
+      item: 'สกรูยึดมือจับ', qty: '4 ตัว',
+      note: `ข้างละ 2 ตัว ห่างขอบหน้า ${hd.screws.map((z) => Math.round(mm(z))).join(' / ')} มม. สูงจากพื้นนอก ${Math.round(mm(hd.y))} มม. · สั้นกว่าความหนาแผง (${Math.round(mm(geo.t))} มม.) หรือใช้น็อตทะลุกับ T-nut`
+    }
+  ];
 }
 
 // ---- exports ------------------------------------------------------------------------------------

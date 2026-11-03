@@ -31,7 +31,8 @@ describe('boards of the box', () => {
     expect(ps.map((p) => p.id)).toEqual(expect.arrayContaining(['bottom', 'top', 'side', 'back', 'baffle', 'port-ceiling', 'brace']));
     expect(byId(ps, 'bottom').w).toBeCloseTo(geo.wx * 1000, 6);
     expect(byId(ps, 'bottom').h).toBeCloseTo(geo.dx * 1000, 6);
-    expect(byId(ps, 'side').qty).toBe(2);
+    // Two side boards: one part cut twice, or a left and a right when the terminal had to go on the left side.
+    expect(ps.filter((p) => p.id === 'side' || p.id === 'side-left').reduce((a, p) => a + p.qty, 0)).toBe(2);
     expect(byId(ps, 'side').h).toBeCloseTo(geo.hx * 1000 - 2 * t, 6);
     expect(byId(ps, 'back').w).toBeCloseTo(geo.wi * 1000, 6);
     // Baffle sits on the slot ceiling: floor + slot + ceiling board + baffle + top = outside height.

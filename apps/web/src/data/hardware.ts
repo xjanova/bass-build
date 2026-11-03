@@ -26,3 +26,7 @@ export const TUBES: Tube[] = ((seed as unknown as { hardware: HardwareRow[] }).h
     : { key: h.key, name: h.name, odMm: h.odMm ?? h.idMm! + 6, idMm: h.idMm!, known: 'id' as const, notes: h.notes ?? null });
 
 export const tubeOf = (key: string): Tube | undefined => TUBES.find((t) => t.key === key);
+
+/** The terminal cup from the seed (name and its hole note, which is itself an estimate: "ตรวจกับสินค้าจริง"). */
+export const TERMINAL_CUP: { name: string; notes: string | null } | undefined = ((seed as unknown as { hardware: HardwareRow[] }).hardware ?? [])
+  .filter((h) => h.kind === 'terminal').map((h) => ({ name: h.name, notes: h.notes ?? null }))[0];

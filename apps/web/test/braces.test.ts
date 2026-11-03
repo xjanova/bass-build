@@ -217,7 +217,7 @@ describe('volume and the blueprint follow the bracing', () => {
     expect(braceVolume('window', 1, 0.5, 0.4, 0.018)).toBeCloseTo((2 * 0.5 + 2 * 0.3) * 0.05 * 0.018, 12);
     for (const kind of ['none', 'window', 'dowel'] as const) {
       const v = geoOf(braced(vented, kind, 2)).volume;
-      expect(v.shellL - v.driversL - v.portsL - v.boardsL - v.bracesL - v.tunnelL - v.extraL).toBeCloseTo(v.netL, 6);
+      expect(v.shellL - v.driversL - v.portsL - v.boardsL - v.bracesL - v.tunnelL - v.terminalL - v.handlesL - v.extraL).toBeCloseTo(v.netL, 6);
     }
   });
 

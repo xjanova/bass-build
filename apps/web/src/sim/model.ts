@@ -5,8 +5,11 @@ import {
 } from '@bassbuild/physics';
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
-import type { BoxShape, BraceKind, Design, DimRef } from '../state/store';
-import { braceBar, braceCountOf, bracePlan, braceSpan, BRACE_WINDOW_MIN, DOWEL_D, dowelRows, freeSpan, NO_BRACES, rowProblem, sidePrBars, type BracePlan } from './layout';
+import type { BoxShape, BraceKind, Design, DimRef, HandleKind, TerminalKind } from '../state/store';
+import {
+  braceBar, braceCountOf, bracePlan, braceSpan, BRACE_WINDOW_MIN, DOWEL_D, dowelRows, freeSpan, handlePlan, handleVolume, NO_BRACES, portEndGap, rowProblem, sidePrBars,
+  terminalPlan, terminalVolume, type BracePlan, type HandlePlan, type TerminalPlan
+} from './layout';
 import { tubeOf } from '../data/hardware';
 
 const cm2 = (v: number) => v * 1e-4;
@@ -218,8 +221,8 @@ export function mountOf(dto: DriverDto | undefined): { outer: number; depth: num
   return { outer, depth, cutout, displacementL, estimated };
 }
 
-/** Free air a port's open inner end needs before a wall: about one slot height (one diameter for a tube), at least 3 cm. */
-export const portEndGap = (size: number) => Math.max(0.03, size);
+// Lives with the layout (the terminal and handles keep clear of port mouths too); re-exported here.
+export { portEndGap };
 
 /**
  * Longest slot port a chamber `depth` deep and `hi` tall can hold, measured on the centreline:
@@ -244,6 +247,10 @@ export interface VolumeBreakdown {
   bracesL: number;
   /** Tunnel around the inner driver of an isobaric pair. */
   tunnelL: number;
+  /** Speaker terminal cup (or post studs) past the back panel's inner face: an estimate (see TERMINAL_SPEC). */
+  terminalL: number;
+  /** Two recessed handle cups past the side panels' inner faces: an estimate (see HANDLE_SPEC). */
+  handlesL: number;
   /** Space beyond what the design needs, to be filled with blocks (or added to the volume). */
   extraL: number;
   /** Net air the physics uses (Vb, plus Vf for a band-pass). */
@@ -292,6 +299,9 @@ export interface BoxGeometry {
   driverDepth: number;
   /** Bracing as laid out along the depth (positions, what holds each panel). */
   braces: BracePlan;
+  /** Speaker terminal on the back panel, and the handles on the sides (null without handles). */
+  terminal: TerminalPlan;
+  handles: HandlePlan | null;
   /** Outer (frame) radius of a passive radiator, from its Sd. */
   prRadius: number;
   /** Passive radiators in the front row (0 or 1) and on each side panel (pairs face apart). */
@@ -459,6 +469,9 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   // Older stored designs have no bracing fields: they had one window brace.
   const braceKind: BraceKind = d.braceKind ?? 'window';
   const braceN = braceCountOf(d.braceCount ?? 1);
+  // Older stored designs have no hardware fields: a cup terminal, no handles.
+  const terminalKind = d.terminal ?? 'cup';
+  const handleKind = d.handles ?? 'none';
   // Top depth over floor depth, inside; a plain box is a wedge with r = 1.
   const r = wedge ? clamp(d.wedgeTopPct / 100, 0.2, 1) : 1;
   const drivers = d.boxType === 'isobaric' ? 2 : d.count;
@@ -524,7 +537,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   // Two passes: the slot's wall board volume (width × thickness × length) needs the width first.
   let hi = 0, wi = 0, m = 0, oversizeL = 0, extraL = 0, shortL = 0, capacityL: number | null = null;
   let dimConflict: BoxGeometry['dimConflict'] = null;
-  let parts = { drivers: 0, ports: 0, boards: 0, braces: 0 };
+  let parts = { drivers: 0, ports: 0, boards: 0, braces: 0, terminal: 0, handles: 0 };
   for (let pass = 0, width = 0, height = 0; pass < 2; pass++) {
     const portVol = (res?.info.ports ?? []).reduce((s, p) => {
       const len = Math.min(1.5, Math.max(0, p.physicalLength));
@@ -541,9 +554,12 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
       drivers: drivers * L(mount.displacementL),
       ports: portVol,
       boards: innerBoards * guessW * Math.cbrt(net) * t,
-      braces: braceVolume(braceKind, braceN, guessW, span, t, barsOnly)
+      braces: braceVolume(braceKind, braceN, guessW, span, t, barsOnly),
+      // Hardware set into the panels takes some of the inside too (estimated sizes).
+      terminal: terminalVolume(terminalKind, t),
+      handles: handleVolume(handleKind, t)
     };
-    const gross = net + tunnel + parts.drivers + parts.ports + parts.boards + parts.braces;
+    const gross = net + tunnel + parts.drivers + parts.ports + parts.boards + parts.braces + parts.terminal + parts.handles;
     // Start from W:H:D = 1.25 : 1 : 0.8 (sides set by hand at their size), then raise any side
     // below its minimum, hold any side above its limit, and share the rest of the volume among
     // the sides that are still free.
@@ -658,19 +674,22 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const lit = (v: number) => v * 1000;
   const volume: VolumeBreakdown = {
     shellL: lit(wi * hi * m), driversL: lit(parts.drivers), portsL: lit(parts.ports), boardsL: lit(parts.boards), bracesL: lit(parts.braces),
-    tunnelL: lit(tunnel), extraL: oversizeL + extraL, netL: lit(net)
+    tunnelL: lit(tunnel), terminalL: lit(parts.terminal), handlesL: lit(parts.handles), extraL: oversizeL + extraL, netL: lit(net)
   };
   const geo: BoxGeometry = {
     wx, hx, dx, wi, hi, di, t, shape, dxTop, diTop, backAngle: outline?.angle ?? 0,
     slotH, tubes: tube ? { count: tube.count, id: tube.id, od: tube.od, y: t + TUBE_EDGE + tube.od / 2, xs: Array.from({ length: tube.count }, (_, i) => (i - (tube.count - 1) / 2) * (tube.od + 0.02)) } : null,
     portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY, rowX, autoDriverY,
-    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, driverDepth: depth, braces: NO_BRACES, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
+    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, driverDepth: depth, braces: NO_BRACES, terminal: null as unknown as TerminalPlan /* laid out below, from this geometry */, handles: null, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
     fits, magnetClear, panelAreaM2, outerL: lit(wx * hx * (dx + dxTop) / 2),
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
     weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2 + (braceKind === 'dowel' ? parts.braces * DOWEL_KG_M3 : 0),
     sheets: Math.max(1, Math.ceil((panelAreaM2 * 1.2) / (1.22 * 2.44)))
   };
-  // The braces are laid out last: where they may go depends on everything else inside.
+  // The hardware goes where the ports and drivers leave room; the braces are laid out last, since
+  // where they may go depends on everything else inside (the hardware included).
+  geo.handles = handlePlan(geo, d.boxType, d.count, handleKind);
+  geo.terminal = terminalPlan(geo, d.boxType, d.count, terminalKind);
   geo.braces = bracePlan(geo, d.boxType, d.count, braceKind, braceN);
   return geo;
 }
@@ -779,7 +798,11 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
 
 // ---- can it be built? ---------------------------------------------------------------------------
 
-export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement' | 'brace';
+export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement' | 'brace' | 'terminal' | 'handles';
+
+/** What the hardware choices are called in messages, the BOM and the project tree. */
+export const TERMINAL_TH: Record<TerminalKind, string> = { cup: 'ขั้วต่อลำโพงแบบถ้วย', posts: 'ขั้วต่อแบบหลักคู่ (binding post)' };
+export const HANDLE_TH: Record<HandleKind, string> = { none: 'ไม่มีมือจับ', surface: 'มือจับแบบติดผิว (บาร์)', recessed: 'มือจับฝังแบบถ้วย' };
 
 export const AXIS_TH = ['กว้าง', 'สูง', 'ลึก'] as const;
 /** How the hand-set sizes are measured, as the UI and messages name it. */
@@ -841,12 +864,20 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
       : { code: 'brace', text: `${BRACE_TH[br.kind]} ${br.count} ชุด${placed ? ` ใส่ได้แค่ ${placed} ชุด ที่เหลือ` : ''}ไม่มีที่วาง (ติด${br.blockedBy ?? 'ของในตู้'}) ลดจำนวนชุด เปลี่ยนแบบโครงค้ำ หรือขยายตู้${note}` });
   }
   if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
+  const term = geo.terminal;
+  if (term && !term.fits) {
+    out.push({ code: 'terminal', text: `ติด${TERMINAL_TH[term.kind]}ไม่ได้: ${term.blockedBy ?? 'ไม่มีที่ว่าง'} ${term.kind === 'cup' ? 'ใช้ขั้วแบบหลักคู่ซึ่งเล็กกว่า ' : ''}หรือขยายตู้` });
+  }
+  const hd = geo.handles;
+  if (hd && !hd.fits) {
+    out.push({ code: 'handles', text: `ติด${HANDLE_TH[hd.kind]}ไม่ได้: ${hd.blockedBy ?? 'ไม่มีที่'} ${hd.kind === 'recessed' ? 'ใช้มือจับติดผิว ' : ''}ไม่ใส่มือจับ หรือขยายตู้` });
+  }
   return out;
 }
 
 // ---- suggested box -------------------------------------------------------------------------------
 
-export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable' | 'space-capped' | 'braces-reduced';
+export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable' | 'space-capped' | 'braces-reduced' | 'hardware-reduced';
 
 export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-high-for-sealed': 'Qts สูง ตู้ปิดแบบ Qtc 0.707 จะใหญ่มาก จึงใช้ Qtc สูงขึ้น ลำโพงนี้เหมาะกับตู้ใหญ่หรือติดผนัง (free-air)',
@@ -860,7 +891,8 @@ export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง',
   unbuildable: 'หาขนาดที่สร้างได้จริงสำหรับตู้แบบนี้ไม่เจอ (ท่อหรือลำโพงชนกัน) ลองตู้แบบอื่น',
   'space-capped': 'ตู้ตามสูตรใหญ่เกินขนาดที่กำหนดไว้ จึงใช้ตู้ใหญ่สุดที่ใส่ในขนาดนั้นได้',
-  'braces-reduced': 'ไม่มีที่วางโครงค้ำครบตามที่ตั้งไว้ จึงลดจำนวนชุด (หรือไม่ใส่โครงค้ำ) แทนการขยายตู้ ปริมาตรจึงยังตามสูตร'
+  'braces-reduced': 'ไม่มีที่วางโครงค้ำครบตามที่ตั้งไว้ จึงลดจำนวนชุด (หรือไม่ใส่โครงค้ำ) แทนการขยายตู้ ปริมาตรจึงยังตามสูตร',
+  'hardware-reduced': 'ไม่มีที่ติดขั้วต่อหรือมือจับแบบที่เลือก จึงเปลี่ยนเป็นแบบที่เล็กกว่า (หรือไม่ใส่มือจับ) แทนการขยายตู้'
 };
 
 const RECIPE_TH: Record<AlignmentRecipe, string> = {
@@ -1070,6 +1102,17 @@ export function suggestDesign(
     }
     // Braces with nowhere to go never change the volume (that would change the sound only to make
     // room for a brace): once nothing else is left to fix, keep the planes that fit, or none.
+    // The same for hardware once nothing else is left to fix: a smaller kind, not a bigger box.
+    // A terminal is never left out, so when even posts do not fit, the box grows (at the same
+    // tuning a bigger box has a shorter port and more room round it).
+    if ((codes.has('terminal') || codes.has('handles')) && !moved) {
+      const now = { ...d, ...patch };
+      if (codes.has('terminal') && now.terminal !== 'posts') { patch.terminal = 'posts'; moved = true; }
+      else if (codes.has('terminal')) { moved = grow('vbL', 1.15) || moved; if (moved && !flags.includes('volume-raised')) flags.push('volume-raised'); }
+      if (codes.has('handles')) { patch.handles = now.handles === 'recessed' ? 'surface' : 'none'; moved = true; }
+      const changed = (patch.terminal !== undefined && patch.terminal !== d.terminal) || (patch.handles !== undefined && patch.handles !== d.handles);
+      if (changed && !flags.includes('hardware-reduced')) flags.push('hardware-reduced');
+    }
     if (codes.has('brace') && (codes.size === 1 || !moved)) {
       const br = g.braces;
       const placed = br.count - br.missing;

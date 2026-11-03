@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { OVERLAY_CONF, type Conf, type ResultKey } from '../sim/confidence';
-import { BRACE_BARS_TH, BRACE_TH, type BoxGeometry, type WallDamping } from '../sim/model';
+import { BRACE_BARS_TH, BRACE_TH, HANDLE_TH, TERMINAL_TH, type BoxGeometry, type WallDamping } from '../sim/model';
 import { useApp, type OverlayId } from '../state/store';
 import { ConfDot } from './Conf';
 import { Icon, Logo, ICONS } from './icons';
@@ -42,6 +42,10 @@ const TOOLS: [keyof typeof ICONS, string][] = [
   ['brace', 'โครงค้ำ'], ['fill', 'ยัดใย'], ['measure', 'วัดระยะ'], ['mic', 'ไมค์เสมือน'], ['smoke', 'ปล่อยควัน']
 ];
 
+/** Tools that open a section of the right panel (its element id). */
+const SECTION: Record<string, string> = { box: 'dims', drill: 'hardware', brace: 'braces' };
+const TOOL_TIP: Record<string, string> = { box: 'ทรงตู้ · ทรงลิ่ม ล็อกขนาดแต่ละด้าน', drill: 'เจาะรู · ขั้วต่อลำโพงและมือจับ', brace: 'โครงค้ำ · แบบและจำนวนชุด' };
+
 const FINISH_TH = { walnut: 'วีเนียร์วอลนัท', oak: 'วีเนียร์โอ๊ก', teak: 'วีเนียร์สัก', black: 'ทำสีดำซาติน' } as const;
 
 export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCode: string }) {
@@ -53,22 +57,23 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
   const outer = d.finish === 'raw' ? `${matName} ผิวเดิม` : FINISH_TH[d.finish];
   const pick = (icon: string, label: string) => {
     if (icon === 'select') { setTool(icon); return; }
-    // The box and brace tools open their settings in the right panel.
-    if (icon === 'box' || icon === 'brace') {
+    // The box, drill and brace tools open their settings in the right panel.
+    const section = SECTION[icon];
+    if (section) {
       setTool(icon);
-      document.getElementById(icon === 'box' ? 'dims' : 'braces')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     // The other shape-editing tools are still to come. Say so instead of lighting up a button that does nothing.
-    showToast(`เครื่องมือ "${label}" ยังไม่พร้อม (เจาะรู วางท่อ แผ่นกั้นแบบลากวาง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
+    showToast(`เครื่องมือ "${label}" ยังไม่พร้อม (วางท่อ แผ่นกั้นแบบลากวาง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
   };
-  const ready = (icon: string) => icon === 'select' || icon === 'box' || icon === 'brace';
+  const ready = (icon: string) => icon === 'select' || !!SECTION[icon];
   return (
     <section className="left-panel glass" aria-label="เครื่องมือและโครงสร้างงาน">
       <div className="section-title">เครื่องมือ</div>
       <div className="toolgrid">
         {TOOLS.map(([icon, label]) => (
-          <button key={icon} aria-label={label} title={icon === 'box' ? 'ทรงตู้ · ทรงลิ่ม ล็อกขนาดแต่ละด้าน' : icon === 'brace' ? 'โครงค้ำ · แบบและจำนวนชุด' : ready(icon) ? label : `${label} · ยังไม่พร้อม`} aria-pressed={tool === icon}
+          <button key={icon} aria-label={label} title={TOOL_TIP[icon] ?? (ready(icon) ? label : `${label} · ยังไม่พร้อม`)} aria-pressed={tool === icon}
             className={ready(icon) ? undefined : 'soon'} onClick={() => pick(icon, label)}><Icon name={icon} size={20} width={1.6} /></button>
         ))}
       </div>
@@ -80,6 +85,8 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
         <div><span className="sw" style={{ background: '#94a3b8', borderRadius: '50%' }} />ลำโพง × {d.boxType === 'isobaric' ? 2 : d.count}</div>
         <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo?.tubes ? `ท่อกลม ${geo.tubes.count} ท่อ · ใน Ø ${Math.round(geo.tubes.id * 1000)} มม.` : geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
         <div><span className="sw" style={{ background: '#64748b' }} />{geo?.braces.barsOnly ? BRACE_BARS_TH : BRACE_TH[d.braceKind]}{d.braceKind !== 'none' && geo ? ` × ${geo.braces.zs.length}` : ''}</div>
+        <div><span className="sw" style={{ background: '#b91c1c' }} />{TERMINAL_TH[d.terminal] ?? 'ขั้วต่อลำโพง'} · {geo?.terminal.panel === 'side' ? 'ผนังข้างซ้าย' : 'ผนังหลัง'}{geo && !geo.terminal.fits ? ' · ไม่มีที่ติด' : ''}</div>
+        <div><span className="sw" style={{ background: '#9aa4b2' }} />{HANDLE_TH[d.handles] ?? HANDLE_TH.none}{d.handles !== 'none' ? ` × 2${geo?.handles && !geo.handles.fits ? ' · ไม่มีที่ติด' : ''}` : ''}</div>
         <div><span className="sw" style={{ background: '#e2e8f0', borderRadius: '50%' }} />{d.stuffing > 0 ? `${fill?.nameTh ?? fill?.name ?? 'ใยซับเสียง'} ${Math.round(d.stuffing * 100)}%` : 'ไม่ใส่ใยซับเสียง'}</div>
         {cld && <div><span className="sw" style={{ background: '#a78bfa' }} />{cld.nameTh ?? cld.name} ทุกผนัง</div>}
         <div><span className="sw" style={{ background: '#f472b6', borderRadius: '50%' }} />ไมค์เสมือน · ระยะ 1 ม.</div>
