@@ -2,10 +2,12 @@ import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
 import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
-import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type Warning } from '../sim/model';
+import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type BoxGeometry, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
+import { NumField } from './NumField';
+import { ShapeSection } from './ShapeSection';
 
 const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์'], ['pa', 'PA / รถแห่'], ['woofer', 'วูฟเฟอร์'], ['fullrange', 'ฟูลเรนจ์'], ['mid', 'เสียงกลาง'], ['other', 'อื่น ๆ'], ['sample', 'ตัวอย่าง (ไม่ใช่สินค้าจริง)']];
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
@@ -89,25 +91,6 @@ export function DriverOptions({ drivers }: { drivers: DriverDto[] }) {
 
 const WARN_COLOR = { bad: '#f0abfc', warn: '#fcd34d', info: '#67e8f9' } as const;
 
-/**
- * A number typed freely and applied when it is a valid value in range (on every keystroke that
- * makes it one), so a half-typed "1" on the way to "1500" never snaps back.
- */
-function NumField({ id, label, value, min, max, unit, onChange }: { id: string; label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => { setText((t) => (Number(t.replace(',', '.')) === value ? t : String(value))); }, [value]);
-  const v = Number(text.replace(',', '.'));
-  const ok = text.trim() !== '' && Number.isFinite(v) && v >= min && v <= max;
-  return (
-    <label className={`numfield${ok ? '' : ' bad'}`} htmlFor={id} title={ok ? undefined : `ใส่ ${min}–${max} ${unit}`}>
-      <input id={id} inputMode="decimal" aria-label={label} aria-invalid={!ok} value={text}
-        onChange={(e) => { setText(e.target.value); const n = Number(e.target.value.replace(',', '.')); if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onChange(n); }}
-        onBlur={() => { if (!ok) setText(String(value)); }} />
-      <span>{unit}</span>
-    </label>
-  );
-}
-
 const STD_OHMS = [0.5, 1, 2, 4, 8, 16];
 const DAMPING = [20, 50, 100, 200, 500, 1000];
 const AWG = Object.keys(AWG_MM2).map(Number).sort((a, b) => b - a);
@@ -133,8 +116,8 @@ const closest = (options: number[], v: number) => options.reduce((a, b) => (Math
 const thicknessFor = (options: number[], v: number) =>
   options.length && v >= Math.min(...options) && v <= Math.max(...options) ? closest(options, v) : closest(options, 18);
 
-export function RightPanel({ dto, driver, warnings, driverError }: {
-  dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null;
+export function RightPanel({ dto, driver, warnings, driverError, geo }: {
+  dto: DriverDto | undefined; driver: Driver | null; warnings: Warning[]; driverError: string[] | null; geo: BoxGeometry | null;
 }) {
   const { drivers, driverId, selectDriver, design: d, patchDesign, materials, damping, showToast, setMode, openNotebook } = useApp();
   const [allWarnings, setAllWarnings] = useState(false);
@@ -353,6 +336,8 @@ export function RightPanel({ dto, driver, warnings, driverError }: {
             </span>
           </div>
           {d.wireM > 0 && <div className="loadline muted">สายไป-กลับ {wireOhms(d).toFixed(3)} Ω{d.amp ? ` · แอมป์ ${(d.ampOhms / d.dampingFactor).toFixed(3)} Ω` : ''}</div>}
+
+          <ShapeSection geo={geo} />
 
           <div className="section-title sub">วัสดุ</div>
           <div className="field-head">

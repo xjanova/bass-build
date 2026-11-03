@@ -221,6 +221,14 @@ export function buildEntries(ctx: NotebookCtx): Entry[] {
       subst: `D = ${num(e)} × ${num(geo.t)}³ / (12 × (1 − ${num(nu)}²)) = ${num(D)} N·m · f11 = ${num(modes.side)} Hz${wall.f11Factor < 1 ? ` (แผ่นซับแรงสั่นถ่วง ×${num(wall.f11Factor, 3)})` : ''}`,
       value: modes.side, unit: 'Hz', ref: REF.leissa, note: `ผนังหลังซึ่งกว้างสุด ≈ ${num(modes.back)} Hz · ${material?.nameTh ?? material?.name ?? 'MDF'} E ${num(e / 1e9)} GPa ρ ${rho} kg/m³`, conf: conf.panelModes
     });
+    const vol = geo.volume;
+    const less = ([[vol.driversL, 'ลำโพง'], [vol.portsL, 'ท่อ'], [vol.boardsL, 'แผ่นกั้น'], [vol.tunnelL, 'อุโมงค์'], [vol.bracesL, 'โครงค้ำ'], [vol.extraL, 'บล็อก']] as [number, string][]).filter(([x]) => x >= 0.05);
+    add({
+      id: 'netVolume', group: g4, title: 'ปริมาตรสุทธิจากขนาดตู้',
+      formula: geo.shape === 'wedge' ? 'Vสุทธิ = Wi · Hi · (Dล่าง + Dบน)/2 − Vลำโพง − Vท่อ − Vโครงค้ำ − …' : 'Vสุทธิ = Wi · Hi · Di − Vลำโพง − Vท่อ − Vโครงค้ำ − …',
+      subst: `= ${num(geo.wi)} × ${num(geo.hi)} × ${geo.shape === 'wedge' ? `(${num(geo.di)} + ${num(geo.diTop)})/2` : num(geo.di)} ม.³ = ${num(vol.shellL)} L${less.map(([x, k]) => ` − ${num(x)} (${k})`).join('')}${geo.shortL >= 0.05 ? ` + ${num(geo.shortL)} (ขาด)` : ''} = ${num(vol.netL)} L`,
+      value: vol.netL, unit: 'L', ref: 'ขนาดภายใน = ภายนอก − ความหนาแผ่น 2 ด้าน · โครงค้ำแบบหน้าต่างกว้าง 5 ซม. · ท่อคิดทั้งอากาศในท่อและแผ่นที่ทำท่อ', conf: conf.size
+    });
     add({ id: 'weight', group: g4, title: 'น้ำหนักตู้เปล่า', formula: 'm = Aแผ่นรวม · t · ρ (+ แผ่นซับแรงสั่น)', subst: `= ${num(geo.panelAreaM2)} × ${num(geo.t)} × ${rho}${wall.massKgM2 ? ` + ${num(geo.panelAreaM2 * 0.8)} × ${num(wall.massKgM2)}` : ''} = ${num(geo.weightKg)} กก.`, value: geo.weightKg, unit: 'กก.', ref: 'พื้นที่แผ่น = ผนัง 6 ด้าน + แผ่นท่อ + โครงค้ำราวครึ่งแผ่น + แผ่นกั้นภายใน', conf: conf.size });
   }
   if (dr && dto?.peW) {

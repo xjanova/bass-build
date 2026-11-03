@@ -5,7 +5,7 @@ import {
 } from '@bassbuild/physics';
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
-import type { Design } from '../state/store';
+import type { BoxShape, Design } from '../state/store';
 
 const cm2 = (v: number) => v * 1e-4;
 const L = (v: number) => v * 1e-3;
@@ -203,11 +203,41 @@ export function slotPortRoom(depth: number, hi: number, slotH: number): { straig
   return { straight: depth - gap, folded: depth + hi - slotH - gap };
 }
 
+/** Where the inside of the shell goes, L: the net air the design asks for plus everything else in the box. */
+export interface VolumeBreakdown {
+  /** Inside of the shell (between the panels). */
+  shellL: number;
+  /** Drivers' own displacement (basket and magnet). */
+  driversL: number;
+  /** Air inside the ports plus the boards that make them. */
+  portsL: number;
+  /** Band-pass divider or isobaric mounting baffle. */
+  boardsL: number;
+  /** Window brace. */
+  bracesL: number;
+  /** Tunnel around the inner driver of an isobaric pair. */
+  tunnelL: number;
+  /** Space beyond what the design needs, to be filled with blocks (or added to the volume). */
+  extraL: number;
+  /** Net air the physics uses (Vb, plus Vf for a band-pass). */
+  netL: number;
+}
+
+/** Outside dimension a rule applies to: 0 = width, 1 = height, 2 = depth (at the floor for a wedge). */
+export type DimAxis = 0 | 1 | 2;
+
 export interface BoxGeometry {
   /** External and internal dimensions, m. W = width (x), H = height (y), D = depth (z). */
   wx: number; hx: number; dx: number;
   wi: number; hi: number; di: number;
   t: number;
+  /** Outline actually laid out ('wedge' only for sealed and vented boxes). */
+  shape: BoxShape;
+  /** Depth at the top, outside and inside (equal to dx / di for a plain box). dx and di are at the floor. */
+  dxTop: number;
+  diTop: number;
+  /** Back panel lean from vertical, rad (0 for a plain box). */
+  backAngle: number;
   /** Slot port along the bottom of the front baffle (0 when there is no front port). */
   slotH: number;
   portLength: number;
@@ -234,16 +264,62 @@ export interface BoxGeometry {
    * or magnets do not fit otherwise (0 when they fit). The extra must be filled with blocks.
    */
   oversizeL: number;
+  /** Litres of inside space left over because the sizes set by hand are bigger than the design needs. */
+  extraL: number;
+  /** Litres the sizes set by hand fall short of what the design needs (0 when it fits). */
+  shortL: number;
+  /** A side whose contents need more than the size set (or allowed) for it, outside sizes in m. */
+  dimConflict: { axis: DimAxis; need: number; limit: number } | null;
+  /** Largest net volume the sizes set by hand can hold, L (null while any side is free). */
+  capacityL: number | null;
+  volume: VolumeBreakdown;
   fits: boolean;
   magnetClear: boolean;
   panelAreaM2: number;
+  /** Outside volume, L. */
+  outerL: number;
   weightKg: number;
   sheets: number;
+}
+
+/** The outline a design gets: a wedge only where its contents are simple enough (sealed, vented). */
+export const shapeFor = (d: Pick<Design, 'shape' | 'boxType'>): BoxShape =>
+  d.shape === 'wedge' && (d.boxType === 'sealed' || d.boxType === 'vented') ? 'wedge' : 'box';
+
+/** Window brace frame: two bars across and two up, 5 cm wide, one panel thick, m³. */
+const braceVolume = (wi: number, hi: number, t: number) => (2 * wi + 2 * Math.max(0, hi - 0.1)) * 0.05 * t;
+
+/**
+ * Wedge profile from its inside floor depth `b`, inside height `h` and top/floor ratio `r`:
+ * the back panel leans forward, and its thickness measured level is t / cos(lean).
+ */
+function wedgeOutline(b: number, h: number, r: number, t: number) {
+  const run = b * (1 - r);
+  const slope = run / h;
+  const cos = h / Math.hypot(h, run);
+  return {
+    top: r * b,
+    angle: Math.atan2(run, h),
+    /** Outside depth at the floor and at the top. */
+    outerFloor: t + b + slope * t + t / cos,
+    outerTop: t + r * b - slope * t + t / cos
+  };
+}
+
+/** Inside floor depth of a wedge whose outside floor depth is `outer` (the lean depends on it, so iterate). */
+function wedgeFloorFor(outer: number, h: number, r: number, t: number): number {
+  let b = outer - 2 * t;
+  for (let i = 0; i < 8; i++) b -= (wedgeOutline(b, h, r, t).outerFloor - outer) / (1 + (1 - r) * t / h);
+  return Math.max(0.01, b);
 }
 
 /** Lays the box out around its contents. Only the ports of `res` are used, so a bare network build will do. */
 export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick<BuildInfo, 'ports'> } | null, material: PanelMaterialDto | undefined, sheetKgM2 = 0): BoxGeometry {
   const t = d.thicknessMm / 1000;
+  const shape = shapeFor(d);
+  const wedge = shape === 'wedge';
+  // Top depth over floor depth, inside; a plain box is a wedge with r = 1.
+  const r = wedge ? clamp(d.wedgeTopPct / 100, 0.2, 1) : 1;
   const drivers = d.boxType === 'isobaric' ? 2 : d.count;
   const mount = mountOf(dto);
   const outer = mount.outer;
@@ -280,43 +356,101 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   // An isobaric pair needs a tunnel the size of one driver around the inner unit, on top of Vb.
   const tunnel = d.boxType === 'isobaric' ? (outer + 0.04) * (outer + 0.04) * (depth + 0.03) : 0;
 
+  // Sizes set by hand, outside, m (null = free).
+  const rules = ([[d.wMode, d.wMm], [d.hMode, d.hMm], [d.dMode, d.dMm]] as const).map(([mode, mm]) => (mode === 'auto' ? null : { mode, v: mm / 1000 }));
+  // The solver works on inside width, inside height and inside mean depth.
+  const toInner = (j: DimAxis, v: number, hiNow: number) =>
+    j < 2 ? v - 2 * t : wedge ? (wedgeFloorFor(v, hiNow, r, t) * (1 + r)) / 2 : v - 2 * t;
+  const toOuter = (j: DimAxis, v: number, hiNow: number) =>
+    j < 2 ? v + 2 * t : wedge ? wedgeOutline((2 * v) / (1 + r), hiNow, r, t).outerFloor : v + 2 * t;
+  /** Height of the magnet's top edge as a share of the inside height (where a wedge is shallowest for it). */
+  const magnetShare = (hiNow: number, slot: number) => {
+    const bottom = front ? slot + t : 0;
+    return Math.min(1, (bottom + (hiNow - bottom) / 2 + outer / 4) / hiNow);
+  };
+
   // Two passes: the slot's wall board volume (width × thickness × length) needs the width first.
-  let hi = 0, wi = 0, di = 0, oversizeL = 0;
-  for (let pass = 0, width = 0; pass < 2; pass++) {
+  let hi = 0, wi = 0, m = 0, oversizeL = 0, extraL = 0, shortL = 0, capacityL: number | null = null;
+  let dimConflict: BoxGeometry['dimConflict'] = null;
+  let parts = { drivers: 0, ports: 0, boards: 0, braces: 0 };
+  for (let pass = 0, width = 0, height = 0; pass < 2; pass++) {
     const portVol = (res?.info.ports ?? []).reduce((s, p) => {
       const len = Math.min(1.5, Math.max(0, p.physicalLength));
       // A slot along the floor has one board wall; a round tube about a tenth extra.
       const wall = p === front && width > 0 ? width * t * len : p.area * len * 0.1;
       return s + p.area * p.count * len + wall;
     }, 0);
-    const gross = net + tunnel + drivers * L(mount.displacementL) + portVol + innerBoards * (width || 1.25 * Math.cbrt(net)) * Math.cbrt(net) * t + 0.001;
-    // Start from W:H:D = 1.25 : 1 : 0.8, then raise any side below its minimum and share the
-    // rest of the volume among the sides that are still free.
+    const guessW = width || 1.25 * Math.cbrt(net);
+    const guessH = height || Math.cbrt(net);
+    parts = {
+      drivers: drivers * L(mount.displacementL),
+      ports: portVol,
+      boards: innerBoards * guessW * Math.cbrt(net) * t,
+      braces: braceVolume(guessW, guessH, t)
+    };
+    const gross = net + tunnel + parts.drivers + parts.ports + parts.boards + parts.braces;
+    // Start from W:H:D = 1.25 : 1 : 0.8 (sides set by hand at their size), then raise any side
+    // below its minimum, hold any side above its limit, and share the rest of the volume among
+    // the sides that are still free.
     const k = Math.cbrt(gross / (1.25 * 0.8));
     const dims = [1.25 * k, k, 0.8 * k];
-    const fixed = [false, false, false];
-    for (let it = 0; it < 8; it++) {
-      const slot = front ? front.area / dims[0] : 0;
-      // A port too long to run straight folds up the back wall and takes that depth from the magnet.
-      const fold = front && portLen > dims[2] - portEndGap(slot) && !bandpassType && d.boxType !== 'isobaric' ? slot + t : 0;
-      const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), needD + fold];
-      let changed = false;
-      // A side already held at its minimum is raised again if that minimum grew (the slot gets
-      // taller when the box gets narrower, and so on).
-      dims.forEach((v, j) => { if (v < mins[j] - 1e-6) { dims[j] = mins[j]; fixed[j] = true; changed = true; } });
-      if (!changed) break;
-      const free = [0, 1, 2].filter((j) => !fixed[j]);
-      if (!free.length) break;
+    const held: ('' | 'min' | 'user')[] = ['', '', ''];
+    const rescale = () => {
+      const free = [0, 1, 2].filter((j) => !held[j]);
+      if (!free.length) return;
       const s = Math.pow(gross / (dims[0] * dims[1] * dims[2]), 1 / free.length);
       free.forEach((j) => { dims[j] *= s; });
+    };
+    rules.forEach((rule, j) => { if (rule?.mode === 'fixed') { dims[j] = Math.max(0.01, toInner(j as DimAxis, rule.v, dims[1])); held[j] = 'user'; } });
+    rescale();
+    let conflict: BoxGeometry['dimConflict'] = null;
+    for (let it = 0; it < 12; it++) {
+      const slot = front ? front.area / dims[0] : 0;
+      // A port too long to run straight folds up the back wall and takes that depth from the magnet.
+      const floorDepth = (2 * dims[2]) / (1 + r);
+      const fold = front && portLen > floorDepth - portEndGap(slot) && !bandpassType && d.boxType !== 'isobaric' ? slot + t : 0;
+      // A wedge is shallowest at the top: the magnet needs its depth where its top edge sits.
+      const atMagnet = 1 - (1 - r) * magnetShare(dims[1], slot);
+      const mins = [needW, tallest + 0.03 + (front ? slot + t : 0), ((needD + fold) / atMagnet) * ((1 + r) / 2)];
+      let changed = false;
+      conflict = null;
+      dims.forEach((v, j) => {
+        const rule = rules[j];
+        const cap = rule ? Math.max(0.01, toInner(j as DimAxis, rule.v, dims[1])) : Infinity;
+        if (mins[j] > cap + 1e-6) conflict = { axis: j as DimAxis, need: toOuter(j as DimAxis, mins[j], dims[1]), limit: rule!.v };
+        // A side set by hand follows its size (a wedge's depth limit moves with the height);
+        // the contents win when they need more.
+        const target = rule?.mode === 'fixed' ? Math.max(cap, mins[j]) : null;
+        if (target !== null && Math.abs(v - target) > 1e-6) { dims[j] = target; changed = true; }
+        if (target !== null) { held[j] = mins[j] > cap + 1e-6 ? 'min' : 'user'; return; }
+        // A side already held at its minimum is raised again if that minimum grew (the slot gets
+        // taller when the box gets narrower, and so on).
+        if (v < mins[j] - 1e-6) { dims[j] = mins[j]; held[j] = 'min'; changed = true; }
+        else if (v > cap + 1e-6) { dims[j] = Math.max(cap, mins[j]); held[j] = 'user'; changed = true; }
+      });
+      if (!changed) break;
+      rescale();
     }
-    [wi, hi, di] = dims;
+    [wi, hi, m] = dims;
     // The slot height follows the final width; make sure the baffle above it still fits the row.
     const minH = tallest + 0.03 + (front ? front.area / wi + t : 0);
-    if (hi < minH) hi = minH;
-    oversizeL = Math.max(0, (wi * hi * di - gross) * 1000);
+    if (hi < minH) { hi = minH; held[1] = 'min'; }
+    const shell = wi * hi * m;
+    const surplus = (shell - gross) * 1000;
+    // Left-over space is the contents' fault when any side had to grow for them, else the hand-set sizes'.
+    oversizeL = surplus > 1e-3 && held.includes('min') ? surplus : 0;
+    extraL = surplus > 1e-3 && !held.includes('min') ? surplus : 0;
+    shortL = Math.max(0, -surplus);
+    dimConflict = conflict;
+    capacityL = rules.every(Boolean)
+      ? Math.max(0, (toInner(0, rules[0]!.v, hi) * toInner(1, rules[1]!.v, hi) * toInner(2, rules[2]!.v, hi) - (gross - net)) * 1000)
+      : null;
     width = wi;
+    height = hi;
   }
+  const di = (2 * m) / (1 + r);
+  const outline = wedge ? wedgeOutline(di, hi, r, t) : null;
+  const diTop = r * di;
   const slotH = front ? front.area / wi : 0;
   const usableBottom = t + (front ? slotH + t : 0);
   const driverY = usableBottom + (hi + t - usableBottom) / 2;
@@ -326,13 +460,16 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const rearFraction = bandpass ? d.vbL / (d.vbL + d.vfL) : 0;
   // The divider board itself sits on the rear-chamber side.
   const frontDepth = bandpass ? di * (1 - rearFraction) : di;
+  // Up a wedge's back the riser runs along the leaning panel.
+  const backRun = Math.hypot(hi, di - diTop);
   // Where the magnet must fit: behind the baffle, in a band-pass rear chamber, or behind a clamped pair.
-  const room = slotPortRoom(frontDepth, hi, slotH);
+  const room = slotPortRoom(frontDepth, backRun, slotH);
+  const magnetDepth = di * (1 - (1 - r) * magnetShare(hi, slotH));
   const magnetClear = bandpass
     ? di * rearFraction - t - depth >= 0.02
     : d.boxType === 'isobaric'
       ? di - 2 * depth - 0.03 >= 0.02
-      : di - depth - (front && portLen > room.straight ? slotH + t : 0) >= 0.02;
+      : magnetDepth - depth - (front && portLen > room.straight ? slotH + t : 0) >= 0.02;
   // A port can never be shorter than the panel it goes through.
   const portFold: BoxGeometry['portFold'] = !front ? 'none' : front.physicalLength < t ? 'short' : portLen <= room.straight ? 'straight' : portLen <= room.folded ? 'L' : 'impossible';
   const rp = d.boxType === 'bp6' ? res?.info.ports.find((p) => p.label === 'rear port') : undefined;
@@ -345,14 +482,23 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
     const length = rp.physicalLength;
     return { y: t + radius + 0.02, radius, length, room: straight, maxLength, fits: length >= t && length <= maxLength };
   })() : null;
-  const wx = wi + 2 * t, hx = hi + 2 * t, dx = di + 2 * t;
-  // Outside panels, the slot board, bracing (about half a panel) and any divider / inner baffle.
-  const panelAreaM2 = 2 * wx * dx + 2 * wx * hi + 2 * di * hi + (front ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi + innerBoards * wi * hi;
+  const wx = wi + 2 * t, hx = hi + 2 * t;
+  const dx = outline ? outline.outerFloor : di + 2 * t;
+  const dxTop = outline ? outline.outerTop : dx;
+  // Outside panels (top, bottom, baffle, back along its lean, two sides), the slot board, the
+  // window brace and any divider / inner baffle.
+  const panelAreaM2 = wx * (dx + dxTop) + wx * hi + wx * backRun + hi * (di + diTop) + (front ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi + innerBoards * wi * hi;
   const density = material?.densityKgM3 ?? 750;
+  const lit = (v: number) => v * 1000;
+  const volume: VolumeBreakdown = {
+    shellL: lit(wi * hi * m), driversL: lit(parts.drivers), portsL: lit(parts.ports), boardsL: lit(parts.boards), bracesL: lit(parts.braces),
+    tunnelL: lit(tunnel), extraL: oversizeL + extraL, netL: lit(net)
+  };
   return {
-    wx, hx, dx, wi, hi, di, t, slotH, portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY,
-    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, prRadius, prLayout, oversizeL,
-    fits, magnetClear, panelAreaM2,
+    wx, hx, dx, wi, hi, di, t, shape, dxTop, diTop, backAngle: outline?.angle ?? 0,
+    slotH, portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY,
+    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
+    fits, magnetClear, panelAreaM2, outerL: lit(wx * hx * (dx + dxTop) / 2),
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
     weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2,
     sheets: Math.max(1, Math.ceil((panelAreaM2 * 1.2) / (1.22 * 2.44)))
@@ -387,7 +533,8 @@ export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefi
   const h = geo.t;
   const bend = (e * h * h * h) / (12 * (1 - nu * nu));
   const f11 = (a: number, b: number) => (Math.PI / 2) * Math.sqrt(bend / (rho * h)) * (1 / (a * a) + 1 / (b * b)) * f11Factor;
-  return { side: f11(geo.di, geo.hi), back: f11(geo.wi, geo.hi) };
+  // A wedge's side is a trapezoid (taken at its mean depth); its back panel runs up the lean.
+  return { side: f11((geo.di + geo.diTop) / 2, geo.hi), back: f11(geo.wi, Math.hypot(geo.hi, geo.di - geo.diTop)) };
 }
 
 // ---- warnings ---------------------------------------------------------------------------------
@@ -439,6 +586,7 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
   }
   // What makes the box impossible to build comes first among the geometry messages.
   for (const p of buildProblems(d, dto, geo)) out.push({ level: 'bad', text: p.text, build: true });
+  if (geo.extraL > 0.5) out.push({ level: 'info', text: `ขนาดที่กำหนดใหญ่กว่าที่ตู้นี้ต้องการราว ${Math.round(geo.extraL)} L ต้องใส่บล็อกไม้ให้เต็ม หรือกด "ใช้ปริมาตรเต็มตู้" ในหัวข้อทรงและขนาด` });
   // With the amplifier modelled, its own minimum-load check above replaces this general one.
   if (!amp && m.impedanceMin.ohms < 2) out.push({ level: 'warn', text: `อิมพีแดนซ์ต่ำสุด ${m.impedanceMin.ohms.toFixed(1)} Ω แอมป์ต้องรับโหลดต่ำได้` });
   return out;
@@ -446,7 +594,10 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
 
 // ---- can it be built? ---------------------------------------------------------------------------
 
-export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle';
+export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space';
+
+export const AXIS_TH = ['กว้าง', 'สูง', 'ลึก'] as const;
+const mmTxt = (m: number) => String(Math.round(m * 1000));
 export interface BuildProblem { code: BuildCode; text: string }
 
 const cmTxt = (m: number) => (m * 100).toFixed(m < 0.1 ? 1 : 0);
@@ -473,9 +624,19 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
       ? { code: 'rear-port-short', text: `ท่อหลังต้องยาวอย่างน้อยเท่าความหนาแผง ${d.thicknessMm} มม. (พื้นที่ท่อหลังเล็กไปหรือจูนสูงไป)` }
       : { code: 'rear-port-long', text: `ท่อหลังยาว ${cmPair(geo.rearPort.length, Math.max(0, geo.rearPort.maxLength)).join(' ซม. แต่ห้องหลังใส่ได้ยาวสุด ')} ซม.` });
   }
-  if (geo.oversizeL > 0.5) {
+  // When a hand-set size is what blocks the contents, the 'space' message below says so instead.
+  if (geo.oversizeL > 0.5 && !geo.dimConflict) {
     const what = ['ลำโพง', 'แม่เหล็ก', ...(geo.portFold !== 'none' || geo.rearPort ? ['ท่อ'] : []), ...(d.boxType === 'pr' ? ['แผ่น PR'] : [])];
     out.push({ code: 'too-small', text: `ตู้ ${d.vbL} L${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL} L` : ''} เล็กเกินกว่าจะใส่${what.join(' ')}ได้ ต้องใหญ่ขึ้นอีกราว ${Math.ceil(geo.oversizeL)} L${note}` });
+  }
+  if (geo.dimConflict) {
+    const c = geo.dimConflict;
+    const rule = [d.wMode, d.hMode, d.dMode][c.axis];
+    const what = c.axis === 0 ? 'ลำโพงเรียงกัน' : c.axis === 1 ? `ลำโพง${geo.slotH ? 'และท่อ' : ''}` : `แม่เหล็ก${geo.portFold === 'L' ? 'และท่อที่พับ' : ''}`;
+    out.push({ code: 'space', text: `ด้าน${AXIS_TH[c.axis]}${c.axis === 2 && geo.shape === 'wedge' ? 'ที่พื้น' : ''}ต้องอย่างน้อย ${mmTxt(c.need)} มม. เพื่อใส่${what} แต่${rule === 'fixed' ? 'กำหนดไว้' : 'จำกัดไว้ไม่เกิน'} ${mmTxt(c.limit)} มม.${note}` });
+  } else if (geo.shortL > 0.5) {
+    const cap = geo.capacityL;
+    out.push({ code: 'space', text: `ขนาดที่กำหนดใส่ปริมาตรได้${cap !== null ? `ราว ${Math.floor(cap)} L` : 'ไม่พอ'} แต่ตู้นี้ต้องการ ${d.vbL}${d.boxType === 'bp4' || d.boxType === 'bp6' ? ` + ${d.vfL}` : ''} L (ขาดราว ${Math.ceil(geo.shortL)} L) ลดปริมาตรหรือขยายขนาด` });
   }
   if (!geo.magnetClear) out.push({ code: 'magnet', text: `ท้ายแม่เหล็กชนผนังหลังหรือท่อ${note}` });
   if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
@@ -484,7 +645,7 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
 
 // ---- suggested box -------------------------------------------------------------------------------
 
-export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable';
+export type SuggestFlag = AlignmentFlag | 'clamped' | 'unbuildable' | 'space-capped';
 
 export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'qts-high-for-sealed': 'Qts สูง ตู้ปิดแบบ Qtc 0.707 จะใหญ่มาก จึงใช้ Qtc สูงขึ้น ลำโพงนี้เหมาะกับตู้ใหญ่หรือติดผนัง (free-air)',
@@ -496,7 +657,8 @@ export const SUGGEST_FLAG_TEXT: Record<SuggestFlag, string> = {
   'volume-capped': 'ตู้ตามสูตรใหญ่เกินช่วงที่ตั้งได้ จึงใช้ตู้ใหญ่สุดที่ตั้งได้ แล้วหาความถี่จูนที่ได้เบสลึกสุดโดยไม่โป่ง',
   'volume-raised': 'ตู้ตามสูตรเล็กเกินกว่าจะใส่ลำโพง แม่เหล็ก และท่อได้ (หรือแคบจนลมในท่อแรง) จึงขยายตู้โดยคงความถี่จูนเดิม',
   clamped: 'บางค่าเกินช่วงของแถบเลื่อน จึงถูกตัดให้อยู่ในช่วง',
-  unbuildable: 'หาขนาดที่สร้างได้จริงสำหรับตู้แบบนี้ไม่เจอ (ท่อหรือลำโพงชนกัน) ลองตู้แบบอื่น'
+  unbuildable: 'หาขนาดที่สร้างได้จริงสำหรับตู้แบบนี้ไม่เจอ (ท่อหรือลำโพงชนกัน) ลองตู้แบบอื่น',
+  'space-capped': 'ตู้ตามสูตรใหญ่เกินขนาดที่กำหนดไว้ จึงใช้ตู้ใหญ่สุดที่ใส่ในขนาดนั้นได้'
 };
 
 const RECIPE_TH: Record<AlignmentRecipe, string> = {
@@ -584,7 +746,11 @@ export function suggestDesign(
 
   // 1) size the box within the slider range; 2) limit the ports to what that box can hold;
   // 3) when the box cannot hold the driver, magnet and ports, grow it until it can.
-  const limits = { maxVolume: Math.min(RANGES.vbL[1] / 1000, maxVolume ?? Infinity) };
+  // Sizes set by hand on every side hold only so much: never suggest a box that will not go in.
+  const bpType = d.boxType === 'bp4' || d.boxType === 'bp6';
+  const capL = sizeBox(d, dto, buildNetwork(toSpec(d, driver, damping)), undefined).capacityL;
+  const spaceMax = capL !== null ? (Math.max(RANGES.vbL[0], capL * (bpType ? 0.6 : 1) - 1)) / 1000 : Infinity;
+  const limits = { maxVolume: Math.min(RANGES.vbL[1] / 1000, maxVolume ?? Infinity, spaceMax) };
   const first = suggestAlignment({ ...base, ...limits, type: d.boxType });
   const fb = first.box;
   // Later rounds grow the box from the requested one; pin its tuning so they do not rescan it.
@@ -651,7 +817,7 @@ export function suggestDesign(
       m = mb;
     }
   }
-  flags.unshift(...a.flags);
+  flags.unshift(...a.flags.map((f): SuggestFlag => (f === 'volume-capped' && spaceMax <= Math.min(RANGES.vbL[1] / 1000, maxVolume ?? Infinity) ? 'space-capped' : f)));
   const b = a.box;
   const patch: Partial<Design> = { watts, ...patchFor(b, fit) };
   // Last word on building it. With the tuning fixed, a bigger chamber needs a shorter port and has
@@ -671,6 +837,23 @@ export function suggestDesign(
       return patch[key] !== before;
     };
     let moved = false;
+    if (codes.has('space') && !g.dimConflict && g.shortL > 0.5) {
+      // The sizes set by hand cannot hold it all: shrink the chambers to what they hold.
+      const k = Math.max(0.3, 1 - (g.shortL + 1) / (g.volume.netL + 1e-9));
+      for (const key of bpType ? (['vbL', 'vfL'] as const) : (['vbL'] as const)) {
+        const before = patch[key] ?? d[key];
+        patch[key] = clamp(Math.floor(before * k), RANGES[key][0], RANGES[key][1]);
+        moved = patch[key] !== before || moved;
+      }
+      if (!flags.includes('space-capped')) flags.push('space-capped');
+    }
+    if (codes.has('space') && g.dimConflict?.axis === 1 && g.slotH > 0) {
+      // The slot port takes height off the baffle: a narrower port is a lower slot.
+      const before = patch[frontArea] ?? d[frontArea];
+      patch[frontArea] = clamp(Math.floor((before * 0.85) / 5) * 5, RANGES[frontArea][0], RANGES[frontArea][1]);
+      moved = patch[frontArea] !== before || moved;
+      if (!flags.includes('space-capped')) flags.push('space-capped');
+    }
     if (codes.has('port-short')) moved = grow(frontArea, 1.25) || moved;
     if (codes.has('rear-port-short')) moved = grow('portAreaCm2', 1.25) || moved;
     if (codes.has('too-small') || codes.has('magnet')) {

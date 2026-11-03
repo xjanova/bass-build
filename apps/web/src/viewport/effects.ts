@@ -202,7 +202,8 @@ export class PanelVibe {
       const idx = j * (this.N + 1) + i;
       const u = i / this.N, v = j / this.N;
       const w = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * Math.sin(phase) * amp;
-      pos.setXYZ(idx, side * (geo.wx / 2 + 0.003 + A * w), v * geo.hx, (u - 0.5) * geo.dx);
+      // Spread over the side panel at each height (a wedge's side narrows towards the top).
+      pos.setXYZ(idx, side * (geo.wx / 2 + 0.003 + A * w), v * geo.hx, geo.dx / 2 - u * (geo.dx + (geo.dxTop - geo.dx) * v));
       const k = Math.abs(w);
       if (w >= 0) col.setXYZ(idx, 0.65 * k + 0.1, 0.55 * k + 0.05, 0.98 * k + 0.15);
       else col.setXYZ(idx, 0.18 * k + 0.05, 0.83 * k + 0.08, 0.75 * k + 0.1);

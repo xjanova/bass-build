@@ -46,8 +46,24 @@ export function App() {
   useEffect(() => {
     const st = useApp.getState();
     if (st.design !== DEFAULT_DESIGN || !drv.ok || !dto) return;
-    st.patchDesign(suggestDesign(st.design, drv.driver, dto, st.damping).patch);
+    // Not an undo step: undoing it would bring back the default box, which is then sized again.
+    st.patchDesign(suggestDesign(st.design, drv.driver, dto, st.damping).patch, { history: false });
   }, [drv, dto]);
+
+  // Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) step through the design's history.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      // Typing in a text box keeps the browser's own undo.
+      if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && (el as HTMLInputElement).type !== 'range') || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); useApp.getState().undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); useApp.getState().redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const res = useMemo(() => (spec ? simulate(spec, LAB_GRID) : null), [spec]);
   const material = materials.find((m) => m.key === d.materialKey);
   const wall = useMemo(() => wallDamping(d, material, damping), [d, material, damping]);
@@ -147,7 +163,7 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
       mode: mode === 'library' || mode === 'wizard' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,
@@ -175,7 +191,7 @@ export function App() {
       {s.driversSource === 'offline' && <div className="offline">ไม่ได้เชื่อมเซิร์ฟเวอร์ C# · ใช้ข้อมูลตัวอย่างในเครื่อง</div>}
       {mode === 'library' ? <LibraryView /> : mode === 'wizard' ? <WizardView /> : <>
         <LeftPanel geo={geo} modelCode={modelCode} />
-        <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} />
+        <RightPanel dto={dto} driver={drv.ok ? drv.driver : null} warnings={warnings} driverError={dto && !drv.ok ? drv.missing : null} geo={geo} />
         <Hud modes={modes} wall={wall} vib={vib} conf={conf} />
         {irOn && <IrPanel thermal={thermal} speedup={IR_SPEEDUP} conf={conf.thermal} />}
         <div className="hint">ลากเพื่อหมุน · เลื่อนล้อเพื่อซูม</div>

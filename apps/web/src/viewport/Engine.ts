@@ -259,6 +259,7 @@ export class Engine {
     add(new THREE.Vector3(-x, 0, z), new THREE.Vector3(x, 0, z), new THREE.Vector3(0, 0, 0.2), g.wx * 1000);
     add(new THREE.Vector3(-x, 0, z), new THREE.Vector3(-x, g.hx, z), new THREE.Vector3(-0.18, 0, 0), g.hx * 1000);
     add(new THREE.Vector3(x, 0, -z), new THREE.Vector3(x, 0, z), new THREE.Vector3(0.18, 0, 0), g.dx * 1000);
+    if (g.shape === 'wedge') add(new THREE.Vector3(x, g.hx, z - g.dxTop), new THREE.Vector3(x, g.hx, z), new THREE.Vector3(0.18, 0, 0), g.dxTop * 1000);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     this.dims.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x7dd3fc })));

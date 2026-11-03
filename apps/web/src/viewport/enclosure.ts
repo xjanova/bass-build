@@ -169,10 +169,29 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   };
 
   // Shell: bottom/top/sides in the decor, back like the baffle. Sides run full depth; top/bottom full footprint.
+  // A wedge keeps its floor and baffle; the top is shallower and the back leans forward between them.
+  const wedge = geo.shape === 'wedge';
+  const dxTop = geo.dxTop;
+  /** Outside back face, z at height y (a plain box: the back wall). */
+  const backZ = (y: number) => -dx / 2 + (dx - dxTop) * (y / hx);
   shell.push(slab(wx, t, dx, looks.side(wx, dx), 0, t / 2, 0));
-  shell.push(slab(wx, t, dx, looks.side(wx, dx), 0, hx - t / 2, 0));
-  shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), -wx / 2 + t / 2, hx / 2, 0));
-  shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), wx / 2 - t / 2, hx / 2, 0));
+  shell.push(slab(wx, t, dxTop, looks.side(wx, dxTop), 0, hx - t / 2, dx / 2 - dxTop / 2));
+  if (wedge) {
+    // Trapezoid sides between the top and bottom panels, drawn in the (z, y) plane and pushed out along x.
+    for (const sx of [-1, 1]) {
+      const prof = new THREE.Shape();
+      prof.moveTo(dx / 2, t); prof.lineTo(dx / 2, hx - t); prof.lineTo(backZ(hx - t), hx - t); prof.lineTo(backZ(t), t); prof.lineTo(dx / 2, t);
+      const side = new THREE.Mesh(new THREE.ExtrudeGeometry(prof, { depth: t, bevelEnabled: false }), looks.side(dx, hx));
+      // Extruded along +z in its own frame: turn it so the profile's x becomes the box's z.
+      side.rotation.y = -Math.PI / 2;
+      side.position.set(sx < 0 ? -wx / 2 + t : wx / 2, 0, 0);
+      g.add(side);
+      shell.push(side);
+    }
+  } else {
+    shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), -wx / 2 + t / 2, hx / 2, 0));
+    shell.push(slab(t, hx - 2 * t, dx, looks.side(dx, hx), wx / 2 - t / 2, hx / 2, 0));
+  }
   // Back panel; a 6th-order band-pass vents its rear chamber through a round port in it.
   let rearPortMouth: Enclosure['rearPortMouth'] = null;
   if (geo.rearPort) {
@@ -197,9 +216,18 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     inside.position.set(0, rp.y, -dx / 2 + Math.min(0.03, run));
     g.add(inside);
     rearPortMouth = { y: rp.y, z: -dx / 2, radius: rp.radius };
+  } else if (wedge) {
+    // The back panel lies along the lean, between the top and bottom panels.
+    const len = Math.hypot(hx - 2 * t, backZ(hx - t) - backZ(t));
+    const back = slab(wi, len, t, looks.front(), 0, hx / 2, 0);
+    back.rotation.x = geo.backAngle;
+    // Centre of the outside face at mid-height, moved half a panel inward (along the panel's normal).
+    back.position.set(0, hx / 2 - (t / 2) * Math.sin(geo.backAngle), backZ(hx / 2) + (t / 2) * Math.cos(geo.backAngle));
+    shell.push(back);
   } else {
     shell.push(slab(wi, hx - 2 * t, t, looks.front(), 0, hx / 2, -dx / 2 + t / 2));
   }
+
 
   // Front baffle with real holes (drivers, passive radiators), sitting above the slot port.
   const bottomOfBaffle = hasFrontPort ? t + slotH + t : t;
@@ -285,7 +313,14 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     tunnel.position.set(0, t + slotH / 2, dx / 2 - Math.max(0.03, run * 0.6));
     g.add(tunnel);
     const rest = geo.portLength - run;
-    if (rest > 0.02) slab(wi, Math.min(rest, geo.hi - slotH - t), t, portMat(), 0, t + slotH + Math.min(rest, geo.hi - slotH - t) / 2, foldZ, internals);
+    if (rest > 0.02 && wedge) {
+      // Up a wedge the riser leans with the back panel, one slot height inside it.
+      const a = geo.backAngle;
+      const len = Math.min(rest, Math.hypot(geo.hi, geo.di - geo.diTop) - slotH - t);
+      const y = t + slotH + t + (len / 2) * Math.cos(a);
+      const riser = slab(wi, len, t, portMat(), 0, y, backZ(y) + (t + slotH + t / 2) / Math.cos(a), internals);
+      riser.rotation.x = a;
+    } else if (rest > 0.02) slab(wi, Math.min(rest, geo.hi - slotH - t), t, portMat(), 0, t + slotH + Math.min(rest, geo.hi - slotH - t) / 2, foldZ, internals);
     portMouth = { y: t + slotH / 2, z: dx / 2, width: wi, height: slotH };
   }
 
@@ -294,10 +329,12 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   const yA = hasFrontPort ? t + slotH + t : t;
   const innerH = hx - t - yA;
   const bar = 0.05;
-  slab(wi, bar, t, braceMat, 0, yA + bar / 2, 0, internals);
-  slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, 0, internals);
-  slab(bar, innerH, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, 0, internals);
-  slab(bar, innerH, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, 0, internals);
+  // Halfway into the shallowest part, so a wedge's brace stays inside its leaning back.
+  const zB = wedge ? dx / 2 - t - geo.diTop / 2 : 0;
+  slab(wi, bar, t, braceMat, 0, yA + bar / 2, zB, internals);
+  slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, zB, internals);
+  slab(bar, innerH, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, zB, internals);
+  slab(bar, innerH, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, zB, internals);
   // Fill, drawn as many tufts as the fill amount calls for (none when the box is empty).
   const tufts = Math.round(220 * Math.min(1, Math.max(0, fill)));
   if (tufts > 0) {
@@ -305,7 +342,12 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const m4 = new THREE.Matrix4();
-    for (let i = 0; i < tufts; i++) fluff.setMatrixAt(i, m4.makeTranslation((rnd() - 0.5) * wi * 0.85, yA + 0.04 + rnd() * (innerH - 0.08), -dx / 2 + t + 0.02 + rnd() * Math.max(0.02, geo.di - 0.04)));
+    for (let i = 0; i < tufts; i++) {
+      const y = yA + 0.04 + rnd() * (innerH - 0.08);
+      // Inside depth at this height (a wedge narrows towards the top).
+      const deep = geo.di - (geo.di - geo.diTop) * ((y - t) / geo.hi);
+      fluff.setMatrixAt(i, m4.makeTranslation((rnd() - 0.5) * wi * 0.85, y, dx / 2 - t - 0.02 - rnd() * Math.max(0.02, deep - 0.04)));
+    }
     internals.add(fluff);
   }
   internals.visible = false;

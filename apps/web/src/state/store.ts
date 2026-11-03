@@ -1,7 +1,7 @@
 import type { CoilWiring } from '@bassbuild/physics';
 import { create } from 'zustand';
 import type { Source } from '../data/api';
-import { readSlots, writeSlots, type Slot, type SlotId } from '../data/compare';
+import { readSlots, sanitizeDesign, writeSlots, type Slot, type SlotId } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Finish } from '../viewport/finishes';
 
@@ -9,6 +9,10 @@ export type BoxType = 'sealed' | 'vented' | 'pr' | 'bp4' | 'bp6' | 'isobaric';
 export type OverlayId = 'wave' | 'air' | 'smoke' | 'ir' | 'vib' | 'balloon' | 'xray';
 export type ChartId = 'spl' | 'imp' | 'exc' | 'vel' | 'gd' | 'max' | 'cmp';
 export type Mode = 'design' | 'lab' | 'library' | 'wizard';
+/** Box outline: a plain box, or a wedge whose back slopes forward (behind a car seat, in a boot). */
+export type BoxShape = 'box' | 'wedge';
+/** How one outside dimension is set: laid out from the volume, held at a size, or kept under one. */
+export type DimMode = 'auto' | 'fixed' | 'max';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
 export interface Design {
@@ -47,6 +51,13 @@ export interface Design {
   materialKey: string;
   thicknessMm: number;
   finish: Finish;
+  shape: BoxShape;
+  /** Wedge only: inside depth at the top as a share of the inside depth at the floor, %. */
+  wedgeTopPct: number;
+  /** Outside width / height / depth (at the floor for a wedge): rule and size, mm. */
+  wMode: DimMode; wMm: number;
+  hMode: DimMode; hMm: number;
+  dMode: DimMode; dMm: number;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -56,7 +67,8 @@ export const DEFAULT_DESIGN: Design = {
   ql: 10, stuffing: 0, fillKey: 'polyfill', cldKey: 'none', count: 1, wiring: 'parallel', coilWiring: 'series',
   watts: 1000, amp: false, ampW: 1000, ampOhms: 4, ampMinOhms: 2, dampingFactor: 200, wireM: 0, wireAwg: 12,
   subsonic: true, subsonicHz: 25,
-  materialKey: 'mdf', thicknessMm: 18, finish: 'walnut'
+  materialKey: 'mdf', thicknessMm: 18, finish: 'walnut',
+  shape: 'box', wedgeTopPct: 60, wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400
 };
 
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }
@@ -72,6 +84,9 @@ interface State {
   damping: DampingMaterialDto[];
   driverId: number | null;
   design: Design;
+  /** Earlier designs (most recent last) and undone ones, for undo / redo. */
+  past: Design[];
+  future: Design[];
   genHz: number;
   slow: number;
   playing: boolean;
@@ -96,7 +111,10 @@ interface State {
   /** Adds or replaces a driver in the list (after it was saved). */
   upsertDriver: (d: DriverDto) => void;
   removeDriver: (id: number) => void;
-  patchDesign: (p: Partial<Design>) => void;
+  /** Changes the design; `history: false` leaves no undo step (the automatic first box). */
+  patchDesign: (p: Partial<Design>, opts?: { history?: boolean }) => void;
+  undo: () => void;
+  redo: () => void;
   setGen: (hz: number) => void;
   setSlow: (s: number) => void;
   togglePlay: () => void;
@@ -117,14 +135,35 @@ interface State {
 
 let toastId = 0;
 
+const SAVED_KEY = 'bassbuild.design.v1';
+const HISTORY = 100;
+/** Changes to the same settings this close together are one undo step (a slider drag, typing). */
+const COALESCE_MS = 700;
+let lastStep = { at: 0, keys: '' };
+
+/** The design and driver left open last time (this browser only), or the defaults. */
+function readSaved(): { design: Design; driverId: number | null } {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    if (!raw) return { design: DEFAULT_DESIGN, driverId: null };
+    const v = JSON.parse(raw) as { design?: unknown; driverId?: unknown };
+    return { design: sanitizeDesign(v.design, DEFAULT_DESIGN), driverId: typeof v.driverId === 'number' ? v.driverId : null };
+  } catch {
+    return { design: DEFAULT_DESIGN, driverId: null };
+  }
+}
+const saved = readSaved();
+
 export const useApp = create<State>((set) => ({
   mode: 'lab',
   drivers: [],
   driversSource: 'loading',
   materials: [],
   damping: [],
-  driverId: null,
-  design: DEFAULT_DESIGN,
+  driverId: saved.driverId,
+  design: saved.design,
+  past: [],
+  future: [],
   genHz: 40,
   slow: 100,
   playing: true,
@@ -157,7 +196,29 @@ export const useApp = create<State>((set) => ({
     // Never leave the lab pointing at a driver that is gone.
     return { drivers, driverId: s.driverId === id ? (drivers[0]?.id ?? null) : s.driverId };
   }),
-  patchDesign: (p) => set((s) => ({ design: { ...s.design, ...p } })),
+  patchDesign: (p, opts) => set((s) => {
+    const design = { ...s.design, ...p };
+    const changed = (Object.keys(p) as (keyof Design)[]).filter((k) => s.design[k] !== design[k]);
+    if (!changed.length) return {};
+    if (opts?.history === false) return { design };
+    const keys = changed.sort().join(',');
+    const now = Date.now();
+    const same = keys === lastStep.keys && now - lastStep.at < COALESCE_MS && s.past.length > 0;
+    lastStep = { at: now, keys };
+    return { design, past: same ? s.past : [...s.past, s.design].slice(-HISTORY), future: [] };
+  }),
+  undo: () => set((s) => {
+    const prev = s.past[s.past.length - 1];
+    if (!prev) return {};
+    lastStep = { at: 0, keys: '' };
+    return { design: prev, past: s.past.slice(0, -1), future: [s.design, ...s.future].slice(0, HISTORY) };
+  }),
+  redo: () => set((s) => {
+    const next = s.future[0];
+    if (!next) return {};
+    lastStep = { at: 0, keys: '' };
+    return { design: next, past: [...s.past, s.design].slice(-HISTORY), future: s.future.slice(1) };
+  }),
   setGen: (genHz) => set({ genHz }),
   setSlow: (slow) => set({ slow }),
   togglePlay: () => set((s) => ({ playing: !s.playing })),
@@ -178,3 +239,18 @@ export const useApp = create<State>((set) => ({
 
 // Saved comparisons outlive a reload (this browser only).
 useApp.subscribe((s, prev) => { if (s.slots !== prev.slots) writeSlots(s.slots); });
+
+// The open design is saved as it changes, so a reload or a closed tab loses nothing.
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+useApp.subscribe((s, prev) => {
+  if (s.design === prev.design && s.driverId === prev.driverId) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const now = useApp.getState();
+      localStorage.setItem(SAVED_KEY, JSON.stringify({ design: now.design, driverId: now.driverId }));
+    } catch {
+      // Private mode or full storage: the design still lives until the page is closed.
+    }
+  }, 400);
+});

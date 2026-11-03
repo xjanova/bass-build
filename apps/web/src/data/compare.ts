@@ -85,7 +85,11 @@ const ENUMS: Partial<Record<keyof Design, readonly string[]>> = {
   boxType: ['sealed', 'vented', 'pr', 'bp4', 'bp6', 'isobaric'],
   wiring: ['parallel', 'series'],
   coilWiring: ['series', 'parallel', 'single'],
-  finish: ['walnut', 'oak', 'teak', 'black', 'raw']
+  finish: ['walnut', 'oak', 'teak', 'black', 'raw'],
+  shape: ['box', 'wedge'],
+  wMode: ['auto', 'fixed', 'max'],
+  hMode: ['auto', 'fixed', 'max'],
+  dMode: ['auto', 'fixed', 'max']
 };
 
 /**

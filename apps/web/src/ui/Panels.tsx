@@ -12,12 +12,17 @@ const BACKEND = {
 } as const;
 
 export function TopBar({ modelCode }: { modelCode: string }) {
-  const { mode, setMode, backend, setTeaser, openNotebook } = useApp();
+  const { mode, setMode, backend, setTeaser, openNotebook, undo, redo, past, future } = useApp();
   const b = backend ? BACKEND[backend] : null;
   return (
     <header className="topbar">
       <div className="brand"><Logo /><b>BASS BUILD</b><span className="tag">LAB</span></div>
-      <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span></div>
+      <div className="project"><span className="mono">{modelCode}</span><span className="chip" style={{ padding: '1px 6px', borderRadius: 4 }}>Rev A</span>
+        <span className="history" role="group" aria-label="ประวัติการแก้">
+          <button type="button" onClick={undo} disabled={!past.length} aria-label="ย้อนกลับ" title={`ย้อนกลับ (Ctrl+Z)${past.length ? ` · ${past.length} ขั้น` : ''}`}>↶</button>
+          <button type="button" onClick={redo} disabled={!future.length} aria-label="ทำซ้ำ" title="ทำซ้ำ (Ctrl+Shift+Z)">↷</button>
+        </span>
+      </div>
       <nav className="tabs" aria-label="โหมดหลัก">
         <button className="tab" aria-pressed={mode === 'wizard'} onClick={() => setMode('wizard')}>ออกแบบด่วน</button>
         <button className="tab" aria-pressed={mode === 'design'} onClick={() => setMode('design')}>ออกแบบ</button>
@@ -47,23 +52,29 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
   const cld = damping.find((m) => m.key === d.cldKey);
   const outer = d.finish === 'raw' ? `${matName} ผิวเดิม` : FINISH_TH[d.finish];
   const pick = (icon: string, label: string) => {
-    // Only "select" works today; the shape-editing tools arrive in phase 2. Say so instead of
-    // lighting up a button that does nothing.
     if (icon === 'select') { setTool(icon); return; }
-    showToast(`เครื่องมือ "${label}" มาในเฟส 2 (แก้รูปทรงตู้ เจาะรู วางท่อเอง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
+    // The box tool opens the outline and size settings in the right panel.
+    if (icon === 'box') {
+      setTool(icon);
+      document.getElementById('dims')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // The other shape-editing tools are still to come. Say so instead of lighting up a button that does nothing.
+    showToast(`เครื่องมือ "${label}" ยังไม่พร้อม (เจาะรู วางท่อ แผ่นกั้นแบบลากวาง) ตอนนี้ปรับตู้ได้จากแผงขวา`);
   };
+  const ready = (icon: string) => icon === 'select' || icon === 'box';
   return (
     <section className="left-panel glass" aria-label="เครื่องมือและโครงสร้างงาน">
       <div className="section-title">เครื่องมือ</div>
       <div className="toolgrid">
         {TOOLS.map(([icon, label]) => (
-          <button key={icon} aria-label={label} title={icon === 'select' ? label : `${label} · มาในเฟส 2`} aria-pressed={tool === icon}
-            className={icon === 'select' ? undefined : 'soon'} onClick={() => pick(icon, label)}><Icon name={icon} size={20} width={1.6} /></button>
+          <button key={icon} aria-label={label} title={icon === 'box' ? 'ทรงตู้ · ทรงลิ่ม ล็อกขนาดแต่ละด้าน' : ready(icon) ? label : `${label} · ยังไม่พร้อม`} aria-pressed={tool === icon}
+            className={ready(icon) ? undefined : 'soon'} onClick={() => pick(icon, label)}><Icon name={icon} size={20} width={1.6} /></button>
         ))}
       </div>
       <div className="section-title" style={{ marginTop: 4 }}>โครงสร้างงาน</div>
       <div className="tree">
-        <div className="root"><span className="sw" style={{ background: 'var(--cyan)' }} /><span style={{ flex: 1 }}>ตู้ {modelCode}</span><span className="mono" style={{ fontSize: 11, color: 'var(--cyan-soft)' }}>{d.vbL} L</span></div>
+        <div className="root"><span className="sw" style={{ background: 'var(--cyan)' }} /><span style={{ flex: 1 }}>ตู้ {modelCode}{geo?.shape === 'wedge' ? ' · ทรงลิ่ม' : ''}</span><span className="mono" style={{ fontSize: 11, color: 'var(--cyan-soft)' }}>{d.vbL} L</span></div>
         <div><span className="sw" style={{ background: '#334155' }} />แผงหน้า · {matName} {d.finish === 'raw' ? 'ผิวเดิม' : 'ทำสีดำ'} {d.thicknessMm} มม.</div>
         <div><span className="sw" style={{ background: '#7c4a2a' }} />ผนัง · {matName} {d.thicknessMm} มม. · {outer}</div>
         <div><span className="sw" style={{ background: '#94a3b8', borderRadius: '50%' }} />ลำโพง × {d.boxType === 'isobaric' ? 2 : d.count}</div>
