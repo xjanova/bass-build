@@ -3,7 +3,8 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
 import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
 import { rowProblem, rowRange } from '../sim/layout';
-import { ampLimits, AWG_MM2, fmtOhms, isDvc, isFill, measuredWiring, RANGES, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type BoxGeometry, type Warning } from '../sim/model';
+import { TUBES, tubeOf } from '../data/hardware';
+import { ampLimits, AWG_MM2, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type BoxGeometry, type Warning } from '../sim/model';
 import { useApp, type BoxType, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
@@ -161,14 +162,22 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
   // Select choices that would collide are disabled, but only while the box can be built at all.
   const choices = useMemo(() => {
     if (!ctx || !buildable) return null;
-    const why = <K extends 'count' | 'thicknessMm' | 'prCount'>(k: K, vs: number[]) => {
+    const why = <K extends 'count' | 'thicknessMm' | 'prCount' | 'portAreaCm2' | 'port2AreaCm2'>(k: K, vs: number[]) => {
       const m = buildableChoices(deferred, ctx, k, vs as Design[K][]);
       return new Map(vs.map((v) => [v, m.get(v as Design[K])?.[0]?.text ?? null] as [number, string | null]));
     };
     return {
       count: why('count', [1, 2, 3, 4]),
       thickness: why('thicknessMm', material?.thicknessesMm ?? [deferred.thicknessMm]),
-      prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null
+      prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null,
+      // Each tube count as the front port area it stands for.
+      tubes: (() => {
+        const tb = roundTubes(deferred);
+        if (!tb) return null;
+        const per = tb.area * 1e4;
+        const m = why(frontAreaKey(deferred), Array.from({ length: MAX_TUBES }, (_, i) => (i + 1) * per));
+        return new Map(Array.from({ length: MAX_TUBES }, (_, i) => [i + 1, m.get((i + 1) * per) ?? null] as [number, string | null]));
+      })()
     };
   }, [deferred, ctx, buildable, material]);
   const lim = (f: LimitedField) => (buildable ? limits[f] ?? null : limits[f] ? { ...limits[f]!, around: null } : null);
@@ -192,6 +201,57 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
     }
     patchDesign({ [n.field]: n.value });
     showToast(`ปรับ${FIELD_TH[n.field]}จาก ${before[n.field]} เป็น ${n.value} ${FIELD_UNIT[n.field]} ตู้สร้างได้แล้ว`, { label: 'ย้อนกลับ', run: () => patchDesign(before) });
+  };
+
+  /**
+   * The front port: a slot sized by its area, or round tubes (type, measured bore, how many).
+   * Tubes keep the area setting at count × bore area, so every limit and suggestion still applies.
+   */
+  const frontPort = (id: string, label: string) => {
+    const key = frontAreaKey(d);
+    const tb = roundTubes(d);
+    const tube = tubeOf(d.tubeKey);
+    const setTubes = (patch: Partial<Design>, count = tb?.count ?? 1) => {
+      const next = { ...d, ...patch };
+      p({ ...patch, [key]: Math.round(count * Math.PI * (next.tubeIdMm / 20) ** 2 * 10) / 10 });
+    };
+    return <>
+      <div className="seg" role="group" aria-label="ชนิดท่อหน้า">
+        <button aria-pressed={!tb} onClick={() => p({ portStyle: 'slot' })}>ท่อสลอต</button>
+        <button aria-pressed={!!tb} onClick={() => {
+          // As many tubes as the slot's area calls for, fewer when that many would not fit the box.
+          const per = Math.PI * (d.tubeIdMm / 20) ** 2;
+          const want = Math.min(MAX_TUBES, Math.max(1, Math.round(d[key] / per)));
+          const counts = Array.from({ length: want }, (_, i) => want - i);
+          const fits = ctx ? buildableChoices({ ...d, portStyle: 'round' }, ctx, key, counts.map((n) => Math.round(n * per * 10) / 10)) : null;
+          const n = fits ? counts.find((c) => !fits.get(Math.round(c * per * 10) / 10)?.length) ?? want : want;
+          setTubes({ portStyle: 'round' }, n);
+        }}>ท่อกลม (PVC)</button>
+      </div>
+      {!tb ? <Slider id={id} label={label} value={d[key]} range={RANGES[key]} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ [key]: v })} limit={lim(key)} /> : <>
+        <div className="field-head">
+          <label htmlFor={`${id}-tube`}>ท่อ · ไส้ใน</label>
+          <span className="pair">
+            <select id={`${id}-tube`} className="mini" value={d.tubeKey} onChange={(e) => { const t = tubeOf(e.target.value); setTubes({ tubeKey: e.target.value, tubeIdMm: t?.idMm ?? d.tubeIdMm }); }}>
+              {TUBES.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
+            </select>
+            <NumField id={`${id}-id`} label="ไส้ในที่วัดได้" value={d.tubeIdMm} min={20} max={300} unit="มม." onChange={(v) => setTubes({ tubeIdMm: v })} />
+          </span>
+        </div>
+        <div className="field-head">
+          <label htmlFor={`${id}-n`}>จำนวนท่อ</label>
+          <span className="pair">
+            <select id={`${id}-n`} className="mini" value={tb.count} onChange={(e) => setTubes({}, Number(e.target.value))}>
+              {Array.from({ length: MAX_TUBES }, (_, i) => i + 1).map((n) => { const why = choices?.tubes?.get(n); return <option key={n} value={n} disabled={!!why} title={why ?? undefined}>{n} ท่อ{why ? ' · สร้างไม่ได้' : ''}</option>; })}
+            </select>
+          </span>
+        </div>
+        <div className="loadline muted">
+          <span>พื้นที่รวม <b>{(tb.count * tb.area * 1e4).toFixed(0)} ซม.²</b>{geo?.tubes ? <> · ยาวท่อละ <b>{(geo.portLength * 100).toFixed(1)} ซม.</b></> : null}</span>
+          {tube?.known === 'od' && <span>ไส้ในเป็นค่าประมาณ วัดท่อจริงแล้วแก้</span>}
+        </div>
+      </>}
+    </>;
   };
 
   return (
@@ -246,12 +306,14 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
           <Slider id="vb" label={d.boxType.startsWith('bp') ? 'ห้องหลัง Vr' : 'ปริมาตรสุทธิ Vb'} value={d.vbL} range={RANGES.vbL} fmt={L} onChange={(v) => p({ vbL: v })} limit={lim('vbL')} />
           {(d.boxType === 'vented' || d.boxType === 'bp4' || d.boxType === 'bp6') && <>
             <Slider id="fb" label={d.boxType === 'bp6' ? 'จูนท่อหลัง' : 'ความถี่จูนท่อ Fb'} value={d.fbHz} range={RANGES.fbHz} step={0.5} fmt={Hz} onChange={(v) => p({ fbHz: v })} limit={lim('fbHz')} />
-            <Slider id="pa" label={d.boxType === 'bp6' ? 'พื้นที่ท่อหลัง' : 'พื้นที่ท่อ'} value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} limit={lim('portAreaCm2')} />
+            {d.boxType === 'bp6'
+              ? <Slider id="pa" label="พื้นที่ท่อหลัง" value={d.portAreaCm2} range={RANGES.portAreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ portAreaCm2: v })} limit={lim('portAreaCm2')} />
+              : frontPort('pa', 'พื้นที่ท่อ')}
           </>}
           {(d.boxType === 'bp4' || d.boxType === 'bp6') && <Slider id="vf" label="ห้องหน้า Vf" value={d.vfL} range={RANGES.vfL} fmt={L} onChange={(v) => p({ vfL: v })} limit={lim('vfL')} />}
           {d.boxType === 'bp6' && <>
             <Slider id="fb2" label="จูนท่อหน้า" value={d.fb2Hz} range={RANGES.fb2Hz} step={0.5} fmt={Hz} onChange={(v) => p({ fb2Hz: v })} limit={lim('fb2Hz')} />
-            <Slider id="pa2" label="พื้นที่ท่อหน้า" value={d.port2AreaCm2} range={RANGES.port2AreaCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ port2AreaCm2: v })} limit={lim('port2AreaCm2')} />
+            {frontPort('pa2', 'พื้นที่ท่อหน้า')}
           </>}
           {d.boxType === 'pr' && <>
             <Slider id="prs" label="ขนาด PR (Sd ต่อตัว)" value={d.prSdCm2} range={RANGES.prSdCm2} step={5} fmt={(v) => `${v} ซม.²`} onChange={(v) => p({ prSdCm2: v })} limit={lim('prSdCm2')} />

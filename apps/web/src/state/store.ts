@@ -62,6 +62,11 @@ export interface Design {
   rowMode: 'auto' | 'manual';
   rowXMm: number;
   rowYMm: number;
+  /** Front port: a slot along the floor, or round tubes through the baffle (count from the port area). */
+  portStyle: 'slot' | 'round';
+  /** Tube used for round ports (data/hardware.ts) and its measured bore, mm. */
+  tubeKey: string;
+  tubeIdMm: number;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -73,7 +78,8 @@ export const DEFAULT_DESIGN: Design = {
   subsonic: true, subsonicHz: 25,
   materialKey: 'mdf', thicknessMm: 18, finish: 'walnut',
   shape: 'box', wedgeTopPct: 60, wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400,
-  rowMode: 'auto', rowXMm: 0, rowYMm: 300
+  rowMode: 'auto', rowXMm: 0, rowYMm: 300,
+  portStyle: 'slot', tubeKey: 'pvc_4', tubeIdMm: 105
 };
 
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }

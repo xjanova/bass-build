@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { ResolvedShape } from '../sim/driverShape';
-import { baffleBottom, frontRow, innerRow, sideRow, slotBoards } from '../sim/layout';
+import { baffleBottom, braceBottom, frontRow, innerRow, sideRow, slotBoards } from '../sim/layout';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
 import type { Looks } from './finishes';
@@ -243,6 +243,12 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     hole.absarc(it.x, cy, it.cut, 0, Math.PI * 2, true);
     shape.holes.push(hole);
   });
+  // Round port tubes go through holes along the bottom of the baffle.
+  for (const x of geo.tubes?.xs ?? []) {
+    const hole = new THREE.Path();
+    hole.absarc(x, geo.tubes!.y - bottomOfBaffle, geo.tubes!.od / 2, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+  }
   const baffleGeo = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 });
   const baffle = new THREE.Mesh(baffleGeo, looks.front());
   baffle.position.set(0, bottomOfBaffle, dx / 2 - t);
@@ -312,9 +318,32 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     portMouth = { y: t + slotH / 2, z: dx / 2, width: wi, height: slotH };
   }
 
+  // Round tubes: PVC running straight back from the baffle face; their dark bore shows from outside.
+  if (geo.tubes) {
+    const tb = geo.tubes;
+    const run = Math.max(0.02, Math.min(geo.portLength, geo.portMaxLength));
+    const pvc = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.55, side: THREE.DoubleSide });
+    const bore = new THREE.MeshBasicMaterial({ color: 0x020304 });
+    for (const x of tb.xs) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(tb.od / 2, tb.od / 2, run, 40, 1, true), pvc);
+      pipe.rotation.x = Math.PI / 2;
+      pipe.position.set(x, tb.y, dx / 2 - run / 2);
+      internals.add(pipe);
+      // The pipe's end face (its wall) flush with the baffle, and the dark bore just inside.
+      const lip = new THREE.Mesh(new THREE.RingGeometry(tb.id / 2, tb.od / 2, 40), pvc);
+      lip.position.set(x, tb.y, dx / 2 + 0.0008);
+      g.add(lip);
+      const inside = new THREE.Mesh(new THREE.CircleGeometry(tb.id / 2, 40), bore);
+      inside.position.set(x, tb.y, dx / 2 - Math.min(0.03, run));
+      g.add(inside);
+    }
+    const width = tb.xs.length ? tb.xs[tb.xs.length - 1] - tb.xs[0] + tb.od : tb.od;
+    portMouth = { y: tb.y, z: dx / 2, width, height: tb.id };
+  }
+
   // Window brace and polyfill, internal only.
   const braceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, transparent: true, opacity: 0.55 });
-  const yA = hasFrontPort ? t + slotH + t : t;
+  const yA = braceBottom(geo);
   const innerH = hx - t - yA;
   const bar = 0.05;
   // Halfway into the shallowest part, so a wedge's brace stays inside its leaning back.

@@ -1,6 +1,7 @@
+import { tubeOf } from '../data/hardware';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
-import { baffleBottom, frontRow, innerRow, sideRow, slotBoards } from './layout';
+import { baffleBottom, braceBottom, frontRow, innerRow, sideRow, slotBoards } from './layout';
 import type { BoxGeometry } from './model';
 
 /**
@@ -99,10 +100,12 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
   const row = frontRow(geo, d.boxType, d.count);
   parts.push({
     id: 'baffle', name: 'แผงหน้า', qty: 1, w: wi, h: bh, t, bevels: [], face: true,
-    holes: row.map((it, i) => ({
+    holes: row.map((it, i): Hole => ({
       kind: it.passive ? 'pr' : 'driver', x: wi / 2 + mm(it.x), y: mm(geo.driverY) - bottom, d: mm(2 * it.cut),
       label: it.passive ? 'PR' : row.filter((x) => !x.passive).length > 1 ? `ลำโพง ${i + 1}` : 'ลำโพง'
-    }))
+    })).concat((geo.tubes?.xs ?? []).map((x, i, xs): Hole => ({
+      kind: 'port', x: wi / 2 + mm(x), y: mm(geo.tubes!.y) - bottom, d: mm(geo.tubes!.od), label: xs.length > 1 ? `ท่อ ${i + 1}` : 'ท่อ'
+    })))
   });
 
   // Slot port: a ceiling board from the front, and the riser folded up the back when it is long.
@@ -131,7 +134,7 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
   }
 
   // Window brace: one board with a window cut out, 50 mm bars all round.
-  const braceH = hx - t - bottom;
+  const braceH = hx - t - mm(braceBottom(geo));
   parts.push({
     id: 'brace', name: 'โครงค้ำแบบหน้าต่าง', qty: 1, w: wi, h: braceH, t, bevels: [], face: false,
     holes: wi > 140 && braceH > 140 ? [{ kind: 'window', x: wi / 2, y: braceH / 2, w: wi - 100, h: braceH - 100, label: 'ช่องหน้าต่าง' }] : [],
@@ -230,6 +233,15 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     { item: 'สกรูยึดลำโพง / T-nut', qty: `${drivers * (dto?.shape?.boltHoles ?? 8)} ตัว`, note: dto?.shape?.boltHoles ? undefined : 'จำนวนรูยึดประมาณ 8 รูต่อดอก' }
   ];
   if (d.boxType === 'pr') bom.push({ item: `แผ่น PR (Sd ${d.prSdCm2} ซม.² มวล ${d.prMassG} ก.)`, qty: `${d.prCount} ตัว`, note: `รูเจาะ Ø ${Math.round(mm(2 * geo.prRadius * 0.9))} มม.` });
+  if (geo.tubes) {
+    const tb = geo.tubes;
+    const tube = tubeOf(d.tubeKey);
+    bom.push({
+      item: `${tube?.name ?? 'ท่อกลม'} (นอก Ø ${Math.round(mm(tb.od))} · ใน Ø ${Math.round(mm(tb.id))} มม.)`,
+      qty: `${tb.count} ท่อ × ยาว ${Math.round(mm(geo.portLength))} มม.`,
+      note: `รวม ${(tb.count * geo.portLength).toFixed(2)} ม. · ความยาวคิดจากไส้ใน ${Math.round(mm(tb.id))} มม. วัดไส้ในท่อจริงแล้วแก้ในแล็บก่อนตัด · ปลายท่อเสมอหน้าแผง`
+    });
+  }
   if (geo.rearPort) {
     const id = mm(2 * geo.rearPort.radius);
     bom.push({ item: `ท่อกลม ขนาดใน Ø ${Math.round(id)} มม.`, qty: `ยาว ${Math.round(mm(geo.rearPort.length))} มม.`, note: 'ท่อ PVC ไส้ในต่างกันตามชั้นคุณภาพ วัดไส้ในจริงแล้วคำนวณความยาวใหม่ถ้าไม่ตรง · เจาะรูผนังหลังตามขนาดนอกของท่อ' });
@@ -254,6 +266,7 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
   const has = (id: string) => parts.some((p) => p.id === id);
   const steps = [
     `ตัดแผ่นตามรายการตัด ตรวจขนาดและฉากทุกแผ่น${geo.shape === 'wedge' ? ` ผนังข้างตัดเป็นคางหมู และขอบที่ชนผนังหลังตัดเอียง ${lean}°` : ''}`,
+    ...(geo.tubes ? [`ตัดท่อ ${geo.tubes.count} ท่อ ยาวท่อละ ${Math.round(mm(geo.portLength))} มม. ลบคมปลายท่อด้านใน แล้วเจาะรูท่อที่แผงหน้า Ø ${Math.round(mm(geo.tubes.od))} มม. ให้ท่อสวมพอดี`] : []),
     `เจาะรูลำโพงที่${has('divider') ? 'แผ่นกั้นห้อง' : has('inner-baffle') ? 'แผงหน้าและแผงยึดลำโพงตัวใน' : 'แผงหน้า'} Ø ${Math.round(mm(2 * geo.cutoutRadius))} มม. ตามระยะในแบบ${d.boxType === 'pr' ? ' และรู PR' : ''}${geo.rearPort ? ' · เจาะรูท่อหลังที่ผนังหลัง' : ''} · ทาบลำโพงจริงก่อนเจาะ`,
     'ทากาวแล้วยึดผนังข้างทั้งสองบนพื้น ใช้ฉากจับให้ตั้งตรง',
     ...(has('port-ceiling') ? [`ติดเพดานท่อสลอตสูงจากพื้นใน ${Math.round(mm(geo.slotH))} มม. ตลอดความกว้าง${has('port-riser') ? ' แล้วติดแผ่นท่อพับขึ้นที่ปลายท่อ' : ''}`] : []),
@@ -263,7 +276,7 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     `ติดผนังหลัง${geo.rearPort ? ' สอดท่อหลังเข้าห้องหลัง' : ''} และเจาะติดขั้วต่อ`,
     'ยาแนวซิลิโคนทุกรอยต่อด้านใน ปล่อยให้แห้ง',
     ...(d.stuffing > 0 ? ['ใส่ใยซับเสียงตามปริมาณในรายการวัสดุ ไม่อุดปากท่อหรือหลังลำโพง'] : []),
-    'ติดฝาบนและแผงหน้า ขัดขอบ แล้วทำผิว',
+    geo.tubes ? 'ติดฝาบนและแผงหน้า สอดท่อเข้ารูให้ปลายเสมอหน้าแผง ยึดด้วยกาวหรือซิลิโคนรอบท่อ ขัดขอบ แล้วทำผิว' : 'ติดฝาบนและแผงหน้า ขัดขอบ แล้วทำผิว',
     'เดินสายจากขั้วต่อถึงลำโพง ติดเทปโฟมรอบขอบ ยึดลำโพง แล้วกดกรวยเบา ๆ ฟังว่ามีลมรั่วหรือไม่'
   ];
   const sheetM2 = (sheets.length * sheetW * sheetH) / 1e6;

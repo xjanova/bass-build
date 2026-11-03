@@ -78,7 +78,7 @@ export function LeftPanel({ geo, modelCode }: { geo: BoxGeometry | null; modelCo
         <div><span className="sw" style={{ background: '#334155' }} />แผงหน้า · {matName} {d.finish === 'raw' ? 'ผิวเดิม' : 'ทำสีดำ'} {d.thicknessMm} มม.</div>
         <div><span className="sw" style={{ background: '#7c4a2a' }} />ผนัง · {matName} {d.thicknessMm} มม. · {outer}</div>
         <div><span className="sw" style={{ background: '#94a3b8', borderRadius: '50%' }} />ลำโพง × {d.boxType === 'isobaric' ? 2 : d.count}</div>
-        <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
+        <div><span className="sw" style={{ background: 'var(--lime)' }} />{geo?.tubes ? `ท่อกลม ${geo.tubes.count} ท่อ · ใน Ø ${Math.round(geo.tubes.id * 1000)} มม.` : geo && geo.portFold !== 'none' ? `ท่อสลอต ${Math.round(geo.wi * 1000)} × ${Math.round(geo.slotH * 1000)} มม.` : 'ไม่มีท่อหน้า'}</div>
         <div><span className="sw" style={{ background: '#64748b' }} />โครงค้ำแบบหน้าต่าง</div>
         <div><span className="sw" style={{ background: '#e2e8f0', borderRadius: '50%' }} />{d.stuffing > 0 ? `${fill?.nameTh ?? fill?.name ?? 'ใยซับเสียง'} ${Math.round(d.stuffing * 100)}%` : 'ไม่ใส่ใยซับเสียง'}</div>
         {cld && <div><span className="sw" style={{ background: '#a78bfa' }} />{cld.nameTh ?? cld.name} ทุกผนัง</div>}

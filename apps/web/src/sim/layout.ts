@@ -41,6 +41,10 @@ export const sideRow = (geo: BoxGeometry): number[] =>
 /** Wood that must stay round a cut-out, and between it and the slot port, m. */
 export const EDGE_WOOD = 0.01;
 
+/** Lowest a driver frame may reach: above the slot mouth or the row of tube holes (0 when the baffle is clear). */
+export const frameFloor = (geo: BoxGeometry) =>
+  geo.tubes ? geo.tubes.y + geo.tubes.od / 2 + EDGE_WOOD / 2 : geo.slotH > 0 ? baffleBottom(geo) : 0;
+
 /**
  * Why the front row cannot sit where it is, or null when it fits: every cut-out needs wood round
  * it inside the baffle board, and no frame may cover the slot port's mouth or hang off the box.
@@ -53,7 +57,7 @@ export function rowProblem(geo: BoxGeometry, boxType: BoxType, count: number): {
   const right = Math.min(...row.map((it) => Math.min(geo.wi / 2 - EDGE_WOOD - it.x - it.cut, geo.wx / 2 - it.x - it.r)));
   const top = Math.min(...row.map((it) => Math.min(geo.hx - geo.t - EDGE_WOOD - y - it.cut, geo.hx - y - it.r)));
   const bottom = Math.min(...row.map((it) => Math.min(y - it.cut - baffleBottom(geo) - EDGE_WOOD, y - it.r)));
-  const slot = geo.slotH > 0 ? Math.min(...row.map((it) => y - it.r - baffleBottom(geo))) : Infinity;
+  const slot = geo.slotH > 0 || geo.tubes ? Math.min(...row.map((it) => y - it.r - frameFloor(geo))) : Infinity;
   const worst = ([['left', left], ['right', right], ['top', top], ['bottom', bottom], ['slot', slot]] as const).reduce((a, b) => (b[1] < a[1] ? b : a));
   return worst[1] < -1e-6 ? { side: worst[0], by: -worst[1] } : null;
 }
@@ -73,11 +77,14 @@ export function rowRange(geo: BoxGeometry, boxType: BoxType, count: number): { x
     Math.min(...off.map((it) => Math.min(geo.wi / 2 - EDGE_WOOD - it.cut, geo.wx / 2 - it.r) - it.o))
   ];
   const y: [number, number] = [
-    Math.max(...off.map((it) => Math.max(bottom + EDGE_WOOD + it.cut, it.r, geo.slotH > 0 ? bottom + it.r : 0))),
+    Math.max(...off.map((it) => Math.max(bottom + EDGE_WOOD + it.cut, it.r, frameFloor(geo) + it.r))),
     Math.min(...off.map((it) => Math.min(geo.hx - geo.t - EDGE_WOOD - it.cut, geo.hx - it.r)))
   ];
   return x[0] <= x[1] + 1e-9 && y[0] <= y[1] + 1e-9 ? { x, y } : null;
 }
+
+/** Where the window brace starts: on the slot ceiling, above the row of tubes, or on the floor (m). */
+export const braceBottom = (geo: BoxGeometry) => (geo.tubes ? geo.tubes.y + geo.tubes.od / 2 + EDGE_WOOD : baffleBottom(geo));
 
 /** Slot port boards: the ceiling run along the floor and the riser folded up the back (0 when none). */
 export function slotBoards(geo: BoxGeometry): { run: number; riser: number } {
