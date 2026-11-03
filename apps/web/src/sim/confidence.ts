@@ -56,8 +56,8 @@ export function resultConfidence(d: Design, dto: DriverDto | undefined, res: Sim
     impedance: pick(LUMPED, doubt, leWhy),
     groupDelay: pick(LUMPED, doubt, fillWhy),
     maxSpl: { level: 'est', why: ['ขีดความร้อนใช้กำลังพิกัดแบบ nominal ไม่รวม power compression', dto?.xmaxMm ? null : 'ลำโพงไม่มีค่า Xmax จึงไม่รวมขีดระยะชัก', doubt].filter(Boolean).join(' · ') },
-    size: { level: 'est', why: 'ขนาดจากสัดส่วนตั้งต้น 1.25 : 1 : 0.8 ที่ขยายให้ใส่ลำโพงและท่อได้ น้ำหนักรวมโครงค้ำราวครึ่งแผ่น' },
-    panelModes: { level: 'est', why: 'แผ่นสี่เหลี่ยมขอบยึดแบบ simply supported (สูตร Kirchhoff) ของจริงยึดแน่นกว่าจะสูงขึ้นได้ถึงราว 1.8 เท่า' },
+    size: { level: 'est', why: 'ขนาดจากสัดส่วนตั้งต้น 1.25 : 1 : 0.8 ที่ขยายให้ใส่ลำโพงและท่อได้ น้ำหนักรวมโครงค้ำ (หน้าต่างชุดละราวครึ่งแผ่น)' },
+    panelModes: { level: 'est', why: 'แผ่นสี่เหลี่ยมขอบยึดแบบ simply supported (สูตร Kirchhoff) ของจริงยึดแน่นกว่าจะสูงขึ้นได้ถึงราว 1.8 เท่า · โครงค้ำคิดเป็นเส้นยึด (เดือยยึดเป็นจุด ของจริงช่วยน้อยกว่านี้)' },
     thermal: { level: 'est', why: 'โมเดลความร้อน 2 จุด (คอยล์–แม่เหล็ก) จากกำลังพิกัด เพราะ datasheet ไม่มีค่าความต้านทานความร้อน' }
   };
 }

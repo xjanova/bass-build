@@ -15,6 +15,8 @@ export type BoxShape = 'box' | 'wedge';
 export type DimMode = 'auto' | 'fixed' | 'max';
 /** Which size the hand-set numbers are: outside the panels (what fits the car) or inside them (what a plan gives). */
 export type DimRef = 'outer' | 'inner';
+/** Bracing inside the box: none, window frames (board with the middle cut out), or round dowels side to side. */
+export type BraceKind = 'none' | 'window' | 'dowel';
 
 /** Everything the user designs, in the units the UI shows (litres, cm², Hz, W). */
 export interface Design {
@@ -70,6 +72,9 @@ export interface Design {
   /** Tube used for round ports (data/hardware.ts) and its measured bore, mm. */
   tubeKey: string;
   tubeIdMm: number;
+  /** Bracing: what kind, and how many brace planes spaced along the depth (1–3). */
+  braceKind: BraceKind;
+  braceCount: number;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -82,7 +87,8 @@ export const DEFAULT_DESIGN: Design = {
   materialKey: 'mdf', thicknessMm: 18, finish: 'walnut',
   shape: 'box', wedgeTopPct: 60, dimRef: 'outer', wMode: 'auto', wMm: 600, hMode: 'auto', hMm: 450, dMode: 'auto', dMm: 400,
   rowMode: 'auto', rowXMm: 0, rowYMm: 300,
-  portStyle: 'slot', tubeKey: 'pvc_4', tubeIdMm: 105
+  portStyle: 'slot', tubeKey: 'pvc_4', tubeIdMm: 105,
+  braceKind: 'window', braceCount: 1
 };
 
 export interface Toast { id: number; text: string; action?: { label: string; run: () => void } }

@@ -46,7 +46,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 function holesText(p: Part) {
   if (!p.holes.length) return '—';
-  return p.holes.map((h) => (h.d ? `${h.label} Ø ${Math.round(h.d)}` : `${h.label} ${Math.round(h.w!)} × ${Math.round(h.h!)}`)).join(' · ');
+  return p.holes.map((h) => (h.d ? `${h.label} Ø ${Math.round(h.d)}${h.blind ? ' (รูบอด)' : ''}` : `${h.label} ${Math.round(h.w!)} × ${Math.round(h.h!)}`)).join(' · ');
 }
 
 /**
@@ -117,6 +117,13 @@ export function BlueprintView({ d, geo, dto, material, damping, modelCode, warni
                   <td>{[...p.bevels.map((b) => `${b.edge === 'top' ? 'ขอบบน' : 'ขอบล่าง'}ตัดเอียง ${b.deg}°`), p.note].filter(Boolean).join(' · ') || '—'}</td>
                 </tr>
               ))}
+              {bp.dowels && (
+                <tr>
+                  <td>เดือยไม้กลม (ตัดจากไม้กลม ไม่อยู่ในผังแผ่น)</td><td className="num">{bp.dowels.qty}</td>
+                  <td className="num">Ø {Math.round(bp.dowels.d)} × {bp.dowels.length}</td><td className="num">—</td>
+                  <td>—</td><td>{bp.dowels.note}</td>
+                </tr>
+              )}
             </tbody>
           </table>
           <p className="bp-note">ประกอบแบบชนตรง: พื้นและฝาบนเต็มขนาดตู้ ผนังข้างอยู่ระหว่างพื้นกับฝา แผงหน้าและผนังหลังอยู่ระหว่างผนังข้าง · ขนาดรูวัดจากขอบซ้ายและขอบล่างของแผ่นเมื่อมองจากด้านนอก</p>

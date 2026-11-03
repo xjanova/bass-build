@@ -5,8 +5,8 @@ import {
 } from '@bassbuild/physics';
 import type { SlotSummary } from '../data/compare';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
-import type { BoxShape, Design, DimRef } from '../state/store';
-import { rowProblem } from './layout';
+import type { BoxShape, BraceKind, Design, DimRef } from '../state/store';
+import { braceCountOf, bracePlan, DOWEL_D, dowelRows, freeSpan, NO_BRACES, rowProblem, type BracePlan } from './layout';
 import { tubeOf } from '../data/hardware';
 
 const cm2 = (v: number) => v * 1e-4;
@@ -240,7 +240,7 @@ export interface VolumeBreakdown {
   portsL: number;
   /** Band-pass divider or isobaric mounting baffle. */
   boardsL: number;
-  /** Window brace. */
+  /** Braces (window frames or dowels). */
   bracesL: number;
   /** Tunnel around the inner driver of an isobaric pair. */
   tunnelL: number;
@@ -288,6 +288,10 @@ export interface BoxGeometry {
   autoDriverY: number;
   driverRadius: number;
   cutoutRadius: number;
+  /** Mounting depth of one driver (frame face to the back of the magnet), m: datasheet or estimate (see mountOf). */
+  driverDepth: number;
+  /** Bracing as laid out along the depth (positions, what holds each panel). */
+  braces: BracePlan;
   /** Outer (frame) radius of a passive radiator, from its Sd. */
   prRadius: number;
   /** Passive radiators in the front row (0 or 1) and on each side panel (pairs face apart). */
@@ -322,8 +326,21 @@ export interface BoxGeometry {
 export const shapeFor = (d: Pick<Design, 'shape' | 'boxType'>): BoxShape =>
   d.shape === 'wedge' && (d.boxType === 'sealed' || d.boxType === 'vented') ? 'wedge' : 'box';
 
-/** Window brace frame: two bars across and two up, 5 cm wide, one panel thick, m³. */
-const braceVolume = (wi: number, hi: number, t: number) => (2 * wi + 2 * Math.max(0, hi - 0.1)) * 0.05 * t;
+/** What each kind of bracing is called in the volume breakdown, the 3D tree and the blueprint. */
+export const BRACE_TH: Record<BraceKind, string> = { none: 'ไม่มีโครงค้ำ', window: 'โครงค้ำแบบหน้าต่าง', dowel: 'เดือยค้ำ (ไม้กลม)' };
+
+/**
+ * Air the bracing takes, m³: a window frame is two bars across and two up, 5 cm wide, one panel
+ * thick; a dowel plane is its row of round dowels across the inside width.
+ */
+export function braceVolume(kind: BraceKind, n: number, wi: number, hi: number, t: number): number {
+  if (kind === 'none') return 0;
+  const planes = braceCountOf(n);
+  if (kind === 'dowel') return planes * dowelRows(hi) * Math.PI * (DOWEL_D / 2) ** 2 * wi;
+  return planes * (2 * wi + 2 * Math.max(0, hi - 0.1)) * 0.05 * t;
+}
+/** Density assumed for dowel wood (a medium hardwood), kg/m³: an estimate, only used for the box weight. */
+const DOWEL_KG_M3 = 650;
 
 /**
  * Wedge profile from its inside floor depth `b`, inside height `h` and top/floor ratio `r`:
@@ -431,6 +448,9 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const t = d.thicknessMm / 1000;
   const shape = shapeFor(d);
   const wedge = shape === 'wedge';
+  // Older stored designs have no bracing fields: they had one window brace.
+  const braceKind: BraceKind = d.braceKind ?? 'window';
+  const braceN = braceCountOf(d.braceCount ?? 1);
   // Top depth over floor depth, inside; a plain box is a wedge with r = 1.
   const r = wedge ? clamp(d.wedgeTopPct / 100, 0.2, 1) : 1;
   const drivers = d.boxType === 'isobaric' ? 2 : d.count;
@@ -510,7 +530,7 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
       drivers: drivers * L(mount.displacementL),
       ports: portVol,
       boards: innerBoards * guessW * Math.cbrt(net) * t,
-      braces: braceVolume(guessW, guessH, t)
+      braces: braceVolume(braceKind, braceN, guessW, guessH, t)
     };
     const gross = net + tunnel + parts.drivers + parts.ports + parts.boards + parts.braces;
     // Start from W:H:D = 1.25 : 1 : 0.8 (sides set by hand at their size), then raise any side
@@ -618,24 +638,28 @@ export function sizeBox(d: Design, dto: DriverDto | undefined, res: { info: Pick
   const dx = outline ? outline.outerFloor : di + 2 * t;
   const dxTop = outline ? outline.outerTop : dx;
   // Outside panels (top, bottom, baffle, back along its lean, two sides), the slot board, the
-  // window brace and any divider / inner baffle.
-  const panelAreaM2 = wx * (dx + dxTop) + wx * hi + wx * backRun + hi * (di + diTop) + (slotted ? wi * Math.min(1.5, portLen) : 0) + 0.5 * wi * hi + innerBoards * wi * hi;
+  // window braces (about half a board each once the window is cut out) and any divider / inner baffle.
+  const braceBoards = braceKind === 'window' ? braceN * 0.5 * wi * hi : 0;
+  const panelAreaM2 = wx * (dx + dxTop) + wx * hi + wx * backRun + hi * (di + diTop) + (slotted ? wi * Math.min(1.5, portLen) : 0) + braceBoards + innerBoards * wi * hi;
   const density = material?.densityKgM3 ?? 750;
   const lit = (v: number) => v * 1000;
   const volume: VolumeBreakdown = {
     shellL: lit(wi * hi * m), driversL: lit(parts.drivers), portsL: lit(parts.ports), boardsL: lit(parts.boards), bracesL: lit(parts.braces),
     tunnelL: lit(tunnel), extraL: oversizeL + extraL, netL: lit(net)
   };
-  return {
+  const geo: BoxGeometry = {
     wx, hx, dx, wi, hi, di, t, shape, dxTop, diTop, backAngle: outline?.angle ?? 0,
     slotH, tubes: tube ? { count: tube.count, id: tube.id, od: tube.od, y: t + TUBE_EDGE + tube.od / 2, xs: Array.from({ length: tube.count }, (_, i) => (i - (tube.count - 1) / 2) * (tube.od + 0.02)) } : null,
     portLength: portLen, portFold, portMaxLength: front ? room.folded : 0, rearFraction, frontDepth, rearPort, driverY, rowX, autoDriverY,
-    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
+    driverRadius: outer / 2, cutoutRadius: mount.cutout / 2, driverDepth: depth, braces: NO_BRACES, prRadius, prLayout, oversizeL, extraL, shortL, dimConflict, capacityL, volume,
     fits, magnetClear, panelAreaM2, outerL: lit(wx * hx * (dx + dxTop) / 2),
     // Damping sheets go on the walls, not the baffle (about a fifth of the panel area).
-    weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2,
+    weightKg: panelAreaM2 * t * density + panelAreaM2 * 0.8 * sheetKgM2 + (braceKind === 'dowel' ? parts.braces * DOWEL_KG_M3 : 0),
     sheets: Math.max(1, Math.ceil((panelAreaM2 * 1.2) / (1.22 * 2.44)))
   };
+  // The braces are laid out last: where they may go depends on everything else inside.
+  geo.braces = bracePlan(geo, d.boxType, d.count, braceKind, braceN);
+  return geo;
 }
 
 // ---- thermal (voice coil / magnet) -------------------------------------------------------------
@@ -655,11 +679,20 @@ export function thermalAt(watts: number, peW: number | null | undefined, seconds
 }
 
 /**
- * Lowest bending mode (1,1) of the side panel (the one drawn in the vibration view) and of the
- * back panel (the largest unbroken one, so the lowest), simply supported Kirchhoff plates —
- * conservative: clamped edges would sit about 1.8× higher.
+ * Lowest bending mode (1,1) of the side panel (the one drawn in the vibration view), the back
+ * panel and the top, simply supported Kirchhoff plates — conservative: clamped edges would sit
+ * about 1.8× higher.
+ *
+ * Bracing: a brace plane is glued to the panels it touches, so it acts as one more supported edge
+ * and the panel's free span along the depth becomes the longest bay between the baffle, the
+ * planes and the back — depth/(n+1) for n evenly spaced planes. A window frame touches both sides
+ * and the top; dowels run side to side and hold only the sides (their point fixings are taken as
+ * a line, so a dowel-braced side is somewhat optimistic). A band-pass divider or isobaric inner
+ * baffle is a full board glued all round and holds them too. The planes run parallel to the back,
+ * so they never touch it: the back keeps its whole width × height (bracing it would need a brace
+ * from the baffle to the back). With no bracing and no inside board these are the unbraced numbers.
  */
-export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefined, f11Factor = 1): { side: number; back: number } {
+export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefined, f11Factor = 1): { side: number; back: number; top: number } {
   const e = (material?.eGpa ?? 3.5) * 1e9;
   const rho = material?.densityKgM3 ?? 750;
   const nu = material?.poisson ?? 0.25;
@@ -667,7 +700,12 @@ export function panelModes(geo: BoxGeometry, material: PanelMaterialDto | undefi
   const bend = (e * h * h * h) / (12 * (1 - nu * nu));
   const f11 = (a: number, b: number) => (Math.PI / 2) * Math.sqrt(bend / (rho * h)) * (1 / (a * a) + 1 / (b * b)) * f11Factor;
   // A wedge's side is a trapezoid (taken at its mean depth); its back panel runs up the lean.
-  return { side: f11((geo.di + geo.diTop) / 2, geo.hi), back: f11(geo.wi, Math.hypot(geo.hi, geo.di - geo.diTop)) };
+  const held = geo.braces ?? NO_BRACES;
+  return {
+    side: f11(freeSpan(held.sideHeld, (geo.di + geo.diTop) / 2), geo.hi),
+    back: f11(geo.wi, Math.hypot(geo.hi, geo.di - geo.diTop)),
+    top: f11(geo.wi, freeSpan(held.topHeld, geo.diTop))
+  };
 }
 
 // ---- warnings ---------------------------------------------------------------------------------
@@ -727,7 +765,7 @@ export function warningsFor(d: Design, dto: DriverDto | undefined, res: SimResul
 
 // ---- can it be built? ---------------------------------------------------------------------------
 
-export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement';
+export type BuildCode = 'port-short' | 'port-long' | 'rear-port-short' | 'rear-port-long' | 'too-small' | 'magnet' | 'baffle' | 'space' | 'placement' | 'brace';
 
 export const AXIS_TH = ['กว้าง', 'สูง', 'ลึก'] as const;
 /** How the hand-set sizes are measured, as the UI and messages name it. */
@@ -781,6 +819,11 @@ export function buildProblems(d: Design, dto: DriverDto | undefined, geo: BoxGeo
     out.push({ code: 'placement', text: `ตำแหน่งลำโพงที่วางเอง${where} ${Math.ceil(place.by * 1000)} มม. (รูเจาะต้องเหลือไม้รอบอย่างน้อย 10 มม.) ลากกลับเข้ามาหรือกด "จัดกลาง"` });
   }
   if (!geo.magnetClear) out.push({ code: 'magnet', text: `ท้ายแม่เหล็กชนผนังหลังหรือท่อ${note}` });
+  const br = geo.braces;
+  if (br && br.missing > 0) {
+    const placed = br.count - br.missing;
+    out.push({ code: 'brace', text: `${BRACE_TH[br.kind]} ${br.count} ชุด${placed ? ` ใส่ได้แค่ ${placed} ชุด ที่เหลือ` : ''}ไม่มีที่วาง (ติด${br.blockedBy ?? 'ของในตู้'}) ลดจำนวนชุด เปลี่ยนแบบโครงค้ำ หรือขยายตู้${note}` });
+  }
   if (!geo.fits) out.push({ code: 'baffle', text: 'แผงหน้าเตี้ยกว่าหน้ากว้างลำโพง' });
   return out;
 }
@@ -1004,8 +1047,10 @@ export function suggestDesign(
       moved = patch.vbL !== before || moved;
     }
     if (codes.has('port-long')) moved = grow(d.boxType === 'bp4' || d.boxType === 'bp6' ? 'vfL' : 'vbL', 1.15) || moved;
+    // Braces with nowhere to go: a deeper box has room behind the drivers and ports for them.
+    if (codes.has('brace') && !codes.has('port-long')) moved = grow('vbL', 1.15) || moved;
     if (codes.has('rear-port-long')) moved = grow('vbL', 1.15) || moved;
-    if (codes.has('too-small') || codes.has('magnet') || codes.has('port-long') || codes.has('rear-port-long')) {
+    if (codes.has('too-small') || codes.has('magnet') || codes.has('port-long') || codes.has('rear-port-long') || codes.has('brace')) {
       if (!flags.includes('volume-raised')) flags.push('volume-raised');
     }
     if (!moved) break; // every lever is at the end of its slider

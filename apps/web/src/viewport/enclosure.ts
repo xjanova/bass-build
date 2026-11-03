@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { ResolvedShape } from '../sim/driverShape';
-import { baffleBottom, braceBottom, frontRow, innerRow, sideRow, slotBoards } from '../sim/layout';
+import { baffleBottom, BRACE_BAR, braceBottom, DOWEL_D, frontRow, innerBaffleZ, innerRow, sideRow, slotBoards } from '../sim/layout';
 import type { BoxGeometry } from '../sim/model';
 import type { BoxType } from '../state/store';
 import type { Looks } from './finishes';
@@ -286,7 +286,7 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
   const hiddenDrivers: DriverParts[] = [];
   if (boxType === 'bp4' || boxType === 'bp6' || boxType === 'isobaric') {
     // A band-pass divider splits the inside by the two chamber volumes.
-    const zDiv = boxType === 'isobaric' ? dx / 2 - depth - 0.03 : -dx / 2 + t + geo.di * geo.rearFraction;
+    const zDiv = boxType === 'isobaric' ? dx / 2 - t - innerBaffleZ(geo) : -dx / 2 + t + geo.di * geo.rearFraction;
     for (const x of innerRow(geo, boxType, count)) {
       const d = buildDriver(driverShape, false, look ?? undefined);
       d.root.position.set(x, geo.driverY, zDiv);
@@ -341,17 +341,32 @@ export function buildEnclosure(geo: BoxGeometry, boxType: BoxType, count: number
     portMouth = { y: tb.y, z: dx / 2, width, height: tb.id };
   }
 
-  // Window brace and polyfill, internal only.
+  // Braces and polyfill, internal only. Every plane sits where the layout put it (shared with the
+  // blueprint): depth behind the inside face of the baffle.
   const braceMat = new THREE.MeshStandardMaterial({ color: 0x64748b, transparent: true, opacity: 0.55 });
+  const br = geo.braces;
   const yA = braceBottom(geo);
   const innerH = hx - t - yA;
-  const bar = 0.05;
-  // Halfway into the shallowest part, so a wedge's brace stays inside its leaning back.
-  const zB = wedge ? dx / 2 - t - geo.diTop / 2 : 0;
-  slab(wi, bar, t, braceMat, 0, yA + bar / 2, zB, internals);
-  slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, zB, internals);
-  slab(bar, innerH, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, zB, internals);
-  slab(bar, innerH, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, zB, internals);
+  for (const z of br.zs) {
+    const zB = dx / 2 - t - z;
+    if (br.kind === 'window' && br.window) {
+      const bar = BRACE_BAR;
+      slab(wi, bar, t, braceMat, 0, yA + bar / 2, zB, internals);
+      slab(wi, bar, t, braceMat, 0, hx - t - bar / 2, zB, internals);
+      slab(bar, innerH - 2 * bar, t, braceMat, -wi / 2 + bar / 2, yA + innerH / 2, zB, internals);
+      slab(bar, innerH - 2 * bar, t, braceMat, wi / 2 - bar / 2, yA + innerH / 2, zB, internals);
+    } else if (br.kind === 'window') {
+      // Too small for a window: one board.
+      slab(wi, innerH, t, braceMat, 0, yA + innerH / 2, zB, internals);
+    } else if (br.kind === 'dowel') {
+      for (const y of br.dowelYs) {
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(DOWEL_D / 2, DOWEL_D / 2, wi, 20), braceMat);
+        rod.rotation.z = Math.PI / 2;
+        rod.position.set(0, y, zB);
+        internals.add(rod);
+      }
+    }
+  }
   // Fill, drawn as many tufts as the fill amount calls for (none when the box is empty).
   const tufts = Math.round(220 * Math.min(1, Math.max(0, fill)));
   if (tufts > 0) {

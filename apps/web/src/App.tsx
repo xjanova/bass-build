@@ -73,7 +73,7 @@ export function App() {
   const warnings = useMemo(() => (res && geo ? warningsFor(d, dto, res, geo) : []), [d, dto, res, geo]);
   const max = useMemo(() => (res ? maxOutputFor(d, dto, res) : null), [d, dto, res]);
   const conf = useMemo(() => resultConfidence(d, dto, res, geo), [d, dto, res, geo]);
-  const modes = geo ? panelModes(geo, material, wall.f11Factor) : { side: 0, back: 0 };
+  const modes = geo ? panelModes(geo, material, wall.f11Factor) : { side: 0, back: 0, top: 0 };
   const f11 = modes.side;
 
   // Burn-in clock for the infrared view: runs only while IR is on, restarts when it is switched back
@@ -153,7 +153,7 @@ export function App() {
   };
   const nbCtx = useMemo<NotebookCtx | null>(() => (s.notebook ? {
     d, dto, driver: drv.ok ? drv.driver : null, res, geo, material, wall, modes, max, fill: fillFor(d, damping), conf
-  } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
+  } : null), [s.notebook, d, dto, drv, res, geo, material, wall, modes.side, modes.back, modes.top, max, damping, conf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The selected driver as measured and photographed (generic proportions where it was not).
   const driverLook = useDriverLook(dto);
@@ -165,7 +165,7 @@ export function App() {
     if (!geo) return null;
     return {
       geo,
-      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
+      geoKey: [geo.wx, geo.hx, geo.dx, geo.t, geo.slotH, geo.portLength, geo.driverY, geo.driverRadius, geo.rearFraction, geo.prRadius, geo.prLayout.perSide, geo.rearPort?.radius ?? 0, geo.rearPort?.length ?? 0, geo.shape, geo.dxTop, geo.di, geo.diTop, geo.rowX, geo.braces.kind, geo.braces.zs.join(','), geo.braces.dowelYs.join(','), fill, d.boxType, d.count, d.prCount, d.finish, d.materialKey, driverLook.key].map((v) => (typeof v === 'number' ? v.toFixed(4) : v)).join('|'),
       boxType: d.boxType, finish: d.finish, material: d.materialKey, count: d.count, prCount: d.prCount, driverDepth: mountOf(dto).depth,
       // Behind the library and the wizard the scene shows the box as in design mode (no lab effects to compute).
       mode: mode === 'library' || mode === 'wizard' || mode === 'blueprint' ? 'design' : mode, overlays, genHz, slow: s.slow, playing: s.playing,

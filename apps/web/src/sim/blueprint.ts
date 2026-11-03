@@ -1,8 +1,8 @@
 import { tubeOf } from '../data/hardware';
 import type { DampingMaterialDto, DriverDto, PanelMaterialDto } from '../data/types';
 import type { Design } from '../state/store';
-import { baffleBottom, braceBottom, frontRow, innerRow, sideRow, slotBoards } from './layout';
-import type { BoxGeometry } from './model';
+import { baffleBottom, braceBottom, DOWEL_D, frontRow, innerRow, sideRow, slotBoards } from './layout';
+import { BRACE_TH, type BoxGeometry } from './model';
 
 /**
  * The cutting and assembly drawings for a laid-out box: every board with its size, holes and
@@ -11,7 +11,9 @@ import type { BoxGeometry } from './model';
  */
 
 export interface Hole {
-  kind: 'driver' | 'pr' | 'port' | 'window';
+  kind: 'driver' | 'pr' | 'port' | 'window' | 'dowel';
+  /** Drilled part-way from the inside face (a dowel socket), not through the board. */
+  blind?: boolean;
   /** Centre from the board's left edge and from its bottom edge, as drawn (mm). */
   x: number;
   y: number;
@@ -45,8 +47,12 @@ export interface Sheet { w: number; h: number; parts: Placement[]; usedM2: numbe
 
 export interface BomLine { item: string; qty: string; note?: string }
 
+/** Round dowels for dowel bracing: bought as rod and cut, not nested on the sheets. */
+export interface DowelCut { qty: number; /** Cut length, mm (inside width plus the two sockets). */ length: number; d: number; note: string }
+
 export interface Blueprint {
   parts: Part[];
+  dowels: DowelCut | null;
   sheets: Sheet[];
   /** Boards longer than a stock sheet: they must be joined (not nested). */
   oversize: string[];
@@ -83,10 +89,19 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
   const prHoles: Hole[] = d.boxType === 'pr' ? sideRow(geo).map((z, i) => ({
     kind: 'pr', x: dx / 2 - mm(z), y: hx / 2 - t, d: mm(2 * geo.prRadius * 0.9), label: `PR ${i + 1}`
   })) : [];
+  // Dowel sockets: blind holes on the inside face, half a panel deep (x from the front edge).
+  const br = geo.braces;
+  const dowels = br.kind === 'dowel' ? br.zs : [];
+  const sockets: Hole[] = dowels.flatMap((z, i) => br.dowelYs.map((y, j): Hole => ({
+    kind: 'dowel', blind: true, x: t + mm(z), y: mm(y) - t, d: mm(DOWEL_D), label: `เดือย ${i + 1}.${j + 1}`
+  })));
   parts.push({
-    id: 'side', name: 'ผนังข้าง', qty: 2, w: wedge ? depthAt(t) : dx, h: sideH, t, holes: prHoles, bevels: [], face: true,
+    id: 'side', name: 'ผนังข้าง', qty: 2, w: wedge ? depthAt(t) : dx, h: sideH, t, holes: [...prHoles, ...sockets], bevels: [], face: true,
     outline: wedge ? [[0, 0], [depthAt(t), 0], [depthAt(hx - t), sideH], [0, sideH]] : undefined,
-    note: wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? 'ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)' : undefined
+    note: [
+      wedge ? 'ทรงคางหมู ซ้ายกับขวากลับด้านกัน' : prHoles.length ? 'ซ้ายกับขวาเจาะเหมือนกัน (PR หันออกคนละข้าง)' : null,
+      sockets.length ? `รูบอดเดือยเจาะด้านใน ลึก ${Math.round(t / 2)} มม. ระยะวัดจากขอบหน้า ซ้ายกับขวาเจาะกลับด้านกัน (ไม่ทะลุ)` : null
+    ].filter(Boolean).join(' · ') || undefined
   });
 
   // Back: between the sides and between top and bottom; a wedge's runs up the lean.
@@ -133,13 +148,16 @@ export function partsFor(d: Design, geo: BoxGeometry): Part[] {
     });
   }
 
-  // Window brace: one board with a window cut out, 50 mm bars all round.
-  const braceH = hx - t - mm(braceBottom(geo));
-  parts.push({
-    id: 'brace', name: 'โครงค้ำแบบหน้าต่าง', qty: 1, w: wi, h: braceH, t, bevels: [], face: false,
-    holes: wi > 140 && braceH > 140 ? [{ kind: 'window', x: wi / 2, y: braceH / 2, w: wi - 100, h: braceH - 100, label: 'ช่องหน้าต่าง' }] : [],
-    note: wedge ? 'ติดกลางความลึกด้านบน' : 'ติดกลางความลึกตู้'
-  });
+  // Window braces: boards with a window cut out, 50 mm bars all round, where the layout put them.
+  if (br.kind === 'window' && br.zs.length) {
+    const braceH = hx - t - mm(braceBottom(geo));
+    const win = br.window;
+    parts.push({
+      id: 'brace', name: BRACE_TH.window, qty: br.zs.length, w: wi, h: braceH, t, bevels: [], face: false,
+      holes: win ? [{ kind: 'window', x: wi / 2, y: braceH / 2, w: mm(win.w), h: mm(win.h), label: 'ช่องหน้าต่าง' }] : [],
+      note: `ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น)${win ? '' : ' · เล็กเกินกว่าจะเจาะช่อง ติดเป็นแผ่นเต็ม'}`
+    });
+  }
 
   return parts;
 }
@@ -210,8 +228,23 @@ export interface BlueprintInput {
   damping: DampingMaterialDto[];
 }
 
+/** Dowels to cut for dowel bracing (null for other bracing): one per socket pair, the inside width plus both sockets. */
+export function dowelsFor(geo: BoxGeometry): DowelCut | null {
+  const br = geo.braces;
+  if (br.kind !== 'dowel' || !br.zs.length) return null;
+  const t = mm(geo.t);
+  return {
+    qty: br.zs.length * br.dowelYs.length,
+    length: Math.round(mm(geo.wi) + t),
+    d: mm(DOWEL_D),
+    note: `${br.zs.length} ชุด ชุดละ ${br.dowelYs.length} ท่อน · ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. · สูงจากพื้นนอก ${br.dowelYs.map((y) => Math.round(mm(y))).join(' / ')} มม. · ปลายละ ${Math.round(t / 2)} มม. เข้ารูบอดผนังข้าง`
+  };
+}
+
 export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput): Blueprint {
   const parts = partsFor(d, geo);
+  const dowels = dowelsFor(geo);
+  const br = geo.braces;
   const sheetW = material?.sheetWMm ?? 1220, sheetH = material?.sheetHMm ?? 2440;
   const { sheets, oversize } = nest(parts, sheetW, sheetH);
   const boardM2 = parts.reduce((a, p) => a + partArea(p) * p.qty, 0);
@@ -259,6 +292,12 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     const perL = lo && hi2 ? (lo + hi2) / 2 : lo ?? hi2 ?? null;
     bom.push({ item: fill?.nameTh ?? fill?.name ?? 'ใยซับเสียง', qty: perL ? `ราว ${Math.round(perL * d.vbL * d.stuffing)} ก.` : `${Math.round(d.stuffing * 100)}% ของตู้`, note: perL ? `${perL} ก./ลิตร × ${d.vbL} L × ${Math.round(d.stuffing * 100)}% (ยัดหลวม ๆ ห้ามอุดปากท่อ)` : undefined });
   }
+  if (dowels) {
+    bom.push({
+      item: `ไม้กลม (เดือย) Ø ${dowels.d} มม.`, qty: `${dowels.qty} ท่อน × ยาว ${dowels.length} มม.`,
+      note: `รวม ${((dowels.qty * dowels.length) / 1000).toFixed(2)} ม. · Ø ${dowels.d} มม. เป็นขนาดที่หาซื้อได้ทั่วไป ไม่ใช่ค่าที่ยืนยัน วัดเดือยจริงแล้วเจาะรูบอดให้พอดี · ใช้ไม้เนื้อแข็ง`
+    });
+  }
   const cld = damping.find((x) => x.key === d.cldKey);
   if (cld) bom.push({ item: cld.nameTh ?? cld.name, qty: `${(geo.panelAreaM2 * 0.8).toFixed(2)} ม.²`, note: 'ติดผนังด้านใน ยกเว้นแผงหน้า' });
 
@@ -268,11 +307,14 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
     `ตัดแผ่นตามรายการตัด ตรวจขนาดและฉากทุกแผ่น${geo.shape === 'wedge' ? ` ผนังข้างตัดเป็นคางหมู และขอบที่ชนผนังหลังตัดเอียง ${lean}°` : ''}`,
     ...(geo.tubes ? [`ตัดท่อ ${geo.tubes.count} ท่อ ยาวท่อละ ${Math.round(mm(geo.portLength))} มม. ลบคมปลายท่อด้านใน แล้วเจาะรูท่อที่แผงหน้า Ø ${Math.round(mm(geo.tubes.od))} มม. ให้ท่อสวมพอดี`] : []),
     `เจาะรูลำโพงที่${has('divider') ? 'แผ่นกั้นห้อง' : has('inner-baffle') ? 'แผงหน้าและแผงยึดลำโพงตัวใน' : 'แผงหน้า'} Ø ${Math.round(mm(2 * geo.cutoutRadius))} มม. ตามระยะในแบบ${d.boxType === 'pr' ? ' และรู PR' : ''}${geo.rearPort ? ' · เจาะรูท่อหลังที่ผนังหลัง' : ''} · ทาบลำโพงจริงก่อนเจาะ`,
-    'ทากาวแล้วยึดผนังข้างทั้งสองบนพื้น ใช้ฉากจับให้ตั้งตรง',
+    ...(dowels ? [`ตัดเดือย ${dowels.qty} ท่อน ยาว ${dowels.length} มม. แล้วเจาะรูบอด Ø ${dowels.d} มม. ลึก ${Math.round(t / 2)} มม. ด้านในผนังข้างทั้งสองตามแบบ (ซ้ายกับขวากลับด้านกัน ห้ามเจาะทะลุ)`] : []),
+    dowels
+      ? 'ทากาวแล้วยึดผนังข้างแผ่นแรกบนพื้น ทากาวเดือยใส่รูบอดให้สุด แล้วประกบผนังข้างอีกแผ่นให้เดือยเข้ารู ใช้ฉากจับให้ตั้งตรง'
+      : 'ทากาวแล้วยึดผนังข้างทั้งสองบนพื้น ใช้ฉากจับให้ตั้งตรง',
     ...(has('port-ceiling') ? [`ติดเพดานท่อสลอตสูงจากพื้นใน ${Math.round(mm(geo.slotH))} มม. ตลอดความกว้าง${has('port-riser') ? ' แล้วติดแผ่นท่อพับขึ้นที่ปลายท่อ' : ''}`] : []),
     ...(has('divider') ? ['ติดแผ่นกั้นห้องพร้อมลำโพงตามระยะในแบบ ยาแนวรอบให้สนิท (สองห้องต้องไม่รั่วถึงกัน)'] : []),
     ...(has('inner-baffle') ? ['ยึดลำโพงตัวในบนแผงยึด แล้วติดแผงยึดเข้าตู้ หันหน้าชนหลังลำโพงตัวหน้า'] : []),
-    'ติดโครงค้ำแบบหน้าต่างกลางตู้',
+    ...(has('brace') ? [`ติด${BRACE_TH.window} ${br.zs.length} ชุด ห่างแผงหน้าด้านใน ${br.zs.map((z) => Math.round(mm(z))).join(' / ')} มม. (ถึงกลางแผ่น) ทากาวทุกขอบที่ชนผนัง`] : []),
     `ติดผนังหลัง${geo.rearPort ? ' สอดท่อหลังเข้าห้องหลัง' : ''} และเจาะติดขั้วต่อ`,
     'ยาแนวซิลิโคนทุกรอยต่อด้านใน ปล่อยให้แห้ง',
     ...(d.stuffing > 0 ? ['ใส่ใยซับเสียงตามปริมาณในรายการวัสดุ ไม่อุดปากท่อหรือหลังลำโพง'] : []),
@@ -281,7 +323,7 @@ export function blueprintFor({ d, geo, dto, material, damping }: BlueprintInput)
   ];
   const sheetM2 = (sheets.length * sheetW * sheetH) / 1e6;
   return {
-    parts, sheets, oversize, bom, steps,
+    parts, dowels, sheets, oversize, bom, steps,
     totals: { boardM2, sheetM2, jointM: jointM + insideM, screws, waste: sheetM2 > 0 ? 1 - boardM2 / sheetM2 : 0 }
   };
 }
@@ -298,11 +340,13 @@ export function cutListCsv(bp: Blueprint): string {
   for (const p of bp.parts) {
     rows.push([
       p.name, String(p.qty), n0(p.w), n0(p.h), n0(p.t),
-      p.holes.map((h) => (h.d ? `${h.label} Ø${n0(h.d)}` : `${h.label} ${n0(h.w!)}×${n0(h.h!)}`)).join('; '),
+      p.holes.map((h) => (h.d ? `${h.label} Ø${n0(h.d)}${h.blind ? ' (รูบอด)' : ''}` : `${h.label} ${n0(h.w!)}×${n0(h.h!)}`)).join('; '),
       p.bevels.map((b) => `${b.edge === 'top' ? 'ขอบบน' : 'ขอบล่าง'} ${b.deg}°`).join('; '),
       p.note ?? ''
     ]);
   }
+  // Dowels are cut from round rod, not from the sheets: one line after the boards.
+  if (bp.dowels) rows.push([`เดือยไม้กลม Ø${n0(bp.dowels.d)}`, String(bp.dowels.qty), n0(bp.dowels.d), n0(bp.dowels.length), n0(bp.dowels.d), '', '', bp.dowels.note]);
   return '﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n') + '\r\n';
 }
 
@@ -322,7 +366,7 @@ export function partSvg(p: Part, ink = '#0f172a', accent = '#0369a1'): string {
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n0(W)} ${n0(H)}" font-family="'IBM Plex Sans Thai','Noto Sans Thai',sans-serif" font-size="${n0(font)}">`);
   out.push(`<polygon points="${shapeOf(p).map(([x, y]) => `${X(x)},${Y(y)}`).join(' ')}" fill="none" stroke="${ink}" stroke-width="3"/>`);
   for (const h of p.holes) {
-    if (h.d) out.push(`<circle cx="${X(h.x)}" cy="${Y(h.y)}" r="${h.d / 2}" fill="none" stroke="${accent}" stroke-width="2.5"/>`);
+    if (h.d) out.push(`<circle cx="${X(h.x)}" cy="${Y(h.y)}" r="${h.d / 2}" fill="none" stroke="${accent}" stroke-width="2.5"${h.blind ? ' stroke-dasharray="6 4"' : ''}/>`);
     else out.push(`<rect x="${X(h.x - h.w! / 2)}" y="${Y(h.y + h.h! / 2)}" width="${h.w}" height="${h.h}" fill="none" stroke="${accent}" stroke-width="2.5"/>`);
     if (h.kind === 'window') {
       out.push(`<text x="${X(h.x)}" y="${Y(h.y)}" text-anchor="middle" fill="${accent}">${esc(h.label)} ${n0(h.w!)} × ${n0(h.h!)}</text>`);
@@ -393,7 +437,8 @@ export function blueprintDxf(bp: Blueprint): string {
       poly('CUT', shapeOf(p).map(([x, y]) => at(x, y)));
       for (const h of p.holes) {
         const [cx, cy] = at(h.x, h.y);
-        if (h.d) circle('HOLES', cx, cy, h.d / 2);
+        // Blind sockets go on their own layer so a router does not cut them through.
+        if (h.d) circle(h.blind ? 'DRILL' : 'HOLES', cx, cy, h.d / 2);
         else poly('HOLES', ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as [number, number][]).map(([sx, sy]) => at(h.x + (sx * h.w!) / 2, h.y + (sy * h.h!) / 2)));
       }
     }

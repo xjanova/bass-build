@@ -2,10 +2,10 @@ import type { Driver } from '@bassbuild/physics';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { DriverDto } from '../data/types';
 import { buildableChoices, limitsFor, nearestBuildable, type BuildCtx, type FieldLimit, type LimitedField } from '../sim/buildable';
-import { rowProblem, rowRange } from '../sim/layout';
+import { braceCountOf, DOWEL_D, MAX_BRACES, rowProblem, rowRange } from '../sim/layout';
 import { TUBES, tubeOf } from '../data/hardware';
-import { ampLimits, AWG_MM2, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wireOhms, type BoxGeometry, type Warning } from '../sim/model';
-import { useApp, type BoxType, type Design } from '../state/store';
+import { ampLimits, AWG_MM2, BRACE_TH, fmtOhms, frontAreaKey, isDvc, isFill, MAX_TUBES, measuredWiring, RANGES, roundTubes, SUBSONIC_HZ, SUGGEST_FLAG_TEXT, suggestDesign, wallDamping, wireOhms, panelModes, type BoxGeometry, type Warning } from '../sim/model';
+import { useApp, type BoxType, type BraceKind, type Design } from '../state/store';
 import type { Finish } from '../viewport/finishes';
 import { Icon } from './icons';
 import { NumField } from './NumField';
@@ -13,6 +13,11 @@ import { ShapeSection } from './ShapeSection';
 
 const GROUPS: [string, string][] = [['sub', 'ซับวูฟเฟอร์'], ['pa', 'PA / รถแห่'], ['woofer', 'วูฟเฟอร์'], ['fullrange', 'ฟูลเรนจ์'], ['mid', 'เสียงกลาง'], ['other', 'อื่น ๆ'], ['sample', 'ตัวอย่าง (ไม่ใช่สินค้าจริง)']];
 const TYPES: [BoxType, string][] = [['sealed', 'ตู้ปิด'], ['vented', 'ตู้เปิด'], ['pr', 'PR'], ['bp4', 'BP4'], ['bp6', 'BP6'], ['isobaric', 'Isobaric']];
+const BRACES: [BraceKind, string, string][] = [
+  ['none', 'ไม่มี', 'ไม่มีโครงค้ำ ผนังข้างสั่นได้ทั้งแผ่น'],
+  ['window', 'แบบหน้าต่าง', 'แผ่นเจาะช่องกลาง ขอบ 5 ซม. ยึดผนังข้างทั้งสองและฝาบน'],
+  ['dowel', 'เดือย', `ไม้กลม Ø ${DOWEL_D * 1000} มม. ข้างถึงข้าง ยึดเฉพาะผนังข้าง ใช้ที่น้อยกว่า`]
+];
 const FINISHES: [Finish, string][] = [['walnut', 'วีเนียร์วอลนัท'], ['oak', 'วีเนียร์โอ๊ก'], ['teak', 'วีเนียร์สัก'], ['black', 'ทำสีดำซาติน'], ['raw', 'ผิววัสดุจริง']];
 
 /** The parts of a slider's range outside its buildable stretches. */
@@ -134,6 +139,8 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
   const L = (v: number) => `${v} L`;
   const Hz = (v: number) => `${v} Hz`;
   const material = materials.find((x) => x.key === d.materialKey);
+  // Lowest panel modes as the bracing leaves them (the same numbers as the vibration view).
+  const modes = useMemo(() => (geo ? panelModes(geo, material, wallDamping(d, material, damping).f11Factor) : null), [geo, material, d, damping]);
   const fills = damping.filter(isFill);
   const sheets = damping.filter((x) => !isFill(x));
   const hasFill = d.boxType === 'sealed' || d.boxType === 'vented' || d.boxType === 'pr';
@@ -162,7 +169,7 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
   // Select choices that would collide are disabled, but only while the box can be built at all.
   const choices = useMemo(() => {
     if (!ctx || !buildable) return null;
-    const why = <K extends 'count' | 'thicknessMm' | 'prCount' | 'portAreaCm2' | 'port2AreaCm2'>(k: K, vs: number[]) => {
+    const why = <K extends 'count' | 'thicknessMm' | 'prCount' | 'portAreaCm2' | 'port2AreaCm2' | 'braceCount'>(k: K, vs: number[]) => {
       const m = buildableChoices(deferred, ctx, k, vs as Design[K][]);
       return new Map(vs.map((v) => [v, m.get(v as Design[K])?.[0]?.text ?? null] as [number, string | null]));
     };
@@ -170,6 +177,8 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
       count: why('count', [1, 2, 3, 4]),
       thickness: why('thicknessMm', material?.thicknessesMm ?? [deferred.thicknessMm]),
       prCount: deferred.boxType === 'pr' ? why('prCount', [1, 2, 3, 4]) : null,
+      braceCount: deferred.braceKind !== 'none' ? why('braceCount', Array.from({ length: MAX_BRACES }, (_, i) => i + 1)) : null,
+      braceKind: new Map([...buildableChoices(deferred, ctx, 'braceKind', BRACES.map(([k]) => k))].map(([k, v]) => [k, v[0]?.text ?? null] as [BraceKind, string | null])),
       // Each tube count as the front port area it stands for.
       tubes: (() => {
         const tb = roundTubes(deferred);
@@ -446,6 +455,29 @@ export function RightPanel({ dto, driver, warnings, driverError, geo }: {
               {sheets.map((x) => <option key={x.key} value={x.key}>{x.nameTh ?? x.name}</option>)}
             </select>
           </div>
+
+          <div className="section-title sub" id="braces">โครงค้ำ</div>
+          <div className="seg" role="group" aria-label="แบบโครงค้ำ">
+            {BRACES.map(([k, label, tip]) => {
+              const why = k !== d.braceKind ? choices?.braceKind.get(k) : null;
+              return <button key={k} aria-pressed={d.braceKind === k} disabled={!!why} title={why ?? tip} onClick={() => p({ braceKind: k })}>{label}</button>;
+            })}
+          </div>
+          {d.braceKind !== 'none' && (
+            <div className="field-head">
+              <label htmlFor="brn">จำนวนชุด (เรียงตามความลึก)</label>
+              <select id="brn" className="mini" value={braceCountOf(d.braceCount)} onChange={(e) => p({ braceCount: Number(e.target.value) })}>
+                {Array.from({ length: MAX_BRACES }, (_, i) => i + 1).map((n) => { const why = choices?.braceCount?.get(n); return <option key={n} value={n} disabled={!!why} title={why ?? undefined}>{n} ชุด{why ? ' · สร้างไม่ได้' : ''}</option>; })}
+              </select>
+            </div>
+          )}
+          {modes && (
+            <div className="loadline muted">
+              <span>ผนังข้าง ≈ <b>{modes.side.toFixed(0)} Hz</b> · ฝาบน ≈ <b>{modes.top.toFixed(0)} Hz</b> · ผนังหลัง ≈ <b>{modes.back.toFixed(0)} Hz</b> (ประมาณ)</span>
+              {d.braceKind === 'dowel' && <span>เดือย Ø {DOWEL_D * 1000} มม. เป็นขนาดทั่วไป ไม่ใช่ค่าที่ยืนยัน · ไม่ช่วยฝาบน</span>}
+              {d.braceKind !== 'none' && <span>โครงค้ำขนานผนังหลัง จึงไม่ช่วยผนังหลัง</span>}
+            </div>
+          )}
         </div>
       </div>
 
